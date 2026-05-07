@@ -20,9 +20,9 @@ blocked_operations := {
 #
 # TRINO CLI USER - full access
 #
-#allow if {
-#    input.context.identity.user == "trino"
-#}
+allow if {
+    input.context.identity.user == "trino"
+}
 
 #
 # ANALYST - read only
@@ -30,6 +30,13 @@ blocked_operations := {
 allow if {
     input.context.identity.user == "analyst"
     input.action.operation == "SelectFromColumns"
+    input.resource.schema == "sales"
+    not blocked_operations[input.action.operation]
+}
+
+# DATA OWNER - write and read
+allow if {
+    input.context.identity.user == "data_owner"
     input.resource.schema == "sales"
     not blocked_operations[input.action.operation]
 }

@@ -9,6 +9,11 @@ services:
       - ./etc:/etc/trino
     networks:
       - trino-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/v1/info" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   postgres:
     image: 'postgres:11'
@@ -27,16 +32,29 @@ services:
   hive-metastore:
     image: 'my-hive-metastore:latest'
     hostname: hive-metastore
+    user: root
     ports:
       - '9083:9083' # Metastore Thrift
     volumes:
       - ./conf/metastore-site.xml:/opt/apache-hive-metastore-3.0.0-bin/conf/metastore-site.xml:ro
       - ./conf/metastore-site.xml:/opt/hive/conf/hive-site.xml:ro
+      - hive-metastore-db:/opt/metastore_db
     environment:
       METASTORE_DB_HOSTNAME: postgres
       METASTORE_TYPE: postgres
+    command: >
+      bash -c "
+        mkdir -p /opt/metastore_db &&
+        chown -R hive:hive /opt/metastore_db || true &&
+        exec /entrypoint.sh
+      "
     depends_on:
       - postgres
+    healthcheck:
+      test: [ "CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9083' || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - trino-network
 
@@ -50,22 +68,75 @@ services:
     volumes:
       - minio-data:/data
     environment:
-      MINIO_ACCESS_KEY: minio
-      MINIO_SECRET_KEY: minio123
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
     command: server --console-address ":9001" /data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - trino-network
 
   minio-init:
     image: minio/mc
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./datasets:/datasets
     entrypoint: >
       /bin/sh -c "
-      sleep 5;
-      mc alias set local http://minio:9000 minio minio123;
-      mc mb -p local/warehouse || true;
-      exit 0;
+        set -e;
+      
+        until mc alias set local http://minio:9000 minio minio123; do
+          echo 'Waiting for MinIO...';
+          sleep 2;
+        done;
+
+        mc mb -p local/warehouse || true;
+
+        mc cp --recursive /datasets local/warehouse/;
+
+        echo 'MinIO init completed';
+      "
+    restart: "no"
+    networks:
+      - trino-network
+
+  trino-init:
+    image: trinodb/trino:480
+    depends_on:
+      trino-coordinator:
+        condition: service_healthy
+      hive-metastore:
+          condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./init:/init
+      - ./state:/state
+    entrypoint: >
+      /bin/bash -c "
+        set -e;
+
+        sleep 10;
+
+        trino --server http://trino-coordinator:8080 --file /init/01-schemas.sql;
+        echo 'Schemas created';
+
+        trino --server http://trino-coordinator:8080 --file /init/02-hr.sql;
+        echo 'HR initialized';
+
+        trino --server http://trino-coordinator:8080 --file /init/03-mobility.sql;
+        echo 'Mobility initialized';
+
+        trino --server http://trino-coordinator:8080 --file /init/04-demographics.sql;
+        echo 'Demographics initialized';
+
+        echo 'INIT COMPLETE';
+        echo 'DONE' > /state/trino-init.done;
       "
     networks:
       - trino-network
@@ -89,7 +160,8 @@ services:
 volumes:
   minio-data:
     driver: local
-
+  state:
+  hive-metastore-db:
 networks:
   trino-network:
     driver: bridge

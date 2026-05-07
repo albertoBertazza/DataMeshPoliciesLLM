@@ -36,31 +36,90 @@ Step 2 - Implement with docker-compose
 ```bash
 docker-compose up -d
 ```
-Step 3 - Create Bucket in MinIO
+Step 3 - Check if a Bucket in MinIO is created
 - account: minio
 - password: minio123
 
-with name "warehouse"
+with name "warehouse", the minio-init in docker compose will do it automatically.
 
 Step 4 - Into the runnung trino container
 ```bash
 docker container exec -it docker-compose-trino-coordinator-1 trino
 ```
-Step 5 -  Create schema and table and play around with trino, you can see the trino dashboard from localhost:8080.
-
 IF TRINO . IS REPLACED WITH N JUST USE POWERSHELL
-```sql
-CREATE SCHEMA minio.test;
 
-CREATE TABLE minio.test.customer
-WITH (
-    format = 'ORC',
-    external_location = 's3a://warehouse/customer/'
-) 
-AS SELECT * FROM tpch.tiny.customer;
+```bash
+trino> SHOW SCHEMAS FROM hive;
+       Schema
+--------------------
+ default
+ demographics
+ hr                      ## we will use this schema as example to query
+ information_schema
+ mobility
+(5 rows)
+
+Query 20260507_110121_00016_gmscr, FINISHED, 1 node
+Splits: 19 total, 19 done (100.00%)
+0.19 [5 rows, 292B] [25 rows/s, 1.47KiB/s]
+
+
+
+trino> SHOW TABLES FROM hive.hr;       # verify the tables in hr schema
+Table
+-----------
+employees                             # only one table in hr schema
+(1 row)
+
+Query 20260507_105700_00009_gmscr, FINISHED, 1 node
+Splits: 19 total, 19 done (100.00%)
+0.23 [1 rows, 133B] [4 rows/s, 591B/s]
+
+
+
+trino> SELECT * FROM hive.hr.employees LIMIT 10;    # query the employees table in hr schema
+age | attrition |  businesstravel   | dailyrate |       department       | distancefromhome | education | employeecount | employeenumber | environmentsatisf>
+-----+-----------+-------------------+-----------+------------------------+------------------+-----------+---------------+----------------+------------------>
+41  | Yes       | Travel_Rarely     | 1102      | Sales                  | 1                | 2         | Life Sciences | 1              | 1                >
+49  | No        | Travel_Frequently | 279       | Research & Development | 8                | 1         | Life Sciences | 1              | 2                >
+37  | Yes       | Travel_Rarely     | 1373      | Research & Development | 2                | 2         | Other         | 1              | 4                >
+33  | No        | Travel_Frequently | 1392      | Research & Development | 3                | 4         | Life Sciences | 1              | 5                >
+27  | No        | Travel_Rarely     | 591       | Research & Development | 2                | 1         | Medical       | 1              | 7                >
+32  | No        | Travel_Frequently | 1005      | Research & Development | 2                | 2         | Life Sciences | 1              | 8                >
+59  | No        | Travel_Rarely     | 1324      | Research & Development | 3                | 3         | Medical       | 1              | 10               >
+30  | No        | Travel_Rarely     | 1358      | Research & Development | 24               | 1         | Life Sciences | 1              | 11               >
+38  | No        | Travel_Frequently | 216       | Research & Development | 23               | 3         | Life Sciences | 1              | 12               >
+36  | No        | Travel_Rarely     | 1299      | Research & Development | 27               | 3         | Medical       | 1              | 13               >
+(10 rows)
+(END)
 ```
 
-			
+
+
+
+
+
+
+### Execute Trino sql command with other username
+```bash
+docker exec -it docker-compose-trino-coordinator-1 trino --user alice
+```
+it will open a trino CLI with user alice, then you can run the same sql command to create schema and table. You can also check the trino dashboard to see the query history with different users.
+```text
+>trino
+```
+and paste:
+```sql
+SHOW SCHEMAS;
+```
+You will get the following result:
+```text
+ Query 20260507_075237_00004_wytmq failed: Access Denied: Cannot execute query
+```
+
+
+### CREATE DATASET with AI not compliant with GDPR
+https://www.mockaroo.com/?utm_source=chatgpt.com
 ### (Optional: see the metadata store in Postgres)
 Step 6 - Into the running postgres container
 ```bash 
