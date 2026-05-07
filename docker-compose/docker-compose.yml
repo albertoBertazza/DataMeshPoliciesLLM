@@ -37,8 +37,7 @@ services:
       - '9083:9083' # Metastore Thrift
     volumes:
       - ./conf/metastore-site.xml:/opt/apache-hive-metastore-3.0.0-bin/conf/metastore-site.xml:ro
-      - ./conf/metastore-site.xml:/opt/hive/conf/hive-site.xml:ro
-      - hive-metastore-db:/opt/metastore_db
+      - ./conf/core-site.xml:/opt/apache-hive-metastore-3.0.0-bin/conf/core-site.xml:ro  # ← fix path
     environment:
       METASTORE_DB_HOSTNAME: postgres
       METASTORE_TYPE: postgres
@@ -111,7 +110,7 @@ services:
       trino-coordinator:
         condition: service_healthy
       hive-metastore:
-          condition: service_healthy
+        condition: service_healthy
       minio-init:
         condition: service_completed_successfully
     volumes:
@@ -121,7 +120,10 @@ services:
       /bin/bash -c "
         set -e;
 
-        sleep 10;
+        until curl -sf http://trino-coordinator:8080/v1/info > /dev/null; do
+          echo 'Waiting for Trino coordinator...';
+          sleep 3;
+        done;
 
         trino --server http://trino-coordinator:8080 --file /init/01-schemas.sql;
         echo 'Schemas created';
@@ -139,7 +141,7 @@ services:
         echo 'DONE' > /state/trino-init.done;
       "
     networks:
-      - trino-network
+      - trino-network   # ← ADD THIS
 
   opa: # Open Policy Agent for authorization in the data mesh
     image: openpolicyagent/opa:latest
@@ -161,7 +163,6 @@ volumes:
   minio-data:
     driver: local
   state:
-  hive-metastore-db:
 networks:
   trino-network:
     driver: bridge

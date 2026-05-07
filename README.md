@@ -49,23 +49,44 @@ docker container exec -it docker-compose-trino-coordinator-1 trino
 IF TRINO . IS REPLACED WITH N JUST USE POWERSHELL
 
 ```bash
-trino> SHOW SCHEMAS FROM hive;
+
+trino> SHOW CATALOGS;
+ Catalog
+---------
+ hive               ## contains the Hive Metastore connector
+ iceberg            ## contains the Iceberg connector
+ system
+ tpcds
+ tpch
+(5 rows)
+
+Query 20260507_194548_00019_dmrzi, FINISHED, 1 node
+Splits: 19 total, 19 done (100.00%)
+0.23 [0 rows, 178B] [0 rows/s, 777B/s]
+
+
+trino> SHOW SCHEMAS FROM iceberg;
        Schema
 --------------------
  default
  demographics
- hr                      ## we will use this schema as example to query
+ hr                          ## we will use this as example
  information_schema
  mobility
-(5 rows)
+ raw_demographics
+ raw_hr
+ raw_mobility
+ system
+(9 rows)
 
-Query 20260507_110121_00016_gmscr, FINISHED, 1 node
+Query 20260507_194557_00020_dmrzi, FINISHED, 1 node
 Splits: 19 total, 19 done (100.00%)
-0.19 [5 rows, 292B] [25 rows/s, 1.47KiB/s]
+0.23 [9 rows, 464B] [38 rows/s, 1.94KiB/s]
 
 
 
-trino> SHOW TABLES FROM hive.hr;       # verify the tables in hr schema
+
+trino> SHOW TABLES FROM iceberg.hr;       # verify the tables in hr schema
 Table
 -----------
 employees                             # only one table in hr schema
@@ -77,19 +98,19 @@ Splits: 19 total, 19 done (100.00%)
 
 
 
-trino> SELECT * FROM hive.hr.employees LIMIT 10;    # query the employees table in hr schema
-age | attrition |  businesstravel   | dailyrate |       department       | distancefromhome | education | employeecount | employeenumber | environmentsatisf>
------+-----------+-------------------+-----------+------------------------+------------------+-----------+---------------+----------------+------------------>
-41  | Yes       | Travel_Rarely     | 1102      | Sales                  | 1                | 2         | Life Sciences | 1              | 1                >
-49  | No        | Travel_Frequently | 279       | Research & Development | 8                | 1         | Life Sciences | 1              | 2                >
-37  | Yes       | Travel_Rarely     | 1373      | Research & Development | 2                | 2         | Other         | 1              | 4                >
-33  | No        | Travel_Frequently | 1392      | Research & Development | 3                | 4         | Life Sciences | 1              | 5                >
-27  | No        | Travel_Rarely     | 591       | Research & Development | 2                | 1         | Medical       | 1              | 7                >
-32  | No        | Travel_Frequently | 1005      | Research & Development | 2                | 2         | Life Sciences | 1              | 8                >
-59  | No        | Travel_Rarely     | 1324      | Research & Development | 3                | 3         | Medical       | 1              | 10               >
-30  | No        | Travel_Rarely     | 1358      | Research & Development | 24               | 1         | Life Sciences | 1              | 11               >
-38  | No        | Travel_Frequently | 216       | Research & Development | 23               | 3         | Life Sciences | 1              | 12               >
-36  | No        | Travel_Rarely     | 1299      | Research & Development | 27               | 3         | Medical       | 1              | 13               >
+trino> SELECT * FROM iceberg.hr.employees LIMIT 10;  ## check the data in employees table
+ age | attrition |  businesstravel   | dailyrate |       department       | distancefromhome | education | employeecoun>
+-----+-----------+-------------------+-----------+------------------------+------------------+-----------+------------->
+  41 | Yes       | Travel_Rarely     |      1102 | Sales                  |                1 |         2 |          NUL>
+  33 | No        | Travel_Frequently |      1392 | Research & Development |                3 |         4 |          NUL>
+  27 | No        | Travel_Rarely     |       591 | Research & Development |                2 |         1 |          NUL>
+  32 | No        | Travel_Frequently |      1005 | Research & Development |                2 |         2 |          NUL>
+  59 | No        | Travel_Rarely     |      1324 | Research & Development |                3 |         3 |          NUL>
+  49 | No        | Travel_Frequently |       279 | Research & Development |                8 |         1 |          NUL>
+  37 | Yes       | Travel_Rarely     |      1373 | Research & Development |                2 |         2 |          NUL>
+  30 | No        | Travel_Rarely     |      1358 | Research & Development |               24 |         1 |          NUL>
+  38 | No        | Travel_Frequently |       216 | Research & Development |               23 |         3 |          NUL>
+  36 | No        | Travel_Rarely     |      1299 | Research & Development |               27 |         3 |          NUL>
 (10 rows)
 (END)
 ```

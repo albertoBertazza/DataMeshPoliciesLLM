@@ -1,7 +1,8 @@
--- ======================
--- SCHEMAS (Domains)
--- ======================
+CREATE SCHEMA IF NOT EXISTS iceberg.hr
+    WITH (location = 's3://warehouse/datasets/IBMHRAnalyticsEmployeeAttritionDataset/');
 
-CREATE SCHEMA IF NOT EXISTS hive.hr;
-CREATE SCHEMA IF NOT EXISTS hive.mobility;
-CREATE SCHEMA IF NOT EXISTS hive.demographics;
+CREATE SCHEMA IF NOT EXISTS iceberg.mobility
+    WITH (location = 's3://warehouse/datasets/NYCTLCTripRecordDataset/');
+
+CREATE SCHEMA IF NOT EXISTS iceberg.demographics
+    WITH (location = 's3://warehouse/datasets/UCIAdultIncomeDataset/');
