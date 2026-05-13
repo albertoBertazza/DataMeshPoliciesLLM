@@ -127,21 +127,24 @@ services:
 
         trino --server http://trino-coordinator:8080 --file /init/01-schemas.sql;
         echo 'Schemas created';
-
+        
+        echo 'HR initializing...';
         trino --server http://trino-coordinator:8080 --file /init/02-hr.sql;
         echo 'HR initialized';
-
+        
+        echo 'Mobility initializing...';
         trino --server http://trino-coordinator:8080 --file /init/03-mobility.sql;
         echo 'Mobility initialized';
-
-        trino --server http://trino-coordinator:8080 --file /init/04-demographics.sql;
+        
+        echo 'Demographics initializing...';
+        # trino --server http://trino-coordinator:8080 --file /init/04-demographics.sql;
         echo 'Demographics initialized';
 
         echo 'INIT COMPLETE';
         echo 'DONE' > /state/trino-init.done;
       "
     networks:
-      - trino-network   # ← ADD THIS
+      - trino-network
 
   opa: # Open Policy Agent for authorization in the data mesh
     image: openpolicyagent/opa:latest
