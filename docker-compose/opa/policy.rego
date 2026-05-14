@@ -31,7 +31,7 @@ rowFilters contains {"expression": "trim(attrition) <> 'Yes'"} if {
   table_resource.tableName == "employees"
 }
 
-############ COLUMN MASKS (SELECT ONLY) ############
+############ COLUMN MASKS ############
 # --- MASK passenger_count ---
 columnMask := {"expression": "0"} if {
     not is_admin
@@ -48,6 +48,44 @@ columnMask := {"expression": "date_trunc('day', tpep_dropoff_datetime)"} if {
     input.action.resource.column.schemaName  == "mobility"
     input.action.resource.column.tableName   == "taxi_trips"
     input.action.resource.column.columnName  == "tpep_dropoff_datetime"
+}
+
+##########BATCH COLUMN MASKING############
+# mask more than 1 column improving performance
+# hide attrition value and businesstravel mask: Travel_Frequently to *******_Frequently
+batchColumnMasks contains {
+    "index": i,
+    "viewExpression": {
+        "expression": "'REDACTED'"
+    }
+} if {
+    some i
+    not is_admin
+
+    column_resource := input.action.filterResources[i].column
+
+    column_resource.catalogName == "iceberg"
+    column_resource.schemaName == "hr"
+    column_resource.tableName == "employees"
+    column_resource.columnName == "attrition"
+}
+
+
+batchColumnMasks contains {
+    "index": i,
+    "viewExpression": {
+        "expression": "'******' || substr(businesstravel,7)"
+    }
+} if {
+    some i
+    not is_admin
+
+    column_resource := input.action.filterResources[i].column
+
+    column_resource.catalogName == "iceberg"
+    column_resource.schemaName == "hr"
+    column_resource.tableName == "employees"
+    column_resource.columnName == "businesstravel"
 }
 
 # Operations that are always blocked regardless of user

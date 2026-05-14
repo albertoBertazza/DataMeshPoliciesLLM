@@ -222,7 +222,7 @@ opa.policy.uri=http://opa:8181/v1/data/trino/authz/allow
 opa.policy.row-filters-uri=http://opa:8181/v1/data/trino/authz/rowFilters
 ```
 
-policy.rego 
+opa/policy.rego 
 ```rego
 package trino.authz
 import future.keywords.in
@@ -286,6 +286,7 @@ trino> SELECT * FROM iceberg.mobility.taxi_trips LIMIT 5;
 I want to set passenger_count to 0 for all rows and hide part of the timestamp: the hours and minute
 
 ### Example code
+etc/access-control.properties
 ```properties
 access-control.name=opa
 
@@ -293,6 +294,7 @@ opa.policy.uri=http://opa:8181/v1/data/trino/authz/allow
 # Column filtering
 opa.policy.column-masking-uri=http://opa:8181/v1/data/trino/authz/columnMask
 ```
+opa/policy.rego
 ```rego
 package trino.authz
 import future.keywords.in
@@ -340,5 +342,182 @@ NULL | 2026-01-31 15:24:14.000000 | 2026-01-31 00:00:00.000000 |               0
 ```
 passenger_count is always 0 and tpep_dropoff_datetime hours, minute and seconds are always 00.
 
+## opa.policy.batch-column-masking-uri
+It improves performance in column masking when table are wide:
+If column masking is enabled, by default, the plugin will fetch each column mask individually from OPA. When working with very wide tables this can result in a performance degradation.
+Configuring opa.policy.batch-column-masking-uri allows Trino to fetch the masks for multiple columns in a single request. The list of requested columns is included in the request under action.filterResources.
+### Example code
+
+etc/access-control.properties
+```properties
+access-control.name=opa
+
+opa.policy.uri=http://opa:8181/v1/data/trino/authz/allow
+# Batch Column
+opa.policy.batch-column-masking-uri=http://opa:8181/v1/data/trino/authz/batchColumnMasks
+```
+
+opa/policy.rego
+```rego
+package trino.authz
+
+import future.keywords.in
+import future.keywords.if
+import future.keywords.contains
+
+default allow := false
+
+is_admin if {
+    input.context.identity.user == "trino"
+}
+
+# hide attrition value and businesstravel mask: Travel_Frequently to *******_Frequently
+batchColumnMasks contains {
+    "index": i,
+    "viewExpression": {
+        "expression": "'REDACTED'"
+    }
+} if {
+    some i
+    not is_admin
+
+    column_resource := input.action.filterResources[i].column
+
+    column_resource.catalogName == "iceberg"
+    column_resource.schemaName == "hr"
+    column_resource.tableName == "employees"
+    column_resource.columnName == "attrition"
+}
 
 
+batchColumnMasks contains {
+    "index": i,
+    "viewExpression": {
+        "expression": "'******' || substr(businesstravel,7)"
+    }
+} if {
+    some i
+    not is_admin
+
+    column_resource := input.action.filterResources[i].column
+
+    column_resource.catalogName == "iceberg"
+    column_resource.schemaName == "hr"
+    column_resource.tableName == "employees"
+    column_resource.columnName == "businesstravel"
+}
+```
+### Expected result
+
+```bash
+docker exec -it docker-compose-trino-coordinator-1 trino --user test_access
+trino> SELECT * FROM iceberg.hr.employees LIMIT 10;
+ age | attrition |  businesstravel   | dailyrate |       department       | distancefromhome | education | employeecoun>
+-----+-----------+-------------------+-----------+------------------------+------------------+-----------+------------->
+  49 | REDACTED  | ******_Frequently |       279 | Research & Development |                8 |         1 |          NUL>
+  33 | REDACTED  | ******_Frequently |      1392 | Research & Development |                3 |         4 |          NUL>
+  27 | REDACTED  | ******_Rarely     |       591 | Research & Development |                2 |         1 |          NUL>
+  32 | REDACTED  | ******_Frequently |      1005 | Research & Development |                2 |         2 |          NUL>
+  59 | REDACTED  | ******_Rarely     |      1324 | Research & Development |                3 |         3 |          NUL>
+  30 | REDACTED  | ******_Rarely     |      1358 | Research & Development |               24 |         1 |          NUL>
+  38 | REDACTED  | ******_Frequently |       216 | Research & Development |               23 |         3 |          NUL>
+  36 | REDACTED  | ******_Rarely     |      1299 | Research & Development |               27 |         3 |          NUL>
+  35 | REDACTED  | ******_Rarely     |       809 | Research & Development |               16 |         3 |          NUL>
+  29 | REDACTED  | ******_Rarely     |       153 | Research & Development |               15 |         2 |          NUL>
+(10 rows)
+(END)
+```
+Attrition value is hidden with a string REDACTED and businesstravel value its first 6 characters are masked
+
+
+## opa.policy.batch-column-masking-uri
+
+### Example code
+
+etc/access-control.properties
+```properties
+```
+
+opa/policy.rego
+```rego
+
+```
+### Expected result
+
+```bash
+```
+
+
+## opa.policy.batch-column-masking-uri
+
+### Example code
+
+etc/access-control.properties
+```properties
+```
+
+opa/policy.rego
+```rego
+
+```
+### Expected result
+
+```bash
+```
+
+
+## opa.policy.batch-column-masking-uri
+
+### Example code
+
+etc/access-control.properties
+```properties
+```
+
+opa/policy.rego
+```rego
+
+```
+### Expected result
+
+```bash
+```
+
+
+
+
+## opa.policy.batch-column-masking-uri
+
+### Example code
+
+etc/access-control.properties
+```properties
+```
+
+opa/policy.rego
+```rego
+
+```
+### Expected result
+
+```bash
+```
+
+
+
+## opa.policy.batch-column-masking-uri
+
+### Example code
+
+etc/access-control.properties
+```properties
+```
+
+opa/policy.rego
+```rego
+
+```
+### Expected result
+
+```bash
+```
