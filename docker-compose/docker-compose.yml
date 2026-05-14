@@ -141,7 +141,6 @@ services:
         echo 'Demographics initialized';
 
         echo 'INIT COMPLETE';
-        echo 'DONE' > /state/trino-init.done;
       "
     networks:
       - trino-network
