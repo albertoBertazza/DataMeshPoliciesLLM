@@ -430,12 +430,72 @@ trino> SELECT * FROM iceberg.hr.employees LIMIT 10;
 Attrition value is hidden with a string REDACTED and businesstravel value its first 6 characters are masked
 
 
-## opa.policy.batch-column-masking-uri
+## opa.policy.batched-uri
+Normally, authorization answers are:
+```json
+{ "result": true }
+```
+or
+```json
+{ "result": false }
+```
+One question → one answer, but Trino often needs to ask: “From THIS LIST of 500 objects, which ones can the user access?”
+
+That’s where batch mode comes in.
+
+#### Without Batch Mode, suppose a user runs:
+
+```sql
+SHOW TABLES FROM iceberg.hr;
+```
+
+and there are 1000 tables,  Trino sends 1000 HTTP requests:
+
+```text
+OPA: Can user access table1?
+OPA: Can user access table2?
+OPA: Can user access table3?
+...
+```
+
+Problems: very slow, high latency, many network calls and OPA overloaded
+
+#### With Batch Mode
+
+Instead, Trino sends ONE request:
+```json
+{
+    "action": {
+        "operation": "FilterTables",
+        "filterResources": [
+                {"table":"employees"},
+                {"table":"salary"},
+                {"table":"secret_payroll"}
+            ]
+        }
+}
+```
+OPA receives all resources at once and OPA Must Return
+```json
+{
+"result": [0, 1]
+}
+```
+
+Meaning:
+
+Index |	Resource |	Allowed
+------|----------|---------
+0	| employees	| ✅
+1	| salary	| ✅
+2	| secret_payroll | ❌
 
 ### Example code
 
 etc/access-control.properties
 ```properties
+# Batch mode, granting access to multiple resources without asking for each resource but sending a single msg
+opa.policy.batched-uri=http://opa:8181/v1/data/trino/authz/batch
 ```
 
 opa/policy.rego
