@@ -500,6 +500,11 @@ opa.policy.batched-uri=http://opa:8181/v1/data/trino/authz/batch
 
 opa/policy.rego
 ```rego
+package trino.authz
+
+import future.keywords.in
+import future.keywords.if
+import future.keywords.contains
 # this assumes the non-batch response field is called "allow"
 batch contains i if {
     some i
