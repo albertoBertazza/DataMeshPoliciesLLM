@@ -118,9 +118,6 @@ trino> SELECT * FROM iceberg.hr.employees LIMIT 10;  ## check the data in employ
 
 
 
-
-
-
 ### Execute Trino sql command with other username
 ```bash
 docker exec -it docker-compose-trino-coordinator-1 trino --user alice
@@ -166,8 +163,273 @@ Step 8 - Close down the running containers
 docker-compose down
 ```
 
+# Trino and OPA
+```text
+Analyst runs query
+│
+▼
+Trino Engine
+│
+├──▶ Access control check (SelectFromColumns)
+│         │
+│         ├── Synapse looks up user attributes (dept, clearance)
+│         ├── OPA evaluates: ALLOW
+│         └── Returns {"result": true}
+│
+├──▶ Row filter check
+│         │
+│         ├── Looks up user attributes
+│         ├── OPA evaluates GetRowFilter
+│         └── Returns: clearance IN ('public', 'internal')
+│
+└──▶ Column masking check
+        │
+        ├── Checks each column against policy
+        ├── email → partial mask (first 2 chars visible)
+        ├── phone → last 4 digits only
+        ├── clearance → [REDACTED] (analyst lacks confidential clearance)
+        └── other columns → pass through
+```
+## TRINO-OPA input.action.operation mapping with SQL request
+<img src="trino_opa_operation_mapping.svg">
+Every SELECT triggers 3 operations in sequence: ExecuteQuery → GetColumnMask (once per column) → GetRowFilters (once per table) → SelectFromColumns. You can see this exact pattern in your own logs.
+GetColumnMask is called even for columns you don't mask — OPA just returns {} for those, which means "no mask". Only when you return {"result": {"expression": "..."}} does Trino apply it.
 
-# OPA Policy for Trino
+# OPA Role base access control
+
+## Example 
+Grant access to human resources manager to its database
+etc/access-control.properties
+```properties
+access-control.name=opa
+opa.policy.uri=http://opa:8181/v1/data/trino/authz/allow
+# Row filtering
+opa.policy.row-filters-uri=http://opa:8181/v1/data/trino/authz/rowFilters
+# Column filtering
+opa.policy.column-masking-uri=http://opa:8181/v1/data/trino/authz/columnMask
+# Batch Column
+opa.policy.batch-column-masking-uri=http://opa:8181/v1/data/trino/authz/batchColumnMasks
+# Batch mode, granting access to multiple resources without asking for each resource but sending a single msg
+opa.policy.batched-uri=http://opa:8181/v1/data/trino/authz/batch
+
+# avoid allowing users to manage permissions via OPA policies
+opa.allow-permission-management-operations=false
+```
+opa/policy.rego
+```rego
+package trino.authz
+
+import future.keywords.in
+import future.keywords.if
+import future.keywords.contains
+
+# ============================================================
+# ROLE DEFINITION
+# ============================================================
+
+# analyst_operation groups the three operations that Trino fires
+# during every SELECT query:
+#   - SelectFromColumns : checks if the user can read those columns
+#   - GetColumnMask     : asks OPA if any column should be masked
+#   - GetRowFilters     : asks OPA if any row-level filter applies
+# These are kept separate from navigation ops because they carry
+# resource.table (not resource.catalog or resource.schema).
+analyst_operation := {
+    "SelectFromColumns",
+    "GetColumnMask",
+    "GetRowFilters"
+}
+# define the hr groups 
+is_hr if {
+    input.context.identity.user in {"alice", "mario"}
+}
+
+# ============================================================
+# 1. QUERY EXECUTION
+# ============================================================
+
+# ExecuteQuery is fired before any SQL is planned — it carries
+# no resource at all. It must be allowed standalone, otherwise
+# every query is denied before Trino even inspects the tables.
+allow if {
+    is_hr
+    input.action.operation == "ExecuteQuery"
+}
+
+# ============================================================
+# 2. CATALOG ACCESS
+# ============================================================
+
+# AccessCatalog is the hard gate: Trino checks this before
+# allowing any interaction with the catalog. Denying it produces
+# an explicit "Access Denied" error.
+allow if {
+    is_hr
+    input.action.operation == "AccessCatalog"
+    input.action.resource.catalog.name == "iceberg"
+}
+
+# FilterCatalogs is the soft gate: Trino calls this when building
+# result sets for SHOW CATALOGS. Denying it silently hides the
+# catalog from listings without producing an error. Both
+# AccessCatalog and FilterCatalogs are needed — one for hard
+# access control, one for visibility in listings.
+allow if {
+    is_hr
+    input.action.operation == "FilterCatalogs"
+    input.action.resource.catalog.name == "iceberg"
+}
+
+# ============================================================
+# 3. SCHEMA NAVIGATION
+# ============================================================
+
+# ShowSchemas is the hard gate for SHOW SCHEMAS FROM iceberg.
+# Note: resource here is resource.catalog (the parent level),
+# not resource.schema — Trino hasn't resolved the schema yet.
+allow if {
+    is_hr
+    input.action.operation == "ShowSchemas"
+    input.action.resource.catalog.name == "iceberg"
+}
+
+# FilterSchemas is the soft gate called per-schema to decide
+# what appears in SHOW SCHEMAS results. By allowing only "hr"
+# here, alice sees only the hr schema in listings even though
+# other schemas exist. Other schemas are silently hidden.
+allow if {
+    is_hr
+    input.action.operation == "FilterSchemas"
+    input.action.resource.schema.catalogName == "iceberg"
+    input.action.resource.schema.schemaName == "hr"
+}
+
+# AccessSchema is required when Trino resolves a schema reference
+# in a query (e.g. USE iceberg.hr or any query targeting hr).
+# information_schema also needs this because SHOW TABLES, SHOW
+# COLUMNS, and DESCRIBE all internally query information_schema.
+allow if {
+    is_hr
+    input.action.operation == "AccessSchema"
+    input.action.resource.schema.catalogName == "iceberg"
+    input.action.resource.schema.schemaName in {"hr", "information_schema"}
+}
+
+# SelectFromColumns on information_schema is needed because SHOW
+# TABLES / SHOW COLUMNS / DESCRIBE are rewritten internally by
+# Trino as SELECT queries against information_schema system
+# tables (e.g. information_schema.tables, .columns). Without
+# this, those commands return "Access Denied: Cannot select
+# from columns" even if ShowTables is allowed.
+allow if {
+    is_hr
+    input.action.operation == "SelectFromColumns"
+    input.action.resource.table.catalogName == "iceberg"
+    input.action.resource.table.schemaName == "information_schema"
+}
+
+# ============================================================
+# 4. TABLE LISTING
+# ============================================================
+
+# ShowTables is the hard gate for SHOW TABLES FROM iceberg.hr.
+# resource here is resource.schema (the parent level of tables).
+# Scoped to hr only — alice cannot list tables in other schemas.
+allow if {
+    is_hr
+    input.action.operation == "ShowTables"
+    input.action.resource.schema.catalogName == "iceberg"
+    input.action.resource.schema.schemaName == "hr"
+}
+
+# FilterTables is the soft gate called per-table when building
+# the SHOW TABLES result set. Without this, ShowTables succeeds
+# but returns 0 rows because every table is silently filtered
+# out. resource here is resource.table (the table's own level).
+allow if {
+    is_hr
+    input.action.operation == "FilterTables"
+    input.action.resource.table.catalogName == "iceberg"
+    input.action.resource.table.schemaName == "hr"
+}
+
+# ============================================================
+# 5. DATA ACCESS
+# ============================================================
+
+# These three operations are fired for every SELECT query.
+# They all carry resource.table, so a single rule covers them.
+# Scoped strictly to iceberg.hr — alice cannot read data from
+# any other schema even if she can navigate to it.
+#
+# SelectFromColumns : column-level read authorization
+# GetColumnMask     : column masking expression lookup
+# GetRowFilters     : row-level filter expression lookup
+allow if {
+    is_hr
+    input.action.operation in analyst_operation
+    input.action.resource.table.catalogName == "iceberg"
+    input.action.resource.table.schemaName == "hr"
+}
+
+
+```
+
+## Expected result
+```bash
+ docker exec -it docker-compose-trino-coordinator-1 trino --user alice
+trino> SHOW CATALOGS;
+ Catalog
+---------
+ iceberg
+(1 row)
+
+Query 20260514_095832_00065_fv3rg, FINISHED, 1 node
+Splits: 1 total, 1 done (100.00%)
+0.22 [0 rows, 0B] [0 rows/s, 0B/s]
+
+trino> SHOW SCHEMAS FROM iceberg;
+ Schema
+--------
+ hr
+(1 row)
+
+Query 20260514_095843_00066_fv3rg, FINISHED, 1 node
+Splits: 19 total, 19 done (100.00%)
+0.20 [1 rows, 105B] [5 rows/s, 533B/s]
+
+trino> SHOW TABLES FROM iceberg.hr;
+   Table
+-----------
+ employees
+(1 row)
+
+Query 20260514_095853_00067_fv3rg, FINISHED, 1 node
+Splits: 19 total, 19 done (100.00%)
+0.13 [1 rows, 133B] [8 rows/s, 1.04KiB/s]
+
+trino> SELECT * FROM iceberg.hr.employees LIMIT 5;
+ age | attrition |  businesstravel   | dailyrate |       department       | distancefromhome | education | employeecount | employeenumber | environmentsatisf>
+-----+-----------+-------------------+-----------+------------------------+------------------+-----------+---------------+----------------+------------------>
+  49 | REDACTED  | ******_Frequently |       279 | Research & Development |                8 |         1 |          NULL |              1 |                  >
+  33 | REDACTED  | ******_Frequently |      1392 | Research & Development |                3 |         4 |          NULL |              1 |                  >
+  27 | REDACTED  | ******_Rarely     |       591 | Research & Development |                2 |         1 |          NULL |              1 |                  >
+  32 | REDACTED  | ******_Frequently |      1005 | Research & Development |                2 |         2 |          NULL |              1 |                  >
+  59 | REDACTED  | ******_Rarely     |      1324 | Research & Development |                3 |         3 |          NULL |              1 |                  >
+(5 rows)
+
+Query 20260514_095910_00068_fv3rg, FINISHED, 1 node
+Splits: 35 total, 35 done (100.00%)
+0.17 [2.05K rows, 29.6KiB] [11.9K rows/s, 172KiB/s]
+
+trino> SHOW TABLES FROM iceberg.mobility;
+Query 20260514_095925_00069_fv3rg failed: Access Denied: Cannot show tables of schema iceberg.mobility
+
+trino> SELECT * FROM iceberg.mobility.taxi_trips LIMIT 5;
+Query 20260514_095931_00070_fv3rg failed: Access Denied: Cannot select from columns [fare_amount, tpep_dropoff_datetime, passenger_count, pu_location_id, ratecode_id, tolls_amount, trip_distance, store_and_fwd_flag, payment_type, total_amount, vendor_id, extra, tip_amount, do_location_id, mta_tax, tpep_pickup_datetime] in table or view iceberg.mobility.taxi_trips
+```
+
+# OPA and Trino filtering and masking
 
 > ATTENTION
 > 
