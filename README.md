@@ -791,3 +791,341 @@ batch contains i if {
 }
 ```
 
+# Trino input.action.operation
+From trino source code: src/main/java/io/trino/plugin/opa/schema/OpaQueryInputAction.java
+```java
+public record OpaQueryInputAction(
+        String operation,
+        OpaQueryInputResource resource,
+        List<OpaQueryInputResource> filterResources,
+        OpaQueryInputResource targetResource,
+        TrinoGrantPrincipal grantee)
+{
+    public OpaQueryInputAction
+    {
+        requireNonNull(operation, "operation is null");
+        if (filterResources != null && resource != null) {
+            throw new IllegalArgumentException("resource and filterResources cannot both be configured");
+        }
+        if (filterResources != null) {
+            filterResources = ImmutableList.copyOf(filterResources);
+        }
+    }
+
+    public static Builder builder()
+    {
+        return new Builder();
+    }
+
+    public static class Builder
+    {
+        private String operation;
+        private OpaQueryInputResource resource;
+        private List<OpaQueryInputResource> filterResources;
+        private OpaQueryInputResource targetResource;
+        private TrinoGrantPrincipal grantee;
+
+        private Builder() {}
+
+        public Builder operation(String operation)
+        {
+            this.operation = operation;
+            return this;
+        }
+```
+
+Operation is defined as a string, not as ENUM.
+
+## plugin\trino-opa\src\main\java\io\trino\plugin\opa\OpaBatchAccessControl.java
+batchFilterFromOpa(
+    buildQueryContext(context),
+    operation:
+- FilterViewQueryOwnedBy
+- FilterCatalogs
+- FilterSchemas
+- FilterTables
+- FilterColumns
+- FilterFunctions
+
+
+## plugin\trino-opa\src\main\java\io\trino\plugin\opa\schema\OpaQueryInput.java
+```java
+public record OpaQueryInput(OpaQueryContext context, OpaQueryInputAction action){
+    public OpaQueryInput {
+        requireNonNull(context, "context is null");
+        requireNonNull(action, "action is null");
+    }
+}
+```
+
+```json
+{ 
+  "input": {
+  "context": {...},
+  "action":{...}
+  }
+}
+```
+
+
+
+
+# ORDER
+TEST
+
+## core\trino-main\src\main\java\io\trino\testing\TestingDirectTrinoClient.java
+```java
+public Result execute(SessionContext sessionContext, @Language("SQL") String sql)
+{
+    MaterializedQueryResultsListener queryResultsListener = new MaterializedQueryResultsListener();
+    DispatchQuery dispatchQuery = directTrinoClient.execute(sessionContext, sql, queryResultsListener);
+    return new Result(dispatchQuery.getQueryId(), () -> toMaterializedRows(dispatchQuery, queryResultsListener.columnTypes(), queryResultsListener.columnNames(), queryResultsListener.pages()));
+}
+```
+->
+
+core\trino-main\src\main\java\io\trino\client\direct\DirectTrinoClient.java
+public DispatchQuery execute
+
+->
+
+core\trino-main\src\main\java\io\trino\dispatcher\DispatchManager.java
+public ListenableFuture<Void> createQuery
+->
+private <C> void createQueryInternal
+
+->
+
+core\trino-main\src\main\java\io\trino\dispatcher\LocalDispatchQueryFactory.java
+public DispatchQuery createDispatchQuery
+
+->
+
+core\trino-main\src\main\java\io\trino\execution\QueryManager.java
+public void createQuery
+
+->
+
+core\trino-main\src\main\java\io\trino\execution\DataDefinitionExecution.java
+public void start
+
+->
+
+core\trino-main\src\main\java\io\trino\execution\CreateSchemaTask.java
+static ListenableFuture<Void> internalExecute
+
+->
+
+core\trino-main\src\main\java\io\trino\security\AccessControlManager.java
+public void checkCanCreateSchema
+
+->
+
+lib\trino-plugin-toolkit\src\main\java\io\trino\plugin\base\security\ForwardingSystemAccessControl.java
+public void checkCanCreateSchema
+
+->
+
+plugin\trino-opa\src\main\java\io\trino\plugin\opa\OpaAccessControl.java
+public void checkCanCreateSchema
+
+
+## plugin\trino-opa\src\main\java\io\trino\plugin\opa\OpaAccessControl.java
+opaHighLevelClient.**queryAndEnforce**(
+    buildQueryContext(identity),
+    actionName:
+- ImpersonateUser
+- ExecuteQuery
+- ViewQueryOwnedBy
+- KillQueryOwnedBy
+- ReadSystemInformation
+- WriteSystemInformation
+- SetSystemSessionProperty
+- CreateCatalog
+- DropCatalog
+- CreateSchema
+- DropSchema
+- ShowSchemas
+- ShowCreateSchema
+- ShowTables
+- SetCatalogSessionProperty
+- ShowFunctions
+- ExecuteProcedure
+- ExecuteTableProcedure
+- CreateFunction
+- DropFunction
+- ShowCreateFunction
+- ShowCreateTable
+- CreateTable
+- DropTable
+- SetTableProperties
+- SetTableComment
+- SetViewComment
+- SetColumnComment
+- ShowColumns
+- AddColumn
+- AlterColumn
+- DropColumn
+- RenameColumn
+- SelectFromColumns
+- InsertIntoTable
+- DeleteFromTable
+- TruncateTable
+- UpdateTableColumns
+- CreateView
+- DropView
+- CreateViewWithSelectFromColumns
+- CreateMaterializedView
+- RefreshMaterializedView
+- SetMaterializedViewProperties
+- DropMaterializedView
+
+opaHighLevelClient.**parallelFilterFromOpa**(
+    queryOwners,
+    queryOwner -> buildQueryInputForSimpleResource(
+        buildQueryContext(...),
+        operation:
+- FilterViewQueryOwnedBy
+- FilterCatalogs
+- FilterSchemas
+- FilterTables
+- FilterColumns
+- FilterFunctions
+
+opaHighLevelClient.**queryOpaWithSimpleResource**(
+    buildQueryContext(context),
+    operation:
+- AccessCatalog
+- ExecuteFunction
+- CreateViewWithExecuteFunction
+
+opaHighLevelClient.**queryOpaWithSourceAndTargetResource**(
+    queryContext,
+    operation:
+- RenameSchema
+- RenameTable
+- RenameView
+- RenameMaterializedView
+
+opaHighLevelClient.**queryOpa**(....)
+- SetSchemaAuthorization
+- SetTableAuthorization
+- SetViewAuthorization
+
+
+
+
+
+
+
+## plugin\trino-opa\src\main\java\io\trino\plugin\opa\OpaHighLevelClient.java
+```java
+public boolean queryOpa(OpaQueryInput input){
+    return opaHttpClient.consumeOpaResponse(opaHttpClient.submitOpaRequest(input, opaPolicyUri, queryResultCodec)).result();
+}
+```
+this function is used in:
+- private boolean queryOpaWithSimpleAction
+    - used by:
+        - public void queryAndEnforce
+    - call:
+        - **queryOpa** with param the result of:
+            - private static OpaQueryInput buildQueryInputForSimpleAction
+                - return OpaQueryInput
+- public boolean queryOpaWithSimpleResource
+    - used by:
+        - public void queryAndEnforce
+    - call:
+        - **queryOpa** with param the result of:
+            - public static OpaQueryInput buildQueryInputForSimpleResource
+                - return OpaQueryInput
+- public boolean queryOpaWithSourceAndTargetResource
+    - call
+        - **queryOpa** passing a new OpaQueryInput
+
+
+get:
+OpaQueryInput queryInput = new OpaQueryInput(
+context,
+OpaQueryInputAction.builder()
+.operation(
+- GetRowFilters
+- GetColumnMask
+
+## plugin\trino-opa\src\main\java\io\trino\plugin\opa\OpaHttpClient.java
+```java
+public <T> T consumeOpaResponse(ListenableFuture<T> opaResponseFuture)
+    {
+        try {
+            return opaResponseFuture.get();
+        }
+```
+
+where opaResponseFurure is given by executiong this function:
+##
+```java
+public class OpaHttpClient {
+    public <T> FluentFuture<T> submitOpaRequest(OpaQueryInput input, URI uri, JsonCodec<T> deserializer){
+        Request request;
+        JsonBodyGenerator<OpaQuery> requestBodyGenerator;
+        try {
+            requestBodyGenerator = jsonBodyGenerator(serializer, new OpaQuery(input));
+            request = preparePost()
+            .addHeader(CONTENT_TYPE, JSON_UTF_8.toString())
+            .setUri(uri)
+            .setBodyGenerator(requestBodyGenerator)
+            .build();
+        }
+```
+You pass the reference of the OPA request to the same class to get wait the Response
+
+
+## OPA
+## v1\server\server.go
+PromHandlerV0Data     = "v0/data"
+PromHandlerV1Data     = "v1/data"
+PromHandlerV1Query    = "v1/query"
+PromHandlerV1Policies = "v1/policies"
+PromHandlerV1Compile  = "v1/compile"
+PromHandlerV1Config   = "v1/config"
+PromHandlerV1Status   = "v1/status"
+PromHandlerIndex      = "index"
+PromHandlerCatch      = "catchall"
+PromHandlerHealth     = "health"
+PromHandlerAPIAuthz   = "authz"
+
+
+mainRouter.Handle("POST /v0/data/{path...}", s.instrumentHandler(s.v0DataPost, PromHandlerV0Data))
+mainRouter.Handle("POST /v0/data", s.instrumentHandler(s.v0DataPost, PromHandlerV0Data))
+mainRouter.Handle("DELETE /v1/data/{path...}", s.instrumentHandler(s.v1DataDelete, PromHandlerV1Data))
+mainRouter.Handle("PUT /v1/data/{path...}", s.instrumentHandler(s.v1DataPut, PromHandlerV1Data))
+mainRouter.Handle("PUT /v1/data", s.instrumentHandler(s.v1DataPut, PromHandlerV1Data))
+mainRouter.Handle("GET /v1/data/{path...}", s.instrumentHandler(s.v1DataGet, PromHandlerV1Data))
+mainRouter.Handle("GET /v1/data", s.instrumentHandler(s.v1DataGet, PromHandlerV1Data))
+mainRouter.Handle("PATCH /v1/data/{path...}", s.instrumentHandler(s.v1DataPatch, PromHandlerV1Data))
+mainRouter.Handle("PATCH /v1/data", s.instrumentHandler(s.v1DataPatch, PromHandlerV1Data))
+mainRouter.Handle("POST /v1/data/{path...}", s.instrumentHandler(s.v1DataPost, PromHandlerV1Data))
+mainRouter.Handle("POST /v1/data", s.instrumentHandler(s.v1DataPost, PromHandlerV1Data))
+mainRouter.Handle("GET /v1/policies", s.instrumentHandler(s.v1PoliciesList, PromHandlerV1Policies))
+mainRouter.Handle("DELETE /v1/policies/{path...}", s.instrumentHandler(s.v1PoliciesDelete, PromHandlerV1Policies))
+mainRouter.Handle("GET /v1/policies/{path...}", s.instrumentHandler(s.v1PoliciesGet, PromHandlerV1Policies))
+mainRouter.Handle("PUT /v1/policies/{path...}", s.instrumentHandler(s.v1PoliciesPut, PromHandlerV1Policies))
+mainRouter.Handle("GET /v1/query", s.instrumentHandler(s.v1QueryGet, PromHandlerV1Query))
+mainRouter.Handle("POST /v1/query", s.instrumentHandler(s.v1QueryPost, PromHandlerV1Query))
+mainRouter.Handle("POST /v1/compile", s.instrumentHandler(s.v1CompilePost, PromHandlerV1Compile))
+mainRouter.Handle("POST /v1/compile/{path...}", s.instrumentHandler(s.v1CompileFilters, PromHandlerV1Compile))
+mainRouter.Handle("GET /v1/compile/{path...}", s.instrumentHandler(s.v1CompileFilters, PromHandlerV1Compile))
+mainRouter.Handle("GET /v1/config", s.instrumentHandler(s.v1ConfigGet, PromHandlerV1Config))
+mainRouter.Handle("GET /v1/status", s.instrumentHandler(s.v1StatusGet, PromHandlerV1Status))
+mainRouter.Handle("POST /{$}", s.instrumentHandler(s.unversionedPost, PromHandlerIndex))
+mainRouter.Handle("GET /{$}", s.instrumentHandler(s.indexGet, PromHandlerIndex))
+
+// These are catch all handlers that respond http.StatusMethodNotAllowed for resources that exist but the method is not allowed
+mainRouter.Handle("/v0/data/{path...}", s.methodNotAllowedHandler())
+mainRouter.Handle("/v0/data", s.methodNotAllowedHandler())
+mainRouter.Handle("/v1/data/{path...}", s.methodNotAllowedHandler())
+mainRouter.Handle("/v1/data", s.methodNotAllowedHandler())
+mainRouter.Handle("/v1/policies", s.methodNotAllowedHandler())
+mainRouter.Handle("/v1/policies/{path...}", s.methodNotAllowedHandler())
+mainRouter.Handle("/v1/query/{path...}", s.methodNotAllowedHandler())
+mainRouter.Handle("/v1/query", s.methodNotAllowedHandler())
