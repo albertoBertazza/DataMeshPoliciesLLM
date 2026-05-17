@@ -280,18 +280,3 @@ batch contains i if {
     ]
     allow with input.action.resource as new_resources[i]
 }
-
-# Operations that are always blocked regardless of user
-#blocked_operations := {
-#    "CreateSchema",
-#    "CreateTable",
-#    "CreateView",
-#    "CreateMaterializedView",
-#    "DropSchema",
-#    "DropTable",
-#    "DropView",
-#    "RenameTable",
-#    "InsertIntoTable",
-#    "DeleteFromTable",
-#    "TruncateTable"
-#}

@@ -1062,7 +1062,6 @@ public <T> T consumeOpaResponse(ListenableFuture<T> opaResponseFuture)
 ```
 
 where opaResponseFurure is given by executiong this function:
-##
 ```java
 public class OpaHttpClient {
     public <T> FluentFuture<T> submitOpaRequest(OpaQueryInput input, URI uri, JsonCodec<T> deserializer){
@@ -1129,3 +1128,238 @@ mainRouter.Handle("/v1/policies", s.methodNotAllowedHandler())
 mainRouter.Handle("/v1/policies/{path...}", s.methodNotAllowedHandler())
 mainRouter.Handle("/v1/query/{path...}", s.methodNotAllowedHandler())
 mainRouter.Handle("/v1/query", s.methodNotAllowedHandler())
+
+# relation between each operation
+after executing the query, if it ends correctly, you can see in OPA logs the operations that were called, for example:
+```bash
+docker logs --since 10s opa 2>&1 | ForEach-Object {
+    $unescaped = $_ -replace '\\"', '"'
+    if ($unescaped -match '"operation"\s*:\s*"([^"]+)"') { $Matches[1] }
+} | Sort-Object -Unique
+```
+
+## AccessCatalog
+## AddColumn
+```sql
+ALTER TABLE iceberg.hr.employees_renamed ADD COLUMN IF NOT EXISTS environmentSatisfaction INTEGER;
+```
+AccessCatalog
+AddColumn
+ExecuteQuery
+## AlterColumn
+```sql
+ALTER TABLE iceberg.hr.employees_renamed ALTER COLUMN environmentSatisfaction SET DATA TYPE VARCHAR;
+```
+failed: Failed to set column type: Cannot change column type: environmentsatisfaction: int -> string
+
+## CreateCatalog
+## CreateFunction
+## CreateMaterializedView
+## CreateSchema
+```sql
+CREATE SCHEMA IF NOT EXISTS iceberg.jk;
+```
+AccessCatalog
+CreateSchema
+ExecuteQuery
+## CreateTable
+```sql
+CREATE TABLE IF NOT EXISTS iceberg.hr.employees2 (
+                                                    Age                     INTEGER,
+                                                    Attrition               VARCHAR,
+                                                    BusinessTravel          VARCHAR,
+                                                    DailyRate               INTEGER,
+                                                    Department              VARCHAR,
+                                                    DistanceFromHome        INTEGER,
+                                                    Education               INTEGER,
+                                                    EmployeeCount           INTEGER,
+                                                    EmployeeNumber          INTEGER,
+                                                    EnvironmentSatisfaction INTEGER,
+                                                    Gender                  VARCHAR,
+                                                    HourlyRate              INTEGER,
+                                                    JobRole                 VARCHAR,
+                                                    MonthlyIncome           INTEGER
+);
+```
+AccessCatalog
+CreateTable
+ExecuteQuery
+## CreateView
+## CreateViewWithExecuteFunction
+## CreateViewWithSelectFromColumns
+## DeleteFromTable
+```sql
+DELETE FROM iceberg.hr.employees_renamed WHERE age > 50;
+```
+AccessCatalog
+DeleteFromTable
+ExecuteQuery
+GetColumnMask
+GetRowFilters
+SelectFromColumns
+
+## DropCatalog
+## DropColumn
+```sql
+ALTER TABLE iceberg.hr.employees_renamed DROP COLUMN IF EXISTS environmentSatisfaction;
+```
+Failed to drop column: The following columns have types incompatible with the existing columns in their respective positions :
+hourlyrate,monthlyincome
+Cannot determine whether the commit was successful or not, the underlying data files may or may not be needed. Manual intervention via the Remove Orphan Files Action can remove these files when a connection to the Catalog can be re-established if the commit was actually unsuccessful.
+Please check to see whether or not your commit was successful before retrying this commit. Retrying an already successful operation will result in duplicate records or unintentional modifications.
+At this time no files will be deleted including possibly unused manifest lists.
+
+## DropFunction
+## DropMaterializedView
+## DropSchema
+```sql
+DROP SCHEMA IF EXISTS iceberg.jk;
+```
+AccessCatalog
+DropSchema
+ExecuteQuery
+## DropTable
+```sql
+DROP TABLE IF EXISTS iceberg.hr.employees2;
+```
+AccessCatalog
+DropTable
+ExecuteQuery
+## DropView
+## ExecuteFunction
+## ExecuteProcedure
+## ExecuteQuery
+## ExecuteTableProcedure
+## FilterCatalogs
+```sql
+SHOW CATALOGS;
+```
+ExecuteQuery
+FilterCatalogs
+## FilterColumns
+## FilterFunctions
+## FilterSchemas
+## FilterTables
+## FilterViewQueryOwnedBy
+## ImpersonateUser
+## InsertIntoTable
+```sql
+INSERT INTO iceberg.hr.employees (age, attrition, businesstravel) VALUES (30, 'Yes', 'Travel_Rarely');
+```
+AccessCatalog
+ExecuteQuery
+GetColumnMask
+GetRowFilters
+InsertIntoTable
+## KillQueryOwnedBy
+## ReadSystemInformation
+## RefreshMaterializedView
+## RenameColumn
+```sql
+ALTER TABLE iceberg.hr.employees_renamed RENAME COLUMN businesstravel TO business_travel;
+```
+AccessCatalog
+ExecuteQuery
+RenameColumn
+## RenameMaterializedView
+## RenameSchema
+```sql
+ALTER SCHEMA iceberg.jk RENAME TO iceberg.jk_renamed;
+```
+failed: Hive metastore does not support renaming schemas
+## RenameTable
+```sql
+ALTER TABLE iceberg.hr.employees2 RENAME TO iceberg.hr.employees_renamed;
+```
+AccessCatalog
+ExecuteQuery
+RenameTable
+## RenameView
+## SelectFromColumns
+## SetCatalogSessionProperty
+## SetColumnComment
+## SetMaterializedViewProperties
+## SetSchemaAuthorization
+## SetSystemSessionProperty
+## SetTableAuthorization
+## SetTableComment
+## SetTableProperties
+## SetViewAuthorization
+## SetViewComment
+## ShowColumns
+```sql
+SHOW COLUMNS FROM iceberg.hr.employees;
+```
+AccessCatalog
+ExecuteQuery
+FilterCatalogs
+FilterColumns
+FilterTables
+GetColumnMask
+GetRowFilters
+SelectFromColumns
+ShowColumns
+
+## ShowCreateFunction
+## ShowCreateSchema
+```sql
+SHOW CREATE SCHEMA iceberg.hr;
+```
+AccessCatalog
+ExecuteQuery
+ShowCreateSchema
+## ShowCreateTable
+```sql
+SHOW CREATE TABLE iceberg.hr.employees;
+```
+AccessCatalog
+ExecuteQuery
+ShowCreateTable
+## ShowFunctions
+```sql
+SHOW FUNCTIONS FROM iceberg.hr;
+```
+AccessCatalog
+ExecuteQuery
+ShowFunctions
+## ShowSchemas
+```sql
+SHOW SCHEMAS FROM iceberg;
+```
+AccessCatalog
+ExecuteQuery
+FilterCatalogs
+FilterSchemas
+GetColumnMask
+GetRowFilters
+SelectFromColumns
+ShowSchemas
+## ShowTables
+```sql
+SHOW TABLES FROM iceberg.hr;
+```
+
+AccessCatalog
+ExecuteQuery
+FilterCatalogs
+FilterTables
+GetColumnMask
+GetRowFilters
+SelectFromColumns
+ShowTables
+## TruncateTable
+## UpdateTableColumns
+```sql
+UPDATE iceberg.hr.employees2 SET attrition = 'Yes' WHERE age > 50;
+```
+AccessCatalog
+ExecuteQuery
+GetColumnMask
+GetRowFilters
+SelectFromColumns
+UpdateTableColumns
+## ViewQueryOwnedBy
+```sql
+
+```
+## WriteSystemInformation
