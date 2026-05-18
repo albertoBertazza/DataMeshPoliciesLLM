@@ -1143,9 +1143,10 @@ docker logs --since 10s opa 2>&1 | ForEach-Object {
 ```sql
 ALTER TABLE iceberg.hr.employees_renamed ADD COLUMN IF NOT EXISTS environmentSatisfaction INTEGER;
 ```
-AccessCatalog
-AddColumn
-ExecuteQuery
+- AccessCatalog
+- AddColumn
+- ExecuteQuery
+
 ## AlterColumn
 ```sql
 ALTER TABLE iceberg.hr.employees_renamed ALTER COLUMN environmentSatisfaction SET DATA TYPE VARCHAR;
@@ -1159,9 +1160,10 @@ failed: Failed to set column type: Cannot change column type: environmentsatisfa
 ```sql
 CREATE SCHEMA IF NOT EXISTS iceberg.jk;
 ```
-AccessCatalog
-CreateSchema
-ExecuteQuery
+- AccessCatalog
+- CreateSchema
+- ExecuteQuery
+
 ## CreateTable
 ```sql
 CREATE TABLE IF NOT EXISTS iceberg.hr.employees2 (
@@ -1181,9 +1183,10 @@ CREATE TABLE IF NOT EXISTS iceberg.hr.employees2 (
                                                     MonthlyIncome           INTEGER
 );
 ```
-AccessCatalog
-CreateTable
-ExecuteQuery
+- AccessCatalog
+- CreateTable
+- ExecuteQuery
+
 ## CreateView
 ## CreateViewWithExecuteFunction
 ## CreateViewWithSelectFromColumns
@@ -1191,12 +1194,12 @@ ExecuteQuery
 ```sql
 DELETE FROM iceberg.hr.employees_renamed WHERE age > 50;
 ```
-AccessCatalog
-DeleteFromTable
-ExecuteQuery
-GetColumnMask
-GetRowFilters
-SelectFromColumns
+- AccessCatalog
+- DeleteFromTable
+- ExecuteQuery
+- GetColumnMask
+- GetRowFilters
+- SelectFromColumns
 
 ## DropCatalog
 ## DropColumn
@@ -1215,16 +1218,17 @@ At this time no files will be deleted including possibly unused manifest lists.
 ```sql
 DROP SCHEMA IF EXISTS iceberg.jk;
 ```
-AccessCatalog
-DropSchema
-ExecuteQuery
+- AccessCatalog
+- DropSchema
+- ExecuteQuery
 ## DropTable
 ```sql
 DROP TABLE IF EXISTS iceberg.hr.employees2;
 ```
-AccessCatalog
-DropTable
-ExecuteQuery
+- AccessCatalog
+- DropTable
+- ExecuteQuery
+
 ## DropView
 ## ExecuteFunction
 ## ExecuteProcedure
@@ -1234,8 +1238,9 @@ ExecuteQuery
 ```sql
 SHOW CATALOGS;
 ```
-ExecuteQuery
-FilterCatalogs
+- ExecuteQuery
+- FilterCatalogs
+
 ## FilterColumns
 ## FilterFunctions
 ## FilterSchemas
@@ -1246,11 +1251,12 @@ FilterCatalogs
 ```sql
 INSERT INTO iceberg.hr.employees (age, attrition, businesstravel) VALUES (30, 'Yes', 'Travel_Rarely');
 ```
-AccessCatalog
-ExecuteQuery
-GetColumnMask
-GetRowFilters
-InsertIntoTable
+- AccessCatalog
+- ExecuteQuery
+- GetColumnMask
+- GetRowFilters
+- InsertIntoTable
+
 ## KillQueryOwnedBy
 ## ReadSystemInformation
 ## RefreshMaterializedView
@@ -1258,9 +1264,10 @@ InsertIntoTable
 ```sql
 ALTER TABLE iceberg.hr.employees_renamed RENAME COLUMN businesstravel TO business_travel;
 ```
-AccessCatalog
-ExecuteQuery
-RenameColumn
+- AccessCatalog
+- ExecuteQuery
+- RenameColumn
+
 ## RenameMaterializedView
 ## RenameSchema
 ```sql
@@ -1271,9 +1278,10 @@ failed: Hive metastore does not support renaming schemas
 ```sql
 ALTER TABLE iceberg.hr.employees2 RENAME TO iceberg.hr.employees_renamed;
 ```
-AccessCatalog
-ExecuteQuery
-RenameTable
+- AccessCatalog
+- ExecuteQuery
+- RenameTable
+
 ## RenameView
 ## SelectFromColumns
 ## SetCatalogSessionProperty
@@ -1290,74 +1298,80 @@ RenameTable
 ```sql
 SHOW COLUMNS FROM iceberg.hr.employees;
 ```
-AccessCatalog
-ExecuteQuery
-FilterCatalogs
-FilterColumns
-FilterTables
-GetColumnMask
-GetRowFilters
-SelectFromColumns
-ShowColumns
+- AccessCatalog
+- ExecuteQuery
+- FilterCatalogs
+- FilterColumns
+- FilterTables
+- GetColumnMask
+- GetRowFilters
+- SelectFromColumns
+- ShowColumns
 
 ## ShowCreateFunction
 ## ShowCreateSchema
 ```sql
 SHOW CREATE SCHEMA iceberg.hr;
 ```
-AccessCatalog
-ExecuteQuery
-ShowCreateSchema
+- AccessCatalog
+- ExecuteQuery
+- ShowCreateSchema
+
 ## ShowCreateTable
 ```sql
 SHOW CREATE TABLE iceberg.hr.employees;
 ```
-AccessCatalog
-ExecuteQuery
-ShowCreateTable
+- AccessCatalog
+- ExecuteQuery
+- ShowCreateTable
+
 ## ShowFunctions
 ```sql
 SHOW FUNCTIONS FROM iceberg.hr;
 ```
-AccessCatalog
-ExecuteQuery
-ShowFunctions
+- AccessCatalog
+- ExecuteQuery
+- ShowFunctions
+
 ## ShowSchemas
 ```sql
 SHOW SCHEMAS FROM iceberg;
 ```
-AccessCatalog
-ExecuteQuery
-FilterCatalogs
-FilterSchemas
-GetColumnMask
-GetRowFilters
-SelectFromColumns
-ShowSchemas
+- AccessCatalog
+- ExecuteQuery
+- FilterCatalogs
+- FilterSchemas
+- GetColumnMask
+- GetRowFilters
+- SelectFromColumns
+- ShowSchemas
+
 ## ShowTables
 ```sql
 SHOW TABLES FROM iceberg.hr;
 ```
 
-AccessCatalog
-ExecuteQuery
-FilterCatalogs
-FilterTables
-GetColumnMask
-GetRowFilters
-SelectFromColumns
-ShowTables
+- AccessCatalog
+- ExecuteQuery
+- FilterCatalogs
+- FilterTables
+- GetColumnMask
+- GetRowFilters
+- SelectFromColumns
+- ShowTables
+
 ## TruncateTable
 ## UpdateTableColumns
 ```sql
 UPDATE iceberg.hr.employees2 SET attrition = 'Yes' WHERE age > 50;
 ```
-AccessCatalog
-ExecuteQuery
-GetColumnMask
-GetRowFilters
-SelectFromColumns
-UpdateTableColumns
+- AccessCatalog
+- ExecuteQuery
+- GetColumnMask
+- GetRowFilters
+- SelectFromColumns
+- UpdateTableColumns
+
 ## ViewQueryOwnedBy
 ```sql
 
