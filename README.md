@@ -1137,8 +1137,6 @@ docker logs --since 10s opa 2>&1 | ForEach-Object {
     if ($unescaped -match '"operation"\s*:\s*"([^"]+)"') { $Matches[1] }
 } | Sort-Object -Unique
 ```
-
-## AccessCatalog
 ## AddColumn
 ```sql
 ALTER TABLE iceberg.hr.employees_renamed ADD COLUMN IF NOT EXISTS environmentSatisfaction INTEGER;
@@ -1153,9 +1151,17 @@ ALTER TABLE iceberg.hr.employees_renamed ALTER COLUMN environmentSatisfaction SE
 ```
 failed: Failed to set column type: Cannot change column type: environmentsatisfaction: int -> string
 
-## CreateCatalog
-## CreateFunction
 ## CreateMaterializedView
+```sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS iceberg.hr.mv_employees AS SELECT age, attrition FROM iceberg.hr.employees;
+```
+- AccessCatalog
+- CreateMaterializedView
+- ExecuteQuery
+- GetColumnMask
+- GetRowFilters
+- SelectFromColumns
+
 ## CreateSchema
 ```sql
 CREATE SCHEMA IF NOT EXISTS iceberg.jk;
@@ -1188,8 +1194,18 @@ CREATE TABLE IF NOT EXISTS iceberg.hr.employees2 (
 - ExecuteQuery
 
 ## CreateView
-## CreateViewWithExecuteFunction
+```sql
+CREATE VIEW iceberg.hr.employees_2 AS SELECT * FROM iceberg.hr.employees;
+```
+- AccessCatalog
+- CreateView
+- ExecuteQuery
+- GetColumnMask
+- GetRowFilters
+- SelectFromColumns
+
 ## CreateViewWithSelectFromColumns
+???
 ## DeleteFromTable
 ```sql
 DELETE FROM iceberg.hr.employees_renamed WHERE age > 50;
@@ -1201,7 +1217,6 @@ DELETE FROM iceberg.hr.employees_renamed WHERE age > 50;
 - GetRowFilters
 - SelectFromColumns
 
-## DropCatalog
 ## DropColumn
 ```sql
 ALTER TABLE iceberg.hr.employees_renamed DROP COLUMN IF EXISTS environmentSatisfaction;
@@ -1212,8 +1227,15 @@ Cannot determine whether the commit was successful or not, the underlying data f
 Please check to see whether or not your commit was successful before retrying this commit. Retrying an already successful operation will result in duplicate records or unintentional modifications.
 At this time no files will be deleted including possibly unused manifest lists.
 
-## DropFunction
+
 ## DropMaterializedView
+```sql
+DROP MATERIALIZED VIEW IF EXISTS iceberg.hr.mv_employees;
+```
+- AccessCatalog
+- DropMaterializedView
+- ExecuteQuery
+
 ## DropSchema
 ```sql
 DROP SCHEMA IF EXISTS iceberg.jk;
@@ -1230,23 +1252,13 @@ DROP TABLE IF EXISTS iceberg.hr.employees2;
 - ExecuteQuery
 
 ## DropView
-## ExecuteFunction
-## ExecuteProcedure
-## ExecuteQuery
-## ExecuteTableProcedure
-## FilterCatalogs
 ```sql
-SHOW CATALOGS;
+DROP VIEW IF EXISTS iceberg.hr.employees_2;
 ```
+- AccessCatalog
+- DropView
 - ExecuteQuery
-- FilterCatalogs
 
-## FilterColumns
-## FilterFunctions
-## FilterSchemas
-## FilterTables
-## FilterViewQueryOwnedBy
-## ImpersonateUser
 ## InsertIntoTable
 ```sql
 INSERT INTO iceberg.hr.employees (age, attrition, businesstravel) VALUES (30, 'Yes', 'Travel_Rarely');
@@ -1257,9 +1269,17 @@ INSERT INTO iceberg.hr.employees (age, attrition, businesstravel) VALUES (30, 'Y
 - GetRowFilters
 - InsertIntoTable
 
-## KillQueryOwnedBy
-## ReadSystemInformation
 ## RefreshMaterializedView
+```sql
+REFRESH MATERIALIZED VIEW iceberg.hr.mv_employees;
+```
+- AccessCatalog
+- ExecuteQuery
+- GetColumnMask
+- GetRowFilters
+- RefreshMaterializedView
+- SelectFromColumns
+
 ## RenameColumn
 ```sql
 ALTER TABLE iceberg.hr.employees_renamed RENAME COLUMN businesstravel TO business_travel;
@@ -1268,7 +1288,15 @@ ALTER TABLE iceberg.hr.employees_renamed RENAME COLUMN businesstravel TO busines
 - ExecuteQuery
 - RenameColumn
 
+
 ## RenameMaterializedView
+```sql
+ALTER MATERIALIZED VIEW iceberg.hr.mv_employees RENAME TO iceberg.hr.mv_employees_renamed;
+```
+- AccessCatalog
+- ExecuteQuery
+- RenameMaterializedView
+
 ## RenameSchema
 ```sql
 ALTER SCHEMA iceberg.jk RENAME TO iceberg.jk_renamed;
@@ -1283,17 +1311,55 @@ ALTER TABLE iceberg.hr.employees2 RENAME TO iceberg.hr.employees_renamed;
 - RenameTable
 
 ## RenameView
-## SelectFromColumns
-## SetCatalogSessionProperty
+```sql
+ALTER VIEW iceberg.hr.employees_2 RENAME TO iceberg.hr.employees_2_renamed;
+```
+- AccessCatalog
+- ExecuteQuery
+- RenameView
+
+
+
+
 ## SetColumnComment
+```sql
+COMMENT ON COLUMN iceberg.hr.employees.age IS 'Employee age';
+```
+
+- AccessCatalog
+- ExecuteQuery
+- SetColumnComment
+
 ## SetMaterializedViewProperties
+???
 ## SetSchemaAuthorization
+```sql
+ALTER SCHEMA iceberg.jko SET AUTHORIZATION test_access;
+```
+- ExecuteQuery 
+- SetSchemaAuthorization
 ## SetSystemSessionProperty
-## SetTableAuthorization
+???
+
 ## SetTableComment
+```sql
+COMMENT ON TABLE iceberg.hr.employees IS 'Employee information';
+```
+- AccessCatalog
+- ExecuteQuery
+- SetTableComment
+
 ## SetTableProperties
-## SetViewAuthorization
+???
+
 ## SetViewComment
+```sql
+COMMENT ON VIEW iceberg.hr.employees_2 IS 'Employee information';
+```
+- AccessCatalog
+- ExecuteQuery
+- SetViewComment
+
 ## ShowColumns
 ```sql
 SHOW COLUMNS FROM iceberg.hr.employees;
@@ -1308,7 +1374,6 @@ SHOW COLUMNS FROM iceberg.hr.employees;
 - SelectFromColumns
 - ShowColumns
 
-## ShowCreateFunction
 ## ShowCreateSchema
 ```sql
 SHOW CREATE SCHEMA iceberg.hr;
@@ -1325,13 +1390,6 @@ SHOW CREATE TABLE iceberg.hr.employees;
 - ExecuteQuery
 - ShowCreateTable
 
-## ShowFunctions
-```sql
-SHOW FUNCTIONS FROM iceberg.hr;
-```
-- AccessCatalog
-- ExecuteQuery
-- ShowFunctions
 
 ## ShowSchemas
 ```sql
@@ -1361,6 +1419,13 @@ SHOW TABLES FROM iceberg.hr;
 - ShowTables
 
 ## TruncateTable
+```sql
+TRUNCATE TABLE iceberg.hr.employees_renamed;
+```
+- AccessCatalog
+- ExecuteQuery
+- TruncateTable
+
 ## UpdateTableColumns
 ```sql
 UPDATE iceberg.hr.employees2 SET attrition = 'Yes' WHERE age > 50;
@@ -1372,8 +1437,74 @@ UPDATE iceberg.hr.employees2 SET attrition = 'Yes' WHERE age > 50;
 - SelectFromColumns
 - UpdateTableColumns
 
-## ViewQueryOwnedBy
-```sql
 
+
+
+# not supported by Iceberg connector
+
+## DropFunction
+Iceberg connector does NOT implement:
+- create function
+- drop function
+## CreateCatalog
+NOT POSSIBLE, because it requires to change Trino configuration and restart the cluster, but you can see the effect of this operation in OPA logs, as AccessCatalog is called for all operations, so if you create a new catalog and then you execute any query on that catalog, you will see AccessCatalog with the new catalog name in OPA logs.
+## CreateFunction
+Iceberg connector does NOT implement:
+- create function
+- drop function
+## CreateViewWithExecuteFunction
+NO FUNCTION IN ICEBERG CONNECTOR
+## DropCatalog
+NOT POSSIBLE, because it requires to change Trino configuration and restart the cluster, but you can see the effect of this operation in OPA logs, as AccessCatalog is called for all operations, so if you drop a catalog and then you execute any query on that catalog, you will see AccessCatalog with the dropped catalog name in OPA logs.
+## ExecuteFunction
+NO FUNCTION IN ICEBERG CONNECTOR
+## ExecuteProcedure
+NO PROCEDURE IN ICEBERG CONNECTOR
+## ExecuteQuery
+Pillar for all operations, as it is called in all operations, even in read-only operations like SHOW TABLES, so it is the most used operation and the one that is called in all operations, even in operations that do not change data, like SHOW TABLES or DESCRIBE TABLE.
+## ExecuteTableProcedure
+NO TABLE PROCEDURE IN ICEBERG CONNECTOR
+## ImpersonateUser
+when you log in Trino CLI with a user different from "trino", for example:
+```bash
+docker exec -it docker-compose-trino-coordinator-1 trino --user test_access
 ```
+## ShowCreateFunction
+NO FUNCTION IN ICEBERG CONNECTOR
+## SetTableAuthorization
+NOT SUPPORTED
+## SetViewAuthorization
+NOT SUPPORTED
+
+
+
+# Auxiliary operations
+## AccessCatalog
+## FilterCatalogs
+```sql
+SHOW CATALOGS;
+```
+- ExecuteQuery
+- FilterCatalogs
+## FilterColumns
+## FilterFunctions
+## FilterSchemas
+## FilterTables
+## FilterViewQueryOwnedBy
+## SelectFromColumns
+
+
+# not interesting for our analysis
+## KillQueryOwnedBy
+## ReadSystemInformation
+## SetCatalogSessionProperty
+## ViewQueryOwnedBy
 ## WriteSystemInformation
+## ShowFunctions
+```sql
+SHOW FUNCTIONS FROM iceberg.hr;
+```
+- AccessCatalog
+- ExecuteQuery
+- ShowFunctions
+Because operation are not supported
