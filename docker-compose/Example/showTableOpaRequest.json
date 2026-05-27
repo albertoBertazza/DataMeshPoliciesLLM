@@ -1,0 +1,81 @@
+
+{
+  "client_addr":"172.23.0.5:50290","level":"info","msg":"Received request.",
+  "req_body":"{\"input\":{\"context\":{\"identity\":{\"user\":\"trino\",\"groups\":[]},\"softwareStack\":{\"trinoVersion\":\"480\"},\"properties\":{}},\"action\":{\"operation\":\"ExecuteQuery\"}}}",
+  "req_id":59,"req_method":"POST","req_params":{},"req_path":"/v1/data/trino/authz/allow","time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Sent response.",
+  "req_id":59,"req_method":"POST","req_path":"/v1/data/trino/authz/allow",
+  "resp_body":"{\"result\":true}\n","resp_bytes":16,"resp_duration":0.325785,"resp_status":200,
+  "time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Received request.",
+  "req_body":"{\"input\":{\"context\":{\"identity\":{\"user\":\"trino\",\"groups\":[]},\"softwareStack\":{\"trinoVersion\":\"480\"},\"properties\":{},\"queryId\":\"20260519_170921_00014_f2hzc\"},\"action\":{\"operation\":\"AccessCatalog\",\"resource\":{\"catalog\":{\"name\":\"iceberg\"}}}}}",
+  "req_id":60,"req_method":"POST","req_params":{},"req_path":"/v1/data/trino/authz/allow","time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Sent response.",
+  "req_id":60,"req_method":"POST","req_path":"/v1/data/trino/authz/allow",
+  "resp_body":"{\"result\":true}\n","resp_bytes":16,"resp_duration":0.299508,"resp_status":200,
+  "time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Received request.",
+  "req_body":"{\"input\":{\"context\":{\"identity\":{\"user\":\"trino\",\"groups\":[]},\"softwareStack\":{\"trinoVersion\":\"480\"},\"properties\":{},\"queryId\":\"20260519_170921_00014_f2hzc\"},\"action\":{\"operation\":\"ShowTables\",\"resource\":{\"schema\":{\"catalogName\":\"iceberg\",\"schemaName\":\"hr\"}}}}}",
+  "req_id":61,"req_method":"POST","req_params":{},"req_path":"/v1/data/trino/authz/allow","time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Sent response.",
+  "req_id":61,"req_method":"POST","req_path":"/v1/data/trino/authz/allow",
+  "resp_body":"{\"result\":true}\n","resp_bytes":16,"resp_duration":0.404102,"resp_status":200,
+  "time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Received request.",
+  "req_body":"{\"input\":{\"context\":{\"identity\":{\"user\":\"trino\",\"groups\":[]},\"softwareStack\":{\"trinoVersion\":\"480\"},\"properties\":{},\"queryId\":\"20260519_170921_00014_f2hzc\"},\"action\":{\"operation\":\"GetColumnMask\",\"filterResources\":[{\"column\":{\"catalogName\":\"iceberg\",\"schemaName\":\"information_schema\",\"tableName\":\"tables\",\"columnName\":\"table_catalog\",\"columnType\":\"varchar\"}},{\"column\":{\"catalogName\":\"iceberg\",\"schemaName\":\"information_schema\",\"tableName\":\"tables\",\"columnName\":\"table_schema\",\"columnType\":\"varchar\"}},{\"column\":{\"catalogName\":\"iceberg\",\"schemaName\":\"information_schema\",\"tableName\":\"tables\",\"columnName\":\"table_name\",\"columnType\":\"varchar\"}},{\"column\":{\"catalogName\":\"iceberg\",\"schemaName\":\"information_schema\",\"tableName\":\"tables\",\"columnName\":\"table_type\",\"columnType\":\"varchar\"}},{\"column\":{\"catalogName\":\"iceberg\",\"schemaName\":\"information_schema\",\"tableName\":\"tables\",\"columnName\":\"table_comment\",\"columnType\":\"varchar\"}}]}}}",
+  "req_id":62,"req_method":"POST","req_params":{},"req_path":"/v1/data/trino/authz/batchColumnMasks","time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Sent response.",
+  "req_id":62,"req_method":"POST","req_path":"/v1/data/trino/authz/batchColumnMasks",
+  "resp_body":"{\"result\":[]}\n","resp_bytes":14,"resp_duration":0.396035,"resp_status":200,
+  "time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Received request.",
+  "req_body":"{\"input\":{\"context\":{\"identity\":{\"user\":\"trino\",\"groups\":[]},\"softwareStack\":{\"trinoVersion\":\"480\"},\"properties\":{},\"queryId\":\"20260519_170921_00014_f2hzc\"},\"action\":{\"operation\":\"GetRowFilters\",\"resource\":{\"table\":{\"catalogName\":\"iceberg\",\"schemaName\":\"information_schema\",\"tableName\":\"tables\"}}}}}",
+  "req_id":63,"req_method":"POST","req_params":{},"req_path":"/v1/data/trino/authz/rowFilters","time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Sent response.",
+  "req_id":63,"req_method":"POST","req_path":"/v1/data/trino/authz/rowFilters",
+  "resp_body":"{\"result\":[]}\n","resp_bytes":14,"resp_duration":0.256019,"resp_status":200,
+  "time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Received request.",
+  "req_body":"{\"input\":{\"context\":{\"identity\":{\"user\":\"trino\",\"groups\":[]},\"softwareStack\":{\"trinoVersion\":\"480\"},\"properties\":{},\"queryId\":\"20260519_170921_00014_f2hzc\"},\"action\":{\"operation\":\"AccessCatalog\",\"resource\":{\"catalog\":{\"name\":\"iceberg\"}}}}}",
+  "req_id":64,"req_method":"POST","req_params":{},"req_path":"/v1/data/trino/authz/allow","time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Sent response.","req_id":64,
+  "req_method":"POST","req_path":"/v1/data/trino/authz/allow","resp_body":"{\"result\":true}\n",
+  "resp_bytes":16,"resp_duration":0.378082,"resp_status":200,"time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Received request.",
+  "req_body":"{\"input\":{\"context\":{\"identity\":{\"user\":\"trino\",\"groups\":[]},\"softwareStack\":{\"trinoVersion\":\"480\"},\"properties\":{},\"queryId\":\"20260519_170921_00014_f2hzc\"},\"action\":{\"operation\":\"SelectFromColumns\",\"resource\":{\"table\":{\"catalogName\":\"iceberg\",\"schemaName\":\"information_schema\",\"tableName\":\"tables\",\"columns\":[\"table_schema\",\"table_name\"]}}}}}",
+  "req_id":65,"req_method":"POST","req_params":{},"req_path":"/v1/data/trino/authz/allow","time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Sent response.",
+  "req_id":65,"req_method":"POST","req_path":"/v1/data/trino/authz/allow",
+  "resp_body":"{\"result\":true}\n","resp_bytes":16,"resp_duration":0.245679,
+  "resp_status":200,"time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Received request.",
+  "req_body":"{\"input\":{\"context\":{\"identity\":{\"user\":\"trino\",\"groups\":[]},\"softwareStack\":{\"trinoVersion\":\"480\"},\"properties\":{},\"queryId\":\"20260519_170921_00014_f2hzc\"},\"action\":{\"operation\":\"FilterCatalogs\",\"filterResources\":[{\"catalog\":{\"name\":\"iceberg\"}}]}}}",
+  "req_id":66,"req_method":"POST","req_params":{},"req_path":"/v1/data/trino/authz/batch","time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Sent response.",
+  "req_id":66,"req_method":"POST","req_path":"/v1/data/trino/authz/batch",
+  "resp_body":"{\"result\":[0]}\n","resp_bytes":15,"resp_duration":0.267289,
+  "resp_status":200,"time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Received request.",
+  "req_body":"{\"input\":{\"context\":{\"identity\":{\"user\":\"trino\",\"groups\":[]},\"softwareStack\":{\"trinoVersion\":\"480\"},\"properties\":{},\"queryId\":\"20260519_170921_00014_f2hzc\"},\"action\":{\"operation\":\"FilterTables\",\"filterResources\":[{\"table\":{\"catalogName\":\"iceberg\",\"schemaName\":\"hr\",\"tableName\":\"employees\"}}]}}}",
+  "req_id":67,"req_method":"POST","req_params":{},"req_path":"/v1/data/trino/authz/batch","time":"2026-05-19T17:09:07Z"}
+
+{"client_addr":"172.23.0.5:50290","level":"info","msg":"Sent response.",
+  "req_id":67,"req_method":"POST","req_path":"/v1/data/trino/authz/batch",
+  "resp_body":"{\"result\":[0]}\n","resp_bytes":15,"resp_duration":0.240385,
+  "resp_status":200,"time":"2026-05-19T17:09:07Z"}
