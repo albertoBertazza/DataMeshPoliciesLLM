@@ -1,0 +1,31 @@
+# Base OU for users
+dn: ou=users,dc=example,dc=com
+objectClass: organizationalUnit
+ou: users
+
+# Base OU for groups
+dn: ou=groups,dc=example,dc=com
+objectClass: organizationalUnit
+ou: groups
+
+# User: Alice
+dn: uid=alice,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: alice
+sn: Smith
+givenName: Alice
+cn: Alice Smith
+displayName: Alice Smith
+uidNumber: 1001
+gidNumber: 1001
+userPassword: alice123
+homeDirectory: /home/alice
+mail: alice@example.com
+
+# Group: hr_managers
+dn: cn=hr_managers,ou=groups,dc=example,dc=com
+objectClass: groupOfNames
+cn: hr_managers
+member: uid=alice,ou=users,dc=example,dc=com
