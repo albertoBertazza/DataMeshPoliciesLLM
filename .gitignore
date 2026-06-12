@@ -221,3 +221,6 @@ __marimo__/
 .idea
 .vscode
 /docker-compose/state
+
+*.jks
+*.gguf

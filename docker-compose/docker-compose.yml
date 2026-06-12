@@ -1,5 +1,65 @@
 version: '3.7'
 services:
+  # LDAP Server (OpenLDAP)
+  ldap:
+    image: osixia/openldap:latest
+    environment:
+      LDAP_ORGANISATION: "MyOrg"
+      LDAP_DOMAIN: "example.com"
+      LDAP_ADMIN_PASSWORD: "admin"
+      LDAP_SEED_INTERNAL_LDIF_PATH: /ldif
+    volumes:
+        - ./ldap-bootstrap:/ldif
+    ports:
+      - "389:389"
+      - "636:636"
+    hostname: ldap.example.com
+    networks:
+      - trino-network
+    healthcheck:
+      test: [ "CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -D 'cn=admin,dc=example,dc=com' -w admin -b 'dc=example,dc=com' || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  ldap-memberof-init:
+    image: osixia/openldap:1.5.0
+    depends_on:
+      ldap:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo 'Waiting for LDAP...';
+        sleep 5;
+
+        echo 'Enabling memberof module...';
+        ldapmodify -Y EXTERNAL -H ldapi:/// <<EOF
+        dn: cn=module{0},cn=config
+        add: olcModuleLoad
+        olcModuleLoad: memberof.la
+        EOF
+        
+        echo 'Enabling memberof overlay...';
+        ldapmodify -Y EXTERNAL -H ldapi:/// <<EOF
+        dn: olcOverlay=memberof,olcDatabase={1}mdb,cn=config
+        objectClass: olcOverlayConfig
+        objectClass: olcMemberOf
+        olcOverlay: memberof
+        olcMemberOfRefInt: TRUE
+        EOF
+        
+        echo 'memberof overlay enabled successfully!';
+      "
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/v1/info" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+    - trino-network
+
+
   trino-coordinator:
     image: 'trinodb/trino:480'
     hostname: trino-coordinator
@@ -7,6 +67,9 @@ services:
       - '8080:8080'
     volumes:
       - ./etc:/etc/trino
+    depends_on:
+      ldap-memberof-init:
+        condition: service_completed_successfully
     networks:
       - trino-network
     healthcheck:
@@ -49,6 +112,7 @@ services:
       "
     depends_on:
       - postgres
+      - minio-init
     healthcheck:
       test: [ "CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9083' || exit 1" ]
       interval: 10s
@@ -113,35 +177,13 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+
     volumes:
       - ./init:/init
       - ./state:/state
-    entrypoint: >
-      /bin/bash -c "
-        set -e;
 
-        until curl -sf http://trino-coordinator:8080/v1/info > /dev/null; do
-          echo 'Waiting for Trino coordinator...';
-          sleep 3;
-        done;
+    entrypoint: ["/bin/bash", "/init/init.sh"]
 
-        trino --server http://trino-coordinator:8080 --file /init/01-schemas.sql;
-        echo 'Schemas created';
-        
-        echo 'HR initializing...';
-        trino --server http://trino-coordinator:8080 --file /init/02-hr.sql;
-        echo 'HR initialized';
-        
-        echo 'Mobility initializing...';
-        trino --server http://trino-coordinator:8080 --file /init/03-mobility.sql;
-        echo 'Mobility initialized';
-        
-        echo 'Demographics initializing...';
-        # trino --server http://trino-coordinator:8080 --file /init/04-demographics.sql;
-        echo 'Demographics initialized';
-
-        echo 'INIT COMPLETE';
-      "
     networks:
       - trino-network
 

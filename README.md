@@ -1508,3 +1508,5 @@ SHOW FUNCTIONS FROM iceberg.hr;
 - ExecuteQuery
 - ShowFunctions
 Because operation are not supported
+
+

@@ -27,7 +27,7 @@ default allow := false
 ############ ROLES ############
 
 is_admin if {
-    input.context.identity.user == "trino"
+    input.context.identity.user in ["trino", "alice"]
 }
 
 is_test if {
@@ -53,7 +53,7 @@ analyst_operation := {
 }
 # define the hr groups
 is_hr if {
-    input.context.identity.user in {"alice", "mario"}
+    input.context.identity.extraCredentials.rule == "hr"
 }
 
 # ============================================================
@@ -221,12 +221,7 @@ columnMask := {"expression": "date_trunc('day', tpep_dropoff_datetime)"} if {
 ##########BATCH COLUMN MASKING############
 # mask more than 1 column improving performance
 # hide attrition value and businesstravel mask: Travel_Frequently to *******_Frequently
-batchColumnMasks contains {
-    "index": i,
-    "viewExpression": {
-        "expression": "'REDACTED'"
-    }
-} if {
+batchColumnMasks contains mask if {
     some i
     not is_admin
 
@@ -236,15 +231,17 @@ batchColumnMasks contains {
     column_resource.schemaName == "hr"
     column_resource.tableName == "employees"
     column_resource.columnName == "attrition"
+
+    mask := {
+        "index": i,
+        "viewExpression": {
+            "expression": "'REDACTED'"
+        }
+    }
 }
 
 
-batchColumnMasks contains {
-    "index": i,
-    "viewExpression": {
-        "expression": "'******' || substr(businesstravel,7)"
-    }
-} if {
+batchColumnMasks contains mask if {
     some i
     not is_admin
 
@@ -254,6 +251,13 @@ batchColumnMasks contains {
     column_resource.schemaName == "hr"
     column_resource.tableName == "employees"
     column_resource.columnName == "businesstravel"
+
+    mask := {
+        "index": i,
+        "viewExpression": {
+            "expression": "'******' || substr(businesstravel,7)"
+        }
+    }
 }
 
 
