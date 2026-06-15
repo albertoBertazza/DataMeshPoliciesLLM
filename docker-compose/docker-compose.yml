@@ -10,7 +10,7 @@ services:
       LDAP_ADMIN_PASSWORD: "admin"
       LDAP_SEED_INTERNAL_LDIF_PATH: /ldif
     volumes:
-        - ./ldap-bootstrap:/ldif
+        - ./ldap/ldap-bootstrap:/ldif
     ports:
       - "389:389"
       - "636:636"
