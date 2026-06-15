@@ -27,7 +27,7 @@ default allow := false
 ############ ROLES ############
 
 is_admin if {
-    input.context.identity.user in ["trino", "alice"]
+    input.context.identity.user == "trino"
 }
 
 is_test if {
@@ -53,7 +53,7 @@ analyst_operation := {
 }
 # define the hr groups
 is_hr if {
-    input.context.identity.extraCredentials.rule == "hr"
+    "hr_managers" in input.context.identity.groups
 }
 
 # ============================================================
@@ -244,6 +244,7 @@ batchColumnMasks contains mask if {
 batchColumnMasks contains mask if {
     some i
     not is_admin
+
 
     column_resource := input.action.filterResources[i].column
 

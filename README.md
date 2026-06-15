@@ -1510,3 +1510,7 @@ SHOW FUNCTIONS FROM iceberg.hr;
 Because operation are not supported
 
 
+# Auth 
+```bash
+docker exec -it docker-compose-trino-coordinator-1 trino --server https://localhost:8443 --user alice --password --insecure --extra-credential age=25
+```
