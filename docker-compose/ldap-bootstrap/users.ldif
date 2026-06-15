@@ -29,3 +29,25 @@ dn: cn=hr_managers,ou=groups,dc=example,dc=com
 objectClass: groupOfNames
 cn: hr_managers
 member: uid=alice,ou=users,dc=example,dc=com
+
+# User: trino
+dn: uid=trino,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: trino
+sn: Trino
+givenName: Trino
+cn: Trino User
+displayName: Trino User
+uidNumber: 1002
+gidNumber: 1002
+userPassword: trino123
+homeDirectory: /home/trino
+mail: trino@example.com
+
+# Group: admin
+dn: cn=admin,ou=groups,dc=example,dc=com
+objectClass: groupOfNames
+cn: admin
+member: uid=trino,ou=users,dc=example,dc=com

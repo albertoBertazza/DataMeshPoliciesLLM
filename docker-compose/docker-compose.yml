@@ -3,6 +3,7 @@ services:
   # LDAP Server (OpenLDAP)
   ldap:
     image: osixia/openldap:latest
+    container_name: ldap
     environment:
       LDAP_ORGANISATION: "MyOrg"
       LDAP_DOMAIN: "example.com"
@@ -13,7 +14,6 @@ services:
     ports:
       - "389:389"
       - "636:636"
-    hostname: ldap.example.com
     networks:
       - trino-network
     healthcheck:
@@ -23,8 +23,9 @@ services:
       retries: 10
       start_period: 15s
 
-  ldap-memberof-init:
+  ldap-init:
     image: osixia/openldap:1.5.0
+    container_name: ldap-init
     depends_on:
       ldap:
         condition: service_healthy
@@ -59,16 +60,39 @@ services:
     networks:
     - trino-network
 
+  #ldap-micro-service:
+  #  image: python:3.11-slim
+  #  hostname: ldap-micro-service
+  #  container_name: ldap-micro-service
+  #  working_dir: /ldap
+  #  volumes:
+  #    - .:/ldap
+  #  command: >
+  #    sh -c "cd ldap &&
+  #           pip install flask ldap3 &&
+  #           flask run --host=0.0.0.0 --port=5000"
+  #  environment:
+  #    FLASK_APP: app.py
+  #    FLASK_ENV: development
+  #  ports:
+  #    - "5000:5000"
+  #  depends_on:
+  #    ldap:
+  #      condition: service_healthy
+  #  networks:
+  #    - trino-network
+
 
   trino-coordinator:
     image: 'trinodb/trino:480'
     hostname: trino-coordinator
+    container_name: trino-coordinator
     ports:
       - '8080:8080'
     volumes:
       - ./etc:/etc/trino
     depends_on:
-      ldap-memberof-init:
+      ldap-init:
         condition: service_completed_successfully
     networks:
       - trino-network
@@ -80,7 +104,7 @@ services:
 
   postgres:
     image: 'postgres:11'
-    hostname: postgres
+    container_name: postgres-hive
     expose:
       - '5432'
     ports:
@@ -95,6 +119,7 @@ services:
   hive-metastore:
     image: 'my-hive-metastore:latest'
     hostname: hive-metastore
+    container_name: hive-metastore
     user: root
     ports:
       - '9083:9083' # Metastore Thrift
@@ -144,6 +169,7 @@ services:
 
   minio-init:
     image: minio/mc
+    container_name: minio-init
     depends_on:
       minio:
         condition: service_healthy
@@ -170,6 +196,7 @@ services:
 
   trino-init:
     image: trinodb/trino:480
+    container_name: trino-init
     depends_on:
       trino-coordinator:
         condition: service_healthy

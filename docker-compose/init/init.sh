@@ -13,16 +13,16 @@ echo "Running schema init..."
 
 SERVER="https://trino-coordinator:8443"
 
-trino --server "$SERVER" --user alice --password --insecure --file /init/01-schemas.sql <<EOF
-alice123
+trino --server "$SERVER" --user trino --password --insecure --file /init/01-schemas.sql <<EOF
+trino123
 EOF
 
-trino --server "$SERVER" --user alice --password --insecure --file /init/02-hr.sql <<EOF
-alice123
+trino --server "$SERVER" --user trino --password --insecure --file /init/02-hr.sql <<EOF
+trino123
 EOF
 
-trino --server "$SERVER" --user alice --password --insecure --file /init/03-mobility.sql <<EOF
-alice123
+trino --server "$SERVER" --user trino --password --insecure --file /init/03-mobility.sql <<EOF
+trino123
 EOF
 
 echo "INIT COMPLETE"
