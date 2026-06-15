@@ -224,3 +224,5 @@ __marimo__/
 
 *.jks
 *.gguf
+
+/LocalLLMIntelIpex/llama-cpp-ipex-llm-2.3.0b20250424-win
