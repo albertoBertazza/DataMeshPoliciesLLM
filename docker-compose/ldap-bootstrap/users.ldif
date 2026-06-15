@@ -23,6 +23,7 @@ gidNumber: 1001
 userPassword: alice123
 homeDirectory: /home/alice
 mail: alice@example.com
+telephoneNumber: +397878991367
 
 # Group: hr_managers
 dn: cn=hr_managers,ou=groups,dc=example,dc=com
@@ -45,6 +46,7 @@ gidNumber: 1002
 userPassword: trino123
 homeDirectory: /home/trino
 mail: trino@example.com
+telephoneNumber: +397878991367
 
 # Group: admin
 dn: cn=admin,ou=groups,dc=example,dc=com

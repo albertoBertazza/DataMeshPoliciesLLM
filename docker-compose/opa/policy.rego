@@ -24,6 +24,20 @@ default allow := false
 #    "AccessSchema"
 #}
 
+user_info := resp.body if {
+    user := input.context.identity.user
+
+    resp := http.send({
+        "method": "GET",
+        "url": sprintf("http://ldap-micro-service:5000/users/%s", [user]),
+        "raise_error": false
+    })
+
+    print("HTTP RESPONSE:", resp)
+
+    resp.status_code == 200
+}
+
 ############ ROLES ############
 
 is_admin if {
@@ -66,6 +80,7 @@ is_hr if {
 allow if {
     is_hr
     input.action.operation == "ExecuteQuery"
+    print("USER INFO: ", user_info)
 }
 
 # ============================================================

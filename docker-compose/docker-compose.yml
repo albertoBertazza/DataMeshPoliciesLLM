@@ -60,27 +60,27 @@ services:
     networks:
     - trino-network
 
-  #ldap-micro-service:
-  #  image: python:3.11-slim
-  #  hostname: ldap-micro-service
-  #  container_name: ldap-micro-service
-  #  working_dir: /ldap
-  #  volumes:
-  #    - .:/ldap
-  #  command: >
-  #    sh -c "cd ldap &&
-  #           pip install flask ldap3 &&
-  #           flask run --host=0.0.0.0 --port=5000"
-  #  environment:
-  #    FLASK_APP: app.py
-  #    FLASK_ENV: development
-  #  ports:
-  #    - "5000:5000"
-  #  depends_on:
-  #    ldap:
-  #      condition: service_healthy
-  #  networks:
-  #    - trino-network
+  ldap-micro-service:
+    image: python:3.11-slim
+    hostname: ldap-micro-service
+    container_name: ldap-micro-service
+    working_dir: /ldap
+    volumes:
+      - .:/ldap
+    command: >
+      sh -c "cd ldap &&
+             pip install flask ldap3 &&
+             flask run --host=0.0.0.0 --port=5000"
+    environment:
+      FLASK_APP: app.py
+      FLASK_ENV: development
+    ports:
+      - "5000:5000"
+    depends_on:
+      ldap:
+        condition: service_healthy
+    networks:
+      - trino-network
 
 
   trino-coordinator:
