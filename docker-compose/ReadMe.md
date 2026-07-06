@@ -1,3 +1,8 @@
+# OAuth
+```bash
+bash scripts/trino_session.sh --user trino --password trino123
+```
+
 # Public key
 ```bash
 cd docker-compose
