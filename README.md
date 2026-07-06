@@ -1510,7 +1510,22 @@ SHOW FUNCTIONS FROM iceberg.hr;
 Because operation are not supported
 
 
-# Auth 
+# Auth  LDAP
 ```bash
 docker exec -it docker-compose-trino-coordinator-1 trino --server https://localhost:8443 --user alice --password --insecure
+```
+
+
+# OAuth
+```bash
+curl.exe -X POST "http://localhost:8081/realms/trino/protocol/openid-connect/token" `
+  -H "Content-Type: application/x-www-form-urlencoded" `
+--data-urlencode "client_id=trino" `
+  --data-urlencode "client_secret=trino-client-secret" `
+--data-urlencode "grant_type=password" `
+  --data-urlencode "username=alice" `
+--data-urlencode "password=alice123"
+
+docker exec -it trino-coordinator trino --server https://localhost:8443 --access-token eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJaZ1N0X2pyOTY4dVlnLXM2bnN1Z25aTGV4dUpTRUU0QzRWUEhaSGxKeUVRIn0.eyJleHAiOjE3ODMzNDk1MjAsImlhdCI6MTc4MzM0OTIyMCwianRpIjoiYTlhOWUxOTktZDZiNi00NTFiLWE2NzgtNDQ4MTE5MWViYTE3IiwiaXNzIjoiaHR0cDovL2tleWNsb2FrOjgwODEvcmVhbG1zL3RyaW5vIiwic3ViIjoiMTE1MDNmYmItZTU0Yy00YjdjLTkyZWQtYjhhNTYwNzJmOTY2IiwidHlwIjoiQmVhcmVyIiwiYXpwIjoidHJpbm8iLCJzaWQiOiI1MzBiZjIwNy1mYzAxLTQ3YzYtYTJjMC0zNGMyODc5NGI0NTAiLCJhY3IiOiIxIiwiYWxsb3dlZC1vcmlnaW5zIjpbImh0dHBzOi8vdHJpbm8tY29vcmRpbmF0b3I6ODQ0MyIsImh0dHBzOi8vbG9jYWxob3N0Ojg0NDMiXSwic2NvcGUiOiJlbWFpbCBwcm9maWxlIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5hbWUiOiJBbGljZSBTbWl0aCIsImdyb3VwcyI6WyJocl9tYW5hZ2VycyJdLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJhbGljZSIsImdpdmVuX25hbWUiOiJBbGljZSIsImZhbWlseV9uYW1lIjoiU21pdGgiLCJlbWFpbCI6ImFsaWNlQGV4YW1wbGUuY29tIn0.fCsriyEjMZaRKr0nK3LlkFnAh2xQG-8dAp45BKBwFwkeKpyzJXZGuMo3c4p5wvvt47ovPwd298-D3HR4UW1mQV0YBx0W4pewoXgLVkuGEEW5_FBFZWOFy3ddn8PRXrEvUQ8G4TK6VMrCMemqpmOcUVUcMS61iBIVfhh8A7FaPM4RYcttumldc8uk8tZnWSpRFrz62WuWRkKQynRzZxFGYnYJKRv1wqMqXVH3OtwVLrDWOke5CSirIB14WQgO8tFdEs0ZvuRf_g13Bbp2upnJR30lZMpOGBqjsj-cvL8cPdyznj8XCxlBWgKpt4WIuPjVvIIJh5bOfv5Ec6gnTRZtKA
+
 ```

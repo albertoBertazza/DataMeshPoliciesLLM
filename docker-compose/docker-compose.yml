@@ -1,86 +1,26 @@
 version: '3.7'
 services:
-  # LDAP Server (OpenLDAP)
-  ldap:
-    image: osixia/openldap:latest
-    container_name: ldap
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: keycloak
+    hostname: keycloak
+    command: start-dev --import-realm
     environment:
-      LDAP_ORGANISATION: "MyOrg"
-      LDAP_DOMAIN: "example.com"
-      LDAP_ADMIN_PASSWORD: "admin"
-      LDAP_SEED_INTERNAL_LDIF_PATH: /ldif
+      KC_HOSTNAME: keycloak
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
     volumes:
-        - ./ldap/ldap-bootstrap:/ldif
+      - ./keycloak/import:/opt/keycloak/data/import
     ports:
-      - "389:389"
-      - "636:636"
+      - "8081:8080"
     networks:
       - trino-network
     healthcheck:
-      test: [ "CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -D 'cn=admin,dc=example,dc=com' -w admin -b 'dc=example,dc=com' || exit 1" ]
+      test: [ "CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 15s
-
-  ldap-init:
-    image: osixia/openldap:1.5.0
-    container_name: ldap-init
-    depends_on:
-      ldap:
-        condition: service_healthy
-    command: >
-      bash -c "
-        echo 'Waiting for LDAP...';
-        sleep 5;
-
-        echo 'Enabling memberof module...';
-        ldapmodify -Y EXTERNAL -H ldapi:/// <<EOF
-        dn: cn=module{0},cn=config
-        add: olcModuleLoad
-        olcModuleLoad: memberof.la
-        EOF
-        
-        echo 'Enabling memberof overlay...';
-        ldapmodify -Y EXTERNAL -H ldapi:/// <<EOF
-        dn: olcOverlay=memberof,olcDatabase={1}mdb,cn=config
-        objectClass: olcOverlayConfig
-        objectClass: olcMemberOf
-        olcOverlay: memberof
-        olcMemberOfRefInt: TRUE
-        EOF
-        
-        echo 'memberof overlay enabled successfully!';
-      "
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8080/v1/info" ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    networks:
-    - trino-network
-
-  ldap-micro-service:
-    image: python:3.11-slim
-    hostname: ldap-micro-service
-    container_name: ldap-micro-service
-    working_dir: /ldap
-    volumes:
-      - .:/ldap
-    command: >
-      sh -c "cd ldap &&
-             pip install flask ldap3 &&
-             flask run --host=0.0.0.0 --port=5000"
-    environment:
-      FLASK_APP: app.py
-      FLASK_ENV: development
-    ports:
-      - "5000:5000"
-    depends_on:
-      ldap:
-        condition: service_healthy
-    networks:
-      - trino-network
+      start_period: 30s
 
 
   trino-coordinator:
@@ -89,11 +29,13 @@ services:
     container_name: trino-coordinator
     ports:
       - '8080:8080'
+      - '8443:8443' # needed for OAuth2
     volumes:
       - ./etc:/etc/trino
+      - ./etc/keystore.jks:/etc/trino/keystore.jks
     depends_on:
-      ldap-init:
-        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
     networks:
       - trino-network
     healthcheck:

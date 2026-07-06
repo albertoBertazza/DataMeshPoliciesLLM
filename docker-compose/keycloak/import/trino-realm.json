@@ -1,0 +1,80 @@
+{
+  "realm": "trino",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "groups": [
+    { "name": "hr_managers" },
+    { "name": "admin" }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@example.com",
+      "firstName": "Alice",
+      "lastName": "Smith",
+      "emailVerified": true,
+      "groups": ["/hr_managers"],
+      "credentials": [
+        { "type": "password", "value": "alice123", "temporary": false }
+      ]
+    },
+    {
+      "username": "trino",
+      "enabled": true,
+      "email": "trino@example.com",
+      "firstName": "Trino",
+      "lastName": "User",
+      "emailVerified": true,
+      "groups": ["/admin"],
+      "credentials": [
+        { "type": "password", "value": "trino123", "temporary": false }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "trino",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "trino-client-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://localhost:8443/oauth2/callback",
+        "https://trino-coordinator:8443/oauth2/callback"
+      ],
+      "webOrigins": ["+"],
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "username",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    }
+  ]
+}

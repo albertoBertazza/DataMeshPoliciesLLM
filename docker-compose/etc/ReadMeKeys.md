@@ -1,6 +1,7 @@
 # Public key
 ```bash
-keytool -genkeypair -alias trino -keyalg RSA -keysize 2048 -keystore keystore.jks -storepass dataMeshProject -keypass dataMeshProject -dname "CN=trino"
+cd docker-compose
+keytool -genkeypair -alias trino -keyalg RSA -keysize 2048 -validity 3650 -keystore etc/keystore.jks -storepass dataMeshProject -keypass dataMeshProject  -dname "CN=localhost, OU=Dev, O=Example, L=City, ST=State, C=US"
 ```
 # if you change storepass
 remember also to modify in etc/config.propierties:
