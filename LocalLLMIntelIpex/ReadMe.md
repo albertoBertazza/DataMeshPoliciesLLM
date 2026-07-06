@@ -11,6 +11,7 @@ cd ..
 Move-Item "Qwen2.5.1-Coder-7B-Instruct-Q4_K_M.gguf" "models\"
 ```
 
+
 ```bash
 cd llama-cpp-ipex-llm-2.3.0b20250424-win
 .\llama-server.exe -m .\models\Qwen2.5.1-Coder-7B-Instruct-Q4_K_M.gguf
@@ -19,5 +20,6 @@ cd llama-cpp-ipex-llm-2.3.0b20250424-win
 example of chatbot:
 
 ```bash
+.\.venv\Scripts\Activate.ps1
 python ChatBot.py
 ```
