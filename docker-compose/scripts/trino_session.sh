@@ -95,6 +95,7 @@ exec docker run --rm -it \
   trinodb/trino:480 \
   trino \
   --server "$SERVER" \
+  --user "$USERNAME" \
   --access-token "$TOKEN" \
   --insecure \
   --debug

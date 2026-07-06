@@ -21,6 +21,18 @@
       ]
     },
     {
+      "username": "Mario",
+      "enabled": true,
+      "email": "mario@example.com",
+      "firstName": "Mario",
+      "lastName": "Smith",
+      "emailVerified": true,
+      "groups": ["/hr_managers"],
+      "credentials": [
+        { "type": "password", "value": "mario123", "temporary": false }
+      ]
+    },
+    {
       "username": "trino",
       "enabled": true,
       "email": "trino@example.com",

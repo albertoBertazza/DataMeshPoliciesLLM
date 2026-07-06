@@ -1,0 +1,2 @@
+admin:trino
+hr_managers:alice,Mario
