@@ -6,23 +6,7 @@ import future.keywords.contains
 
 default allow := false
 
-############ input.action.operation #########
-#operation := {
-#    "ExecuteQuery",
-#    "KillQuery",
-#    "SelectFromColumns",
-#    "GetColumnMask",
-#    "GetRowFilters",
-#    "ShowTables",
-#    "CreateTable",
-#    "DropTable",
-#    "AlterTable",
-#    "InsertIntoTable",
-#    "DeleteFromTable",
-#    "AccessCatalog",
-#    "ShowSchemas",
-#    "AccessSchema"
-#}
+
 
 user_info := resp.body if {
     user := input.context.identity.user

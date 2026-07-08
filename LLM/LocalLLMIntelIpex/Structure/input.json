@@ -1,0 +1,36 @@
+{
+  "context": {
+    "identity": {
+      "user": "...",
+      "groups": [ "...", "..."]
+    }
+  },
+  "action":{
+    "operation": "",
+    "resource": {
+      "schema": {
+        "catalogName": "",
+        "schemaName": ""
+      },
+      "table": {
+        "catalogName": "",
+        "schemaName": "",
+        "tableName": ""
+      },
+      "column": {
+        "catalogName": "",
+        "schemaName": "",
+        "tableName": "",
+        "columnName": ""
+      }
+    },
+    "filterResources":[
+      {
+        "column": ""
+      },
+      {
+        "column": ""
+      }
+    ]
+  }
+}

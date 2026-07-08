@@ -1,0 +1,138 @@
+[
+  {
+    "rule": "Allow role analyst to SELECT from iceberg.demographics.employees",
+    "explanation": "The analyst role can read data from catalog: iceberg, schema: demographics, table: employees."
+  },
+  {
+    "rule": "Grant role data_engineer INSERT privilege on hive.sales.orders",
+    "explanation": "The data_engineer role can insert data into catalog: hive, schema: sales, table: orders."
+  },
+  {
+    "rule": "Role finance_admin has ALL privileges on catalog postgres",
+    "explanation": "The finance_admin role has full access to catalog: postgres."
+  },
+  {
+    "rule": "Allow role hr_reader to SELECT iceberg.hr.employee_records",
+    "explanation": "The hr_reader role can read data from catalog: iceberg, schema: hr, table: employee_records."
+  },
+  {
+    "rule": "Role bi_team can SELECT any table inside delta.analytics",
+    "explanation": "The bi_team role can read data from catalog: delta, schema: analytics, table: *."
+  },
+  {
+    "rule": "User Mario can SELECT any table inside delta.healthcare",
+    "explanation": "The Mario user can read data from catalog: delta, schema: healthcare, table: *."
+  },
+  {
+    "rule": "User Luigi can SELECT iceberg.hr.employees",
+    "explanation": "The Luigi user can read data from catalog: iceberg, schema: hr, table: employees."
+  },
+  {
+    "rule": "Users belonging to group hr_managers can access iceberg.hr",
+    "explanation": "Users in the hr_managers group can access catalog: iceberg, schema: hr."
+  },
+  {
+    "rule": "Allow group data_scientists to query iceberg.ml.models",
+    "explanation": "Users in the data_scientists group can read data from catalog: iceberg, schema: ml, table: models."
+  },
+  {
+    "rule": "Allow role admin to access any catalog",
+    "explanation": "The admin role has access to all catalogs."
+  },
+  {
+    "rule": "Allow role hr_manager to execute queries",
+    "explanation": "The hr_manager role is allowed to execute SQL queries."
+  },
+  {
+    "rule": "Allow role hr_manager to access catalog iceberg",
+    "explanation": "The hr_manager role can access catalog: iceberg."
+  },
+  {
+    "rule": "Allow role hr_manager to see schema iceberg.hr",
+    "explanation": "The hr_manager role can access schema: hr in catalog: iceberg."
+  },
+  {
+    "rule": "Allow role hr_manager to show tables in iceberg.hr",
+    "explanation": "The hr_manager role can list tables from catalog: iceberg, schema: hr."
+  },
+  {
+    "rule": "Allow role hr_manager to SELECT iceberg.hr.employees",
+    "explanation": "The hr_manager role can read data from catalog: iceberg, schema: hr, table: employees."
+  },
+  {
+    "rule": "Allow role hr_manager to DELETE from iceberg.hr.employees",
+    "explanation": "The hr_manager role can delete data from catalog: iceberg, schema: hr, table: employees."
+  },
+  {
+    "rule": "Allow role hr_manager to INSERT into iceberg.hr.employees",
+    "explanation": "The hr_manager role can insert data into catalog: iceberg, schema: hr, table: employees."
+  },
+  {
+    "rule": "Allow role developer to CREATE TABLE in iceberg.dev",
+    "explanation": "The developer role can create tables in catalog: iceberg, schema: dev."
+  },
+  {
+    "rule": "Allow role developer to DROP TABLE iceberg.dev.test_table",
+    "explanation": "The developer role can drop table: test_table in catalog: iceberg, schema: dev."
+  },
+  {
+    "rule": "Allow role auditor to SHOW SCHEMAS in iceberg",
+    "explanation": "The auditor role can list schemas in catalog: iceberg."
+  },
+  {
+    "rule": "Allow role auditor to SHOW TABLES in iceberg.audit",
+    "explanation": "The auditor role can list tables from catalog: iceberg, schema: audit."
+  },
+  {
+    "rule": "Mask column passenger_count in iceberg.mobility.taxi_trips for role analyst",
+    "explanation": "The analyst role has a column mask applied to column: passenger_count in catalog: iceberg, schema: mobility, table: taxi_trips."
+  },
+  {
+    "rule": "Mask column tpep_dropoff_datetime in iceberg.mobility.taxi_trips",
+    "explanation": "The column tpep_dropoff_datetime in catalog: iceberg, schema: mobility, table: taxi_trips is masked."
+  },
+  {
+    "rule": "Apply row filter attrition <> Yes on iceberg.hr.employees",
+    "explanation": "A row filter is applied to catalog: iceberg, schema: hr, table: employees."
+  },
+  {
+    "rule": "Allow role manager to CREATE VIEW from iceberg.hr.employees",
+    "explanation": "The manager role can create views using table: employees in catalog: iceberg, schema: hr."
+  },
+  {
+    "rule": "Allow role manager to ALTER COLUMN in iceberg.hr.employees",
+    "explanation": "The manager role can modify columns in catalog: iceberg, schema: hr, table: employees."
+  },
+  {
+    "rule": "Allow role manager to RENAME TABLE iceberg.hr.employees",
+    "explanation": "The manager role can rename table: employees in catalog: iceberg, schema: hr."
+  },
+  {
+    "rule": "User Alice should be able to access the table prospetti",
+    "explanation": "The Alice user can access data from catalog: *, schema: *, table: prospetti."
+  },
+  {
+    "rule": "User Bob can SELECT table customers",
+    "explanation": "The Bob user can read data from catalog: *, schema: *, table: customers."
+  },
+  {
+    "rule": "Allow role analyst to access schema finance",
+    "explanation": "The analyst role can access data from catalog: *, schema: finance, table: *."
+  },
+  {
+    "rule": "Allow group data_team to access catalog iceberg",
+    "explanation": "Users in the data_team group can access catalog: iceberg, schema: *, table: *."
+  },
+  {
+    "rule": "Allow role developer to SELECT sales.orders",
+    "explanation": "The developer role can read data from catalog: *, schema: sales, table: orders."
+  },
+  {
+    "rule": "User Mario can SELECT iceberg.hr.employees",
+    "explanation": "The Mario user can read data from catalog: iceberg, schema: hr, table: employees."
+  },
+  {
+    "rule": "User Luigi can SELECT delta.healthcare.patient_records",
+    "explanation": "The Luigi user can read data from catalog: delta, schema: healthcare, table: patient_records."
+  }
+]

@@ -1,0 +1,47 @@
+[
+  {
+    "input": "data_engineers can create tables in iceberg",
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "data_engineer",
+      "resource_type": "catalog",
+      "resource_values": {
+        "catalogName": "iceberg",
+        "schemaName": "",
+        "tableName": "",
+        "columnName": ""
+      },
+      "trino_action": "CREATE"
+    }
+  },
+  {
+    "input": "analysts can read finance tables",
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "analyst",
+      "resource_type": "schema",
+      "resource_values": {
+        "catalogName": "",
+        "schemaName": "finance",
+        "tableName": "",
+        "columnName": ""
+      },
+      "trino_action": "SELECT"
+    }
+  },
+  {
+    "input": "alice can access the employees table",
+    "output": {
+      "subject_attribute": "user",
+      "subject_value": "alice",
+      "resource_type": "table",
+      "resource_values": {
+        "catalogName": "",
+        "schemaName": "",
+        "tableName": "employees",
+        "columnName": ""
+      },
+      "trino_action": "*"
+    }
+  }
+]

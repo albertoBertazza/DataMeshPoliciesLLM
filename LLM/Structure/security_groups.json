@@ -1,0 +1,61 @@
+
+[
+  {
+    "name": "admin",
+    "permissions": ["*"]
+  },
+  {
+    "name": "data_engineer",
+    "permissions": ["CREATE", "DROP", "INSERT", "UPDATE"]
+  },
+  {
+    "name": "data_scientist",
+    "permissions": ["SELECT", "CREATE VIEW"]
+  },
+  {
+    "name": "analyst",
+    "permissions": ["SELECT"]
+  },
+  {
+    "name": "hr_manager",
+    "permissions": ["SELECT", "INSERT", "DELETE", "UPDATE"],
+    "limitation": {
+      "catalog": "iceberg",
+      "schema": "hr"
+    }
+  },
+  {
+    "name": "finance_manager",
+    "permissions": ["SELECT", "INSERT", "DELETE", "UPDATE"],
+    "limitation": {
+      "catalog": "iceberg",
+      "schema": "finance"
+    }
+  },
+  {
+    "name": "auditor",
+    "permissions": ["SHOW", "SELECT"]
+  },
+  {
+    "name": "intern",
+    "permissions": ["SELECT"],
+    "limitation": {
+      "catalog": "iceberg",
+      "schemas": ["hr", "finance"]
+    }
+  },
+  {
+    "name": "service_account",
+    "permissions": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+    "limitation": {
+      "catalog": "iceberg",
+      "tables": ["hr.employees", "finance.transactions"]
+    }
+  },
+  {
+    "name": "etl_job",
+    "permissions": ["INSERT", "DELETE", "MERGE"]
+  }
+
+]
+
