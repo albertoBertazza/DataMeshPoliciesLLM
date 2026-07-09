@@ -5,6 +5,7 @@ import os
 import time
 
 from RemoteLLM.IndexCreation.Extraction.gen_index_extraction import gen_index_extraction
+from RemoteLLM.IndexCreation.RegoRuleGeneration.gen_index_build import gen_index_build
 from RemoteLLM.IndexCreation.Rewrite.gen_index_rewrite import gen_index_rewrite
 
 # ---------------------------------------------------------------------------
@@ -23,9 +24,11 @@ OUTPUT_DIR = os.path.join(EXAMPLE_DIR, "Indexed")
 
 INPUT_EXTRACTION_PATH = os.path.join( os.path.join(INPUT_DIR, "Extraction"), "extraction.json")
 INPUT_REWRITE_RULE_PATH = os.path.join( os.path.join(INPUT_DIR, "Rewrite"), "rewrite_rule.json")
+INPUT_BUILD_REGO_PATH = os.path.join( os.path.join(INPUT_DIR, "RegoRuleGeneration"), "build_rego.json")
 
 OUTPUT_EXTRACTION_INDEX_PATH = os.path.join( os.path.join(OUTPUT_DIR, "Extraction"), "extraction_index.json")
 OUTPUT_REWRITE_RULE_INDEX_PATH = os.path.join( os.path.join(OUTPUT_DIR, "Rewrite"), "rewrite_rule_index.json")
+OUTPUT_BUILD_REGO_INDEX_PATH = os.path.join( os.path.join(OUTPUT_DIR, "RegoRuleGeneration"), "build_rego_index.json")
 
 
 def load_json(path):
@@ -127,7 +130,14 @@ def reload_indexes(client):
         gen_index_rewrite
     )
 
-    return extraction_index, rewrite_rule_index
+    build_rego_index = build_index_if_needed(
+        client,
+        INPUT_BUILD_REGO_PATH,
+        OUTPUT_BUILD_REGO_INDEX_PATH,
+        gen_index_build
+    )
+
+    return extraction_index, rewrite_rule_index, build_rego_index
 
 
 

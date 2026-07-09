@@ -1,138 +1,82 @@
 [
   {
-    "rule": "Allow role analyst to SELECT from iceberg.demographics.employees",
-    "explanation": "The analyst role can read data from catalog: iceberg, schema: demographics, table: employees."
+    "rule": "The analyst needs to consult the employee demographics dataset to prepare the monthly workforce report.",
+    "explanation": "The Analyst role is a read-only role. It should be allowed to execute SELECT statements on catalog: iceberg, schema: demographics, table: employees."
   },
   {
-    "rule": "Grant role data_engineer INSERT privilege on hive.sales.orders",
-    "explanation": "The data_engineer role can insert data into catalog: hive, schema: sales, table: orders."
+    "rule": "A data engineer has to load the latest sales records into the orders table after the nightly ETL process.",
+    "explanation": "The Data Engineer role is responsible for data ingestion and maintenance. It should be allowed to INSERT into catalog: hive, schema: sales, table: orders."
   },
   {
-    "rule": "Role finance_admin has ALL privileges on catalog postgres",
-    "explanation": "The finance_admin role has full access to catalog: postgres."
+    "rule": "The platform administrator must be able to manage every database object regardless of where it is stored.",
+    "explanation": "The Admin role has unrestricted access to every catalog, schema, table and database object."
   },
   {
-    "rule": "Allow role hr_reader to SELECT iceberg.hr.employee_records",
-    "explanation": "The hr_reader role can read data from catalog: iceberg, schema: hr, table: employee_records."
+    "rule": "An HR manager needs to update an employee's department information in the HR database.",
+    "explanation": "The HR Manager role can UPDATE records only inside catalog: iceberg, schema: hr."
   },
   {
-    "rule": "Role bi_team can SELECT any table inside delta.analytics",
-    "explanation": "The bi_team role can read data from catalog: delta, schema: analytics, table: *."
+    "rule": "A finance manager wants to review and correct a transaction stored in the finance domain.",
+    "explanation": "The Finance Manager role can SELECT and UPDATE data only inside catalog: iceberg, schema: finance."
   },
   {
-    "rule": "User Mario can SELECT any table inside delta.healthcare",
-    "explanation": "The Mario user can read data from catalog: delta, schema: healthcare, table: *."
+    "rule": "An analyst wants to modify an employee record after finding an error.",
+    "explanation": "The request should be denied because the Analyst role only has read permissions and cannot UPDATE data."
   },
   {
-    "rule": "User Luigi can SELECT iceberg.hr.employees",
-    "explanation": "The Luigi user can read data from catalog: iceberg, schema: hr, table: employees."
+    "rule": "A data scientist needs to build a reusable view containing customer purchase statistics.",
+    "explanation": "The Data Scientist role can CREATE VIEW objects and SELECT the required source data."
   },
   {
-    "rule": "Users belonging to group hr_managers can access iceberg.hr",
-    "explanation": "Users in the hr_managers group can access catalog: iceberg, schema: hr."
+    "rule": "An intern is trying to query the sales schema to understand historical orders.",
+    "explanation": "The request should be denied because the Intern role only has read access to the HR and Finance schemas of the Iceberg catalog."
   },
   {
-    "rule": "Allow group data_scientists to query iceberg.ml.models",
-    "explanation": "Users in the data_scientists group can read data from catalog: iceberg, schema: ml, table: models."
+    "rule": "An auditor wants to inspect which tables are available inside the audit schema.",
+    "explanation": "The Auditor role can list schemas and tables and read authorized datasets but cannot modify data."
   },
   {
-    "rule": "Allow role admin to access any catalog",
-    "explanation": "The admin role has access to all catalogs."
+    "rule": "An automated ETL job needs to merge today's records into the existing orders table.",
+    "explanation": "The ETL Job role is allowed to execute MERGE operations on datasets used for data synchronization."
   },
   {
-    "rule": "Allow role hr_manager to execute queries",
-    "explanation": "The hr_manager role is allowed to execute SQL queries."
+    "rule": "The payroll application needs to update employee information automatically.",
+    "explanation": "The Service Account can UPDATE only the predefined application tables, including iceberg.hr.employees."
   },
   {
-    "rule": "Allow role hr_manager to access catalog iceberg",
-    "explanation": "The hr_manager role can access catalog: iceberg."
+    "rule": "A user belonging to the data engineering group has to create a staging table for an ingestion pipeline.",
+    "explanation": "Members of the Data Engineering Group inherit permissions that allow them to create and manage datasets required for engineering activities."
   },
   {
-    "rule": "Allow role hr_manager to see schema iceberg.hr",
-    "explanation": "The hr_manager role can access schema: hr in catalog: iceberg."
+    "rule": "Members of the analytics team need to consult customer behavior data for a dashboard.",
+    "explanation": "The Analytics Group is intended for business intelligence workloads and should receive read-only access to analytical datasets."
   },
   {
-    "rule": "Allow role hr_manager to show tables in iceberg.hr",
-    "explanation": "The hr_manager role can list tables from catalog: iceberg, schema: hr."
+    "rule": "Employees in the Human Resources department should automatically receive access to HR datasets.",
+    "explanation": "Department Groups inherit permissions that grant access to resources belonging to their own business domain."
   },
   {
-    "rule": "Allow role hr_manager to SELECT iceberg.hr.employees",
-    "explanation": "The hr_manager role can read data from catalog: iceberg, schema: hr, table: employees."
+    "rule": "The salary column should not reveal its real values to regular analysts.",
+    "explanation": "A column masking policy should be applied to the salary column so unauthorized users receive masked values."
   },
   {
-    "rule": "Allow role hr_manager to DELETE from iceberg.hr.employees",
-    "explanation": "The hr_manager role can delete data from catalog: iceberg, schema: hr, table: employees."
+    "rule": "Managers should only see employees belonging to their own department.",
+    "explanation": "A row-level security policy should filter the returned rows so users only access records they are authorized to view."
   },
   {
-    "rule": "Allow role hr_manager to INSERT into iceberg.hr.employees",
-    "explanation": "The hr_manager role can insert data into catalog: iceberg, schema: hr, table: employees."
+    "rule": "The administrator wants to rename a production table before the next software release.",
+    "explanation": "The Admin role can rename database objects because it has unrestricted administrative privileges."
   },
   {
-    "rule": "Allow role developer to CREATE TABLE in iceberg.dev",
-    "explanation": "The developer role can create tables in catalog: iceberg, schema: dev."
+    "rule": "A data engineer needs to remove a temporary staging table that is no longer required.",
+    "explanation": "The Data Engineer role can DROP database objects as part of maintaining data pipelines."
   },
   {
-    "rule": "Allow role developer to DROP TABLE iceberg.dev.test_table",
-    "explanation": "The developer role can drop table: test_table in catalog: iceberg, schema: dev."
+    "rule": "An HR manager attempts to update a finance transaction.",
+    "explanation": "The request should be denied because the HR Manager is restricted to the HR schema and cannot access Finance resources."
   },
   {
-    "rule": "Allow role auditor to SHOW SCHEMAS in iceberg",
-    "explanation": "The auditor role can list schemas in catalog: iceberg."
-  },
-  {
-    "rule": "Allow role auditor to SHOW TABLES in iceberg.audit",
-    "explanation": "The auditor role can list tables from catalog: iceberg, schema: audit."
-  },
-  {
-    "rule": "Mask column passenger_count in iceberg.mobility.taxi_trips for role analyst",
-    "explanation": "The analyst role has a column mask applied to column: passenger_count in catalog: iceberg, schema: mobility, table: taxi_trips."
-  },
-  {
-    "rule": "Mask column tpep_dropoff_datetime in iceberg.mobility.taxi_trips",
-    "explanation": "The column tpep_dropoff_datetime in catalog: iceberg, schema: mobility, table: taxi_trips is masked."
-  },
-  {
-    "rule": "Apply row filter attrition <> Yes on iceberg.hr.employees",
-    "explanation": "A row filter is applied to catalog: iceberg, schema: hr, table: employees."
-  },
-  {
-    "rule": "Allow role manager to CREATE VIEW from iceberg.hr.employees",
-    "explanation": "The manager role can create views using table: employees in catalog: iceberg, schema: hr."
-  },
-  {
-    "rule": "Allow role manager to ALTER COLUMN in iceberg.hr.employees",
-    "explanation": "The manager role can modify columns in catalog: iceberg, schema: hr, table: employees."
-  },
-  {
-    "rule": "Allow role manager to RENAME TABLE iceberg.hr.employees",
-    "explanation": "The manager role can rename table: employees in catalog: iceberg, schema: hr."
-  },
-  {
-    "rule": "User Alice should be able to access the table prospetti",
-    "explanation": "The Alice user can access data from catalog: *, schema: *, table: prospetti."
-  },
-  {
-    "rule": "User Bob can SELECT table customers",
-    "explanation": "The Bob user can read data from catalog: *, schema: *, table: customers."
-  },
-  {
-    "rule": "Allow role analyst to access schema finance",
-    "explanation": "The analyst role can access data from catalog: *, schema: finance, table: *."
-  },
-  {
-    "rule": "Allow group data_team to access catalog iceberg",
-    "explanation": "Users in the data_team group can access catalog: iceberg, schema: *, table: *."
-  },
-  {
-    "rule": "Allow role developer to SELECT sales.orders",
-    "explanation": "The developer role can read data from catalog: *, schema: sales, table: orders."
-  },
-  {
-    "rule": "User Mario can SELECT iceberg.hr.employees",
-    "explanation": "The Mario user can read data from catalog: iceberg, schema: hr, table: employees."
-  },
-  {
-    "rule": "User Luigi can SELECT delta.healthcare.patient_records",
-    "explanation": "The Luigi user can read data from catalog: delta, schema: healthcare, table: patient_records."
+    "rule": "A business user requests access to customer information required for preparing quarterly reports.",
+    "explanation": "Business users receive only the permissions necessary for their responsibilities, following the principle of least privilege."
   }
 ]

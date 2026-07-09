@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from RemoteLLM.IndexCreation.index_creator import reload_indexes
 from RemoteLLM.Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
 from RemoteLLM.Pipeline.Extraction.extraction import extract_entities
-from RemoteLLM.Pipeline.RegoRuleGeneration.build_rego import build_rego
+from RemoteLLM.Pipeline.RegoRuleGeneration.build_rego import generate_rego_policy
 
 # ---------------------------------------------------------------------------
 # Config
@@ -46,7 +46,7 @@ CHECK_FOR_ACTION = load_json(CHECK_FOR_ACTION_PATH)   # action -> [checks...]
 INPUT_SCHEMA = load_json(INPUT_SCHEMA_PATH)           # shape Trino sends to OPA
 SECURITY_GROUPS = load_json(SECURITY_GROUPS_PATH)
 
-INDEX_EXTRACTION, INDEX_REWRITE_RULE = reload_indexes(client)
+INDEX_EXTRACTION, INDEX_REWRITE_RULE, INDEX_BUILD_REGO = reload_indexes(client)
 
 VALID_ACTIONS = list(CHECK_FOR_ACTION.keys())
 
@@ -78,40 +78,31 @@ def process_rule(rule):
     #----------------------------------------------------------------------
     print("\n[Extracting entities...]")
     try:
-        entities = extract_entities(client, MODEL,rule, CHECK_FOR_ACTION, SECURITY_GROUPS, INDEX_EXTRACTION)
-        print(f"  subject           : {entities['subject_attribute']} == \"{entities['subject_value']}\"")
-        print(f"  trino_action      : {entities['trino_action']}")
-        print(f"  associated checks : {CHECK_FOR_ACTION.get(entities['trino_action'])}")
-        print(f"  resource_type     : {entities['resource_type']}")
-        print(f"  resource_values   : {entities.get('resource_values')}")
+        entities = extract_entities(client, MODEL,rule, CHECK_FOR_ACTION, INDEX_EXTRACTION, SECURITY_GROUPS)
     except Exception as e:
         print("  Failed to parse entities:", e)
         return
 
-#     #-----------------------------------------------------------------------
-#     # 3) REGO POLICY GENERATION
-#     #----------------------------------------------------------------------
-#     print("\n[Generating OPA policy...]")
-#     try:
-#         policy = build_rego(entities, CHECK_FOR_ACTION, VALID_ACTIONS)
-#     except ValueError as e:
-#         print("  Failed to build policy:", e)
-#         return
-#
-#     print("\n--- Generated OPA Policy ---")
-#     print(policy)
-#     print("----------------------------")
-#
-#     output_dir = "output/rego_policies"
-#     filename = f"policy_{rule[:30].replace(' ', '_')}.rego"
-#     filename = os.path.join(output_dir, filename)
-#
-#     os.makedirs(output_dir, exist_ok=True)
-#
-#     with open(filename, "w") as f:
-#         f.write(policy)
-#
-#     print(f"Saved to: {filename}")
+    #-----------------------------------------------------------------------
+    # 3) REGO POLICY GENERATION
+    #----------------------------------------------------------------------
+    print("\n[Generating OPA policy...]")
+    try:
+        policy  = generate_rego_policy(client, MODEL, entities, INDEX_BUILD_REGO)
+    except ValueError as e:
+        print("  Failed to build policy:", e)
+        return
+
+    output_dir = "output/rego_policies"
+    filename = f"policy_{rule[:30].replace(' ', '_')}.rego"
+    filename = os.path.join(output_dir, filename)
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    with open(filename, "w") as f:
+        f.write(policy)
+
+    print(f"Saved to: {filename}")
 
 
 # --- MAIN LOOP ---

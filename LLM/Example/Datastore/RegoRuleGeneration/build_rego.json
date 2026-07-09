@@ -1,0 +1,62 @@
+[
+  {
+    "input": {
+      "subject_attribute": "groups",
+      "subject_value": "analyst",
+      "resource_type": "table",
+      "resource_values": {
+        "catalogName": "iceberg",
+        "schemaName": "demographics",
+        "tableName": "employees"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "GetColumnMask",
+        "GetRowFilters",
+        "SelectFromColumns"
+      ]
+    },
+    "output": "package trino.authz\n\nimport future.keywords.in\nimport future.keywords.if\nimport future.keywords.contains\n\ndefault allow := false\n\nis_analyst if {\n    \"analyst\" in input.context.identity.groups\n}\n\nanalyst_operation := {\n    \"SelectFromColumns\",\n    \"GetColumnMask\",\n    \"GetRowFilters\"\n}\n\nallow if {\n    is_analyst\n    input.action.operation == \"ExecuteQuery\"\n}\n\nallow if {\n    is_analyst\n    input.action.operation == \"AccessCatalog\"\n    input.action.resource.catalog.name == \"iceberg\"\n}\n\nallow if {\n    is_analyst\n    input.action.operation in analyst_operation\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"demographics\"\n    input.action.resource.table.tableName == \"employees\"\n}\n"
+  },
+  {
+    "input": {
+      "subject_attribute": "groups",
+      "subject_value": "finance",
+      "resource_type": "table",
+      "resource_values": {
+        "catalogName": "iceberg",
+        "schemaName": "finance",
+        "tableName": "transactions"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "SelectFromColumns",
+        "GetColumnMask",
+        "GetRowFilters"
+      ]
+    },
+    "output": "package trino.authz\n\nimport future.keywords.in\nimport future.keywords.if\nimport future.keywords.contains\n\ndefault allow := false\n\nis_finance if {\n    \"finance\" in input.context.identity.groups\n}\n\nfinance_select_ops := {\n    \"SelectFromColumns\",\n    \"GetColumnMask\",\n    \"GetRowFilters\"\n}\n\nallow if {\n    is_finance\n    input.action.operation == \"ExecuteQuery\"\n}\n\nallow if {\n    is_finance\n    input.action.operation == \"AccessCatalog\"\n    input.action.resource.catalog.name == \"iceberg\"\n}\n\nallow if {\n    is_finance\n    input.action.operation in finance_select_ops\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"finance\"\n    input.action.resource.table.tableName == \"transactions\"\n}\n"
+  },
+  {
+    "input": {
+      "subject_attribute": "groups",
+      "subject_value": "finance",
+      "resource_type": "table",
+      "resource_values": {
+        "catalogName": "iceberg",
+        "schemaName": "finance",
+        "tableName": "transactions"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "SelectFromColumns",
+        "GetColumnMask",
+        "GetRowFilters"
+      ]
+    },
+    "output": "package trino.authz\n\nimport future.keywords.in\nimport future.keywords.if\nimport future.keywords.contains\n\ndefault allow := false\n\nis_finance if {\n    \"finance\" in input.context.identity.groups\n}\n\nfinance_select_ops := {\n    \"SelectFromColumns\",\n    \"GetColumnMask\",\n    \"GetRowFilters\"\n}\n\nallow if {\n    is_finance\n    input.action.operation == \"ExecuteQuery\"\n}\n\nallow if {\n    is_finance\n    input.action.operation == \"AccessCatalog\"\n    input.action.resource.catalog.name == \"iceberg\"\n}\n\nallow if {\n    is_finance\n    input.action.operation in finance_select_ops\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"finance\"\n    input.action.resource.table.tableName == \"transactions\"\n}\n"
+  }
+]

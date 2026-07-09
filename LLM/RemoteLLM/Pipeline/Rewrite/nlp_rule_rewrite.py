@@ -36,8 +36,8 @@ def llm_explain(client, model, rule, example_index, n=3):
         n=n
     )
 
-    for example in examples:
-        print(f"(using example: {example['rule']})")
+    # for example in examples:
+    #     print(f"(using example: {example['rule']})")
 
     messages = [
         {

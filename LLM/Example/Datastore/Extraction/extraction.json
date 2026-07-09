@@ -1,45 +1,240 @@
 [
   {
-    "input": "data_engineers can create tables in iceberg",
-    "output": {
-      "subject_attribute": "groups",
-      "subject_value": "data_engineer",
-      "resource_type": "catalog",
-      "resource_values": {
-        "catalogName": "iceberg",
-        "schemaName": "",
-        "tableName": "",
-        "columnName": ""
-      },
-      "trino_action": "CREATE"
-    }
-  },
-  {
-    "input": "analysts can read finance tables",
+    "input": "The Analyst role is a read-only role. It should be allowed to execute SELECT statements on catalog: iceberg, schema: demographics, table: employees.",
     "output": {
       "subject_attribute": "groups",
       "subject_value": "analyst",
-      "resource_type": "schema",
+      "resource_type": "table",
       "resource_values": {
-        "catalogName": "",
-        "schemaName": "finance",
-        "tableName": "",
-        "columnName": ""
+        "catalogName": "iceberg",
+        "schemaName": "demographics",
+        "tableName": "employees"
       },
-      "trino_action": "SELECT"
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "GetColumnMask",
+        "GetRowFilters",
+        "SelectFromColumns"
+      ]
     }
   },
   {
-    "input": "alice can access the employees table",
+    "input": "The Data Engineer role is responsible for data ingestion and maintenance. It should be allowed to INSERT into catalog: hive, schema: sales, table: orders.",
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "data_engineer",
+      "resource_type": "table",
+      "resource_values": {
+        "catalogName": "hive",
+        "schemaName": "sales",
+        "tableName": "orders"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "GetColumnMask",
+        "GetRowFilters",
+        "InsertIntoTable"
+      ]
+    }
+  },
+  {
+    "input": "The Admin role has unrestricted access to every catalog, schema, table and database object.",
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "admin",
+      "resource_type": "catalog",
+      "resource_values": {
+        "catalogName": "*",
+        "schemaName": "*",
+        "tableName": "*"
+      },
+      "trino_action": "*"
+    }
+  },
+  {
+    "input": "The HR Manager role can UPDATE records only inside catalog: iceberg, schema: hr.",
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "hr_manager",
+      "resource_type": "schema",
+      "resource_values": {
+        "catalogName": "iceberg",
+        "schemaName": "hr",
+        "tableName": "*"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "GetColumnMask",
+        "GetRowFilters",
+        "SelectFromColumns",
+        "UpdateTableColumns"
+      ]
+    }
+  },
+  {
+    "input": "The Finance Manager role can SELECT and UPDATE data only inside catalog: iceberg, schema: finance.",
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "finance_manager",
+      "resource_type": "schema",
+      "resource_values": {
+        "catalogName": "iceberg",
+        "schemaName": "finance",
+        "tableName": "*"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "GetColumnMask",
+        "GetRowFilters",
+        "SelectFromColumns",
+        "UpdateTableColumns"
+      ]
+    }
+  },
+  {
+    "input": "The Analyst role only has read permissions and cannot modify data.",
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "analyst",
+      "resource_type": "",
+      "resource_values": {
+        "catalogName": "*",
+        "schemaName": "*",
+        "tableName": "*"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "GetColumnMask",
+        "GetRowFilters",
+        "SelectFromColumns"
+      ]
+    }
+  },
+  {
+    "input": "The Data Scientist role can CREATE VIEW objects and SELECT the required source data.",
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "data_scientist",
+      "resource_type": "",
+      "resource_values": {
+        "catalogName": "*",
+        "schemaName": "*",
+        "tableName": "*"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "CreateView",
+        "ExecuteQuery",
+        "GetColumnMask",
+        "GetRowFilters",
+        "SelectFromColumns"
+      ]
+    }
+  },
+  {
+    "input": "The Intern role has read-only access limited to the HR and Finance schemas of the Iceberg catalog.",
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "intern",
+      "resource_type": "catalog",
+      "resource_values": {
+        "catalogName": "iceberg",
+        "schemaName": "*",
+        "tableName": "*"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "GetColumnMask",
+        "GetRowFilters",
+        "SelectFromColumns"
+      ]
+    }
+  },
+  {
+    "input": "The Auditor role can inspect catalogs, schemas and tables, and read authorized datasets, but it cannot modify data.",
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "auditor",
+      "resource_type": "",
+      "resource_values": {
+        "catalogName": "*",
+        "schemaName": "*",
+        "tableName": "*"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "FilterCatalogs",
+        "FilterSchemas",
+        "FilterTables",
+        "GetColumnMask",
+        "GetRowFilters",
+        "SelectFromColumns",
+        "ShowSchemas",
+        "ShowTables"
+      ]
+    }
+  },
+  {
+    "input": "The ETL Job role is allowed to insert new data, delete obsolete records and merge datasets during synchronization processes.",
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "etl_job",
+      "resource_type": "",
+      "resource_values": {
+        "catalogName": "*",
+        "schemaName": "*",
+        "tableName": "*"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "GetColumnMask",
+        "GetRowFilters",
+        "InsertIntoTable",
+        "DeleteFromTable"
+      ]
+    }
+  },
+  {
+    "input": "The Service Account can read and modify only the predefined application tables, including iceberg.hr.employees.",
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "service_account",
+      "resource_type": "table",
+      "resource_values": {
+        "catalogName": "iceberg",
+        "schemaName": "hr",
+        "tableName": "employees"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "GetColumnMask",
+        "GetRowFilters",
+        "SelectFromColumns",
+        "InsertIntoTable",
+        "UpdateTableColumns",
+        "DeleteFromTable"
+      ]
+    }
+  },
+  {
+    "input": "Alice can access the employees table.",
     "output": {
       "subject_attribute": "user",
       "subject_value": "alice",
       "resource_type": "table",
       "resource_values": {
-        "catalogName": "",
-        "schemaName": "",
-        "tableName": "employees",
-        "columnName": ""
+        "catalogName": "*",
+        "schemaName": "*",
+        "tableName": "employees"
       },
       "trino_action": "*"
     }
