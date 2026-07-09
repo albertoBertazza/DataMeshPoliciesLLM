@@ -1,4 +1,3 @@
-
 [
   {
     "name": "admin",
@@ -33,6 +32,46 @@
     }
   },
   {
+    "name": "sales_manager",
+    "permissions": ["SELECT", "INSERT", "DELETE", "UPDATE"],
+    "limitation": {
+      "catalog": "iceberg",
+      "schema": "sales"
+    }
+  },
+  {
+    "name": "inventory_manager",
+    "permissions": ["SELECT", "INSERT", "DELETE", "UPDATE"],
+    "limitation": {
+      "catalog": "iceberg",
+      "schema": "inventory"
+    }
+  },
+  {
+    "name": "procurement_manager",
+    "permissions": ["SELECT", "INSERT", "DELETE", "UPDATE"],
+    "limitation": {
+      "catalog": "iceberg",
+      "schema": "procurement"
+    }
+  },
+  {
+    "name": "support_manager",
+    "permissions": ["SELECT", "INSERT", "DELETE", "UPDATE"],
+    "limitation": {
+      "catalog": "iceberg",
+      "schema": "support"
+    }
+  },
+  {
+    "name": "production_manager",
+    "permissions": ["SELECT", "INSERT", "DELETE", "UPDATE"],
+    "limitation": {
+      "catalog": "iceberg",
+      "schema": "production"
+    }
+  },
+  {
     "name": "auditor",
     "permissions": ["SHOW", "SELECT"]
   },
@@ -41,7 +80,10 @@
     "permissions": ["SELECT"],
     "limitation": {
       "catalog": "iceberg",
-      "schemas": ["hr", "finance"]
+      "schemas": [
+        "hr",
+        "finance"
+      ]
     }
   },
   {
@@ -49,13 +91,14 @@
     "permissions": ["SELECT", "INSERT", "UPDATE", "DELETE"],
     "limitation": {
       "catalog": "iceberg",
-      "tables": ["hr.employees", "finance.transactions"]
+      "tables": [
+        "hr.employees",
+        "finance.transactions"
+      ]
     }
   },
   {
     "name": "etl_job",
     "permissions": ["INSERT", "DELETE", "MERGE"]
   }
-
 ]
-

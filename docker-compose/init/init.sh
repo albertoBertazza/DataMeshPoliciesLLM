@@ -49,8 +49,14 @@ run_trino() {
         --file "$1"
 }
 
+sleep 10s
+
 run_trino /init/01-schemas.sql
-run_trino /init/02-hr.sql
-run_trino /init/03-mobility.sql
+run_trino /init/02-finance.sql
+run_trino /init/03-hr.sql
+run_trino /init/04-inventory.sql
+run_trino /init/05-procurement.sql
+run_trino /init/06-sales.sql
+run_trino /init/07-support.sql
 
 echo "INIT COMPLETE"
