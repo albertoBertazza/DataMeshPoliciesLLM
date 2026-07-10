@@ -28,6 +28,7 @@ to match whatever you actually named your stage-1 file.
 
 import json
 
+from Interface.llm_call import llm_call
 
 # ---------------------------------------------------------------------------
 # How each Trino operation's `input.action.resource` is shaped.
@@ -145,13 +146,37 @@ def get_generate_rego_system_prompt(example_rego):
         example_rego=example_rego,
     )
 
+import numpy as np
+from Interface.embedding_call import embedding_call
 
-def llm_generate_rego(client, model, extracted_entity, example_rego):
 
-    response = client.chat.completions.create(
-        model=model,
-        temperature=0,
-        messages=[
+def cosine_similarity(a, b):
+    return np.dot(a, b) / (
+        np.linalg.norm(a) * np.linalg.norm(b)
+    )
+
+
+def find_best_rego_examples(extracted_entity,example_rego,is_local,n=3,url=None,client=None,embedding_model=None):
+    # Turn the extracted entity into text for embedding
+    query = json.dumps(extracted_entity, sort_keys=True, indent=2)
+
+    query_embedding = embedding_call(text=query,is_local=is_local,url=url,client=client,embedding_model=embedding_model)
+
+    ranked = sorted(
+        example_rego,
+        key=lambda ex: cosine_similarity(
+            query_embedding,
+            ex["embedding"],
+        ),
+        reverse=True,
+    )
+
+    return ranked[:n]
+
+
+def llm_generate_rego( extracted_entity, example_rego,is_local,  url=None,client=None,model=None):
+
+    prompt=[
             {
                 "role": "system",
                 "content": get_generate_rego_system_prompt(example_rego),
@@ -160,10 +185,13 @@ def llm_generate_rego(client, model, extracted_entity, example_rego):
                 "role": "user",
                 "content": json.dumps(extracted_entity, indent=2),
             },
-        ],
-    )
+        ]
 
-    return response.choices[0].message.content
+    prompt= json.dumps(prompt,indent=2)
+
+    response=llm_call(prompt, is_local=is_local,url=url, model=model, client=client)
+
+    return response.strip()
 
 
 def clean_rego_output(raw):
@@ -182,14 +210,20 @@ def clean_rego_output(raw):
     return raw
 
 
-def generate_rego_policy(client, model, extracted_entity, example_rego):
+def generate_rego_policy(extracted_entity,example_rego,is_local,url=None,client=None,model=None, embedding_model=None):
 
-    raw = llm_generate_rego(client, model, extracted_entity, example_rego)
+    examples = find_best_rego_examples(extracted_entity=extracted_entity,example_rego=example_rego,is_local=is_local,n=3,url=url,client=client,embedding_model=embedding_model)
+
+    # Concatenate the retrieved Rego examples
+    example_text = "\n\n".join(
+        ex["output"] for ex in examples
+    )
+
+    raw = llm_generate_rego(extracted_entity,example_text,is_local,url=url,client=client,model=model)
 
     print("\n[RAW REGO OUTPUT]\n", raw)
 
     return clean_rego_output(raw)
-
 
 # ---------------------------------------------------------------------------
 # Boilerplate that is shared by every role and only needs to exist once in

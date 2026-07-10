@@ -4,21 +4,27 @@ import os
 from openai import OpenAI
 from dotenv import load_dotenv
 
-from RemoteLLM.IndexCreation.index_creator import reload_indexes
-from RemoteLLM.Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
-from RemoteLLM.Pipeline.Extraction.extraction import extract_entities
-from RemoteLLM.Pipeline.RegoRuleGeneration.build_rego import generate_rego_policy
+from IndexCreation.index_creator import reload_indexes
+from Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
+from Pipeline.Extraction.extraction import extract_entities
+from Pipeline.RegoRuleGeneration.build_rego import generate_rego_policy
 
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
-# Requires the OPENAI_API_KEY environment variable to be set.
-# (Or pass api_key="sk-..." explicitly below.)
+# LOCAL LLM
+URL = "http://127.0.0.1:8080/completion"
+# REMOTE LLM
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+EMBEDDING_MODEL ="text-embedding-3-small"
+
+# WHICH LLM TO USE
+IS_LOCAL=os.getenv("IS_LOCAL")
+
+
 
 LLM_DIR = os.getenv("LLM_DIR")
 
@@ -46,7 +52,7 @@ CHECK_FOR_ACTION = load_json(CHECK_FOR_ACTION_PATH)   # action -> [checks...]
 INPUT_SCHEMA = load_json(INPUT_SCHEMA_PATH)           # shape Trino sends to OPA
 SECURITY_GROUPS = load_json(SECURITY_GROUPS_PATH)
 
-INDEX_EXTRACTION, INDEX_REWRITE_RULE, INDEX_BUILD_REGO = reload_indexes(client)
+INDEX_EXTRACTION, INDEX_REWRITE_RULE, INDEX_BUILD_REGO = reload_indexes(IS_LOCAL,url=URL, client=client, embedding_model=EMBEDDING_MODEL)
 
 VALID_ACTIONS = list(CHECK_FOR_ACTION.keys())
 
@@ -66,9 +72,11 @@ def process_rule(rule):
     #-----------------------------------------------------------------------
     # 1) INTERPRETATION
     #----------------------------------------------------------------------
+    global explanation
     try:
         print("\n[Interpretation]")
-        print(llm_explain(client, MODEL, rule, INDEX_REWRITE_RULE))
+        explanation = llm_explain(rule, INDEX_REWRITE_RULE,is_local=IS_LOCAL, url=URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
+        print(explanation)
     except Exception as e:
         print("  (could not get explanation:", e, ")")
 
@@ -78,7 +86,7 @@ def process_rule(rule):
     #----------------------------------------------------------------------
     print("\n[Extracting entities...]")
     try:
-        entities = extract_entities(client, MODEL,rule, CHECK_FOR_ACTION, INDEX_EXTRACTION, SECURITY_GROUPS)
+        entities = extract_entities(explanation, CHECK_FOR_ACTION, INDEX_EXTRACTION, SECURITY_GROUPS, is_local=IS_LOCAL, url=URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
     except Exception as e:
         print("  Failed to parse entities:", e)
         return
@@ -88,13 +96,13 @@ def process_rule(rule):
     #----------------------------------------------------------------------
     print("\n[Generating OPA policy...]")
     try:
-        policy  = generate_rego_policy(client, MODEL, entities, INDEX_BUILD_REGO)
+        policy  = generate_rego_policy(entities, INDEX_BUILD_REGO, is_local=IS_LOCAL, url=URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
     except ValueError as e:
         print("  Failed to build policy:", e)
         return
 
     output_dir = "output/rego_policies"
-    filename = f"policy_{rule[:30].replace(' ', '_')}.rego"
+    filename = f"policy_{explanation[:30].replace(' ', '_')}.rego"
     filename = os.path.join(output_dir, filename)
 
     os.makedirs(output_dir, exist_ok=True)
@@ -112,6 +120,12 @@ if __name__ == "__main__":
     print(f" Loaded {len(VALID_ACTIONS)} action types from {CHECK_FOR_ACTION_PATH}")
     print(f" Using model: {MODEL}")
     print("=" * 50)
+
+    if IS_LOCAL=='True':
+        IS_LOCAL=True
+    else:
+        IS_LOCAL=False
+    print("IS_LOCAL : ", IS_LOCAL)
 
 
     while True:

@@ -1,4 +1,9 @@
 import numpy as np
+import json
+
+from Interface.embedding_call import embedding_call
+from Interface.llm_call import llm_call
+
 
 def cosine_similarity(a, b):
     return np.dot(a, b) / (
@@ -9,11 +14,8 @@ def cosine_similarity(a, b):
 
 
 
-def find_best_examples(client, rule, index, n=3, embedding_model="text-embedding-3-small"):
-    query_embedding = client.embeddings.create(
-        model=embedding_model,
-        input=rule
-    ).data[0].embedding
+def find_best_examples(rule, index,is_local, n=3,url=None, client=None, embedding_model=None):
+    query_embedding = embedding_call(text=rule, is_local=is_local,url=url,client=client,embedding_model=embedding_model)
 
     ranked = sorted(
         index,
@@ -27,14 +29,9 @@ def find_best_examples(client, rule, index, n=3, embedding_model="text-embedding
     return ranked[:n]
 
 
-def llm_explain(client, model, rule, example_index, n=3):
+def llm_explain( rule, example_index,is_local, n=3,url=None,client=None,model=None, embedding_model=None):
 
-    examples = find_best_examples(
-        client,
-        rule,
-        example_index,
-        n=n
-    )
+    examples = find_best_examples(rule,example_index,is_local, n=n, url=url, client=client, embedding_model=embedding_model)
 
     # for example in examples:
     #     print(f"(using example: {example['rule']})")
@@ -67,11 +64,8 @@ def llm_explain(client, model, rule, example_index, n=3):
         "content": rule
     })
 
-    response = client.chat.completions.create(
-        model=model,
-        temperature=0.2,
-        max_tokens=120,
-        messages=messages
-    )
+    prompt= json.dumps(messages,indent=2)
 
-    return response.choices[0].message.content.strip()
+    response= llm_call(prompt,temperature=0.2, max_tokens=120,is_local=is_local, url=url,client=client,model=model)
+
+    return response.strip()

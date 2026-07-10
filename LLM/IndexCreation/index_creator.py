@@ -1,12 +1,11 @@
-from openai import OpenAI
 from dotenv import load_dotenv
 import json
 import os
 import time
 
-from RemoteLLM.IndexCreation.Extraction.gen_index_extraction import gen_index_extraction
-from RemoteLLM.IndexCreation.RegoRuleGeneration.gen_index_build import gen_index_build
-from RemoteLLM.IndexCreation.Rewrite.gen_index_rewrite import gen_index_rewrite
+from IndexCreation.Extraction.gen_index_extraction import gen_index_extraction
+from IndexCreation.RegoRuleGeneration.gen_index_build import gen_index_build
+from IndexCreation.Rewrite.gen_index_rewrite import gen_index_rewrite
 
 # ---------------------------------------------------------------------------
 # Config
@@ -83,58 +82,54 @@ def needs_rebuild(
 
     return source_mtime > saved_mtime
 
-def build_index_if_needed(client, input_path, output_path, generator):
-    if not needs_rebuild(input_path,output_path):
-        print( f"Index already up to date: {output_path}" )
-
+def build_index_if_needed(input_path,output_path,generator,is_local=False,url=None,client=None,embedding_model=None,):
+    if not needs_rebuild(input_path, output_path):
+        print(f"Index already up to date: {output_path}")
         return load_index(output_path)["examples"]
 
-    print(
-        f"Rebuilding index: {output_path}"
-    )
+    print(f"Rebuilding index: {output_path}")
 
-    examples = load_json(
-        input_path
-    )
+    examples = load_json(input_path)
 
-    index = generator(
-        client,
-        examples
-    )
+    index = generator(examples=examples,is_local=is_local,url=url,client=client,embedding_model=embedding_model)
 
-    save_index(
-        output_path,
-        input_path,
-        index
-    )
+    save_index(output_path,input_path,index,embedding_model)
 
-    print(
-        f"Created {len(index)} embeddings."
-    )
+    print(f"Created {len(index)} embeddings.")
 
     return index
 
 
-def reload_indexes(client):
+def reload_indexes(is_local=False,url=None,client=None,embedding_model=None):
+
     extraction_index = build_index_if_needed(
-        client,
         INPUT_EXTRACTION_PATH,
         OUTPUT_EXTRACTION_INDEX_PATH,
-        gen_index_extraction
+        gen_index_extraction,
+        is_local=is_local,
+        url=url,
+        client=client,
+        embedding_model=embedding_model,
     )
 
     rewrite_rule_index = build_index_if_needed(
-        client,
         INPUT_REWRITE_RULE_PATH,
         OUTPUT_REWRITE_RULE_INDEX_PATH,
-        gen_index_rewrite
+        gen_index_rewrite,
+        is_local=is_local,
+        url=url,
+        client=client,
+        embedding_model=embedding_model,
     )
 
     build_rego_index = build_index_if_needed(
-        client,
         INPUT_BUILD_REGO_PATH,
         OUTPUT_BUILD_REGO_INDEX_PATH,
-        gen_index_build
+        gen_index_build,
+        is_local=is_local,
+        url=url,
+        client=client,
+        embedding_model=embedding_model,
     )
 
     return extraction_index, rewrite_rule_index, build_rego_index
