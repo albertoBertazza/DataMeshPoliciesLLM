@@ -1,20 +1,23 @@
 import json
 import os
-
-from openai import OpenAI
+import time
+import subprocess
+import requests
 from dotenv import load_dotenv
+from openai import OpenAI
 
 from IndexCreation.index_creator import reload_indexes
-from Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
 from Pipeline.Extraction.extraction import extract_entities
 from Pipeline.RegoRuleGeneration.build_rego import generate_rego_policy
+from Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
 
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
 # LOCAL LLM
-URL = "http://127.0.0.1:8080/completion"
+CHAT_URL = "http://127.0.0.1:8080"
+EMBEDDING_URL = "http://127.0.0.1:8081"
 # REMOTE LLM
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -22,9 +25,7 @@ MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 EMBEDDING_MODEL ="text-embedding-3-small"
 
 # WHICH LLM TO USE
-IS_LOCAL=os.getenv("IS_LOCAL")
-
-
+IS_LOCAL = os.getenv("IS_LOCAL", "False") == "True"
 
 LLM_DIR = os.getenv("LLM_DIR")
 
@@ -52,18 +53,62 @@ CHECK_FOR_ACTION = load_json(CHECK_FOR_ACTION_PATH)   # action -> [checks...]
 INPUT_SCHEMA = load_json(INPUT_SCHEMA_PATH)           # shape Trino sends to OPA
 SECURITY_GROUPS = load_json(SECURITY_GROUPS_PATH)
 
-INDEX_EXTRACTION, INDEX_REWRITE_RULE, INDEX_BUILD_REGO = reload_indexes(IS_LOCAL,url=URL, client=client, embedding_model=EMBEDDING_MODEL)
+def wait_for_llm(url, timeout=120):
+    print("Waiting for local LLM server...")
+    start = time.time()
+
+    while time.time() - start < timeout:
+        try:
+            r = requests.get(url+"/health")
+            if r.status_code == 200:
+                print("LLM server ready")
+                return True
+        except requests.exceptions.ConnectionError:
+            pass
+
+        time.sleep(2)
+
+    raise RuntimeError("LLM server did not start within timeout")
+
+if IS_LOCAL:
+    LLAMA_DIR = r"C:\Users\berta\BertaFiles\Project\DataMeshPoliciesLLM\LLM\LocalLLMIntelIpex\llama-cpp-ipex-llm-2.3.0b20250424-win"
+
+    # Generation model
+    subprocess.Popen(
+        [
+            "powershell.exe",
+            "-NoExit",
+            "-Command",
+            fr'''
+    cd "{LLAMA_DIR}"
+    .\llama-server.exe -m .\models\Qwen2.5.1-Coder-7B-Instruct-Q4_K_M.gguf --port 8080
+    '''
+        ],
+        creationflags=subprocess.CREATE_NEW_CONSOLE,
+    )
+
+    wait_for_llm(CHAT_URL)
+
+    # Embedding model
+    subprocess.Popen(
+        [
+            "powershell.exe",
+            "-NoExit",
+            "-Command",
+            fr'''
+    cd "{LLAMA_DIR}"
+    .\llama-server.exe -m .\models\nomic-embed-text-v1.5.f16.gguf --embedding --port 8081
+    '''
+        ],
+        creationflags=subprocess.CREATE_NEW_CONSOLE,
+    )
+
+    wait_for_llm(EMBEDDING_URL)
+
+
+INDEX_EXTRACTION, INDEX_REWRITE_RULE, INDEX_BUILD_REGO = reload_indexes(IS_LOCAL,embedding_url=EMBEDDING_URL, client=client, embedding_model=EMBEDDING_MODEL)
 
 VALID_ACTIONS = list(CHECK_FOR_ACTION.keys())
-
-
-
-
-
-
-# ---------------------------------------------------------------------------
-# Extraction / interpretation
-# ---------------------------------------------------------------------------
 
 
 
@@ -73,9 +118,10 @@ def process_rule(rule):
     # 1) INTERPRETATION
     #----------------------------------------------------------------------
     global explanation
+    print("\n[1]")
     try:
         print("\n[Interpretation]")
-        explanation = llm_explain(rule, INDEX_REWRITE_RULE,is_local=IS_LOCAL, url=URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
+        explanation = llm_explain(rule, INDEX_REWRITE_RULE,is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
         print(explanation)
     except Exception as e:
         print("  (could not get explanation:", e, ")")
@@ -86,7 +132,7 @@ def process_rule(rule):
     #----------------------------------------------------------------------
     print("\n[Extracting entities...]")
     try:
-        entities = extract_entities(explanation, CHECK_FOR_ACTION, INDEX_EXTRACTION, SECURITY_GROUPS, is_local=IS_LOCAL, url=URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
+        entities = extract_entities(explanation, CHECK_FOR_ACTION, INDEX_EXTRACTION, SECURITY_GROUPS, is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
     except Exception as e:
         print("  Failed to parse entities:", e)
         return
@@ -96,7 +142,7 @@ def process_rule(rule):
     #----------------------------------------------------------------------
     print("\n[Generating OPA policy...]")
     try:
-        policy  = generate_rego_policy(entities, INDEX_BUILD_REGO, is_local=IS_LOCAL, url=URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
+        policy  = generate_rego_policy(entities, INDEX_BUILD_REGO, is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
     except ValueError as e:
         print("  Failed to build policy:", e)
         return
@@ -118,15 +164,12 @@ if __name__ == "__main__":
     print("=" * 50)
     print(" OPA Policy Generator — ChatGPT API")
     print(f" Loaded {len(VALID_ACTIONS)} action types from {CHECK_FOR_ACTION_PATH}")
-    print(f" Using model: {MODEL}")
-    print("=" * 50)
-
-    if IS_LOCAL=='True':
-        IS_LOCAL=True
+    if IS_LOCAL:
+        print("LOCAL LLM IntelIpex")
     else:
-        IS_LOCAL=False
-    print("IS_LOCAL : ", IS_LOCAL)
+        print(f" Using model: {MODEL} and embeddings model: {EMBEDDING_MODEL}")
 
+    print("=" * 50)
 
     while True:
         rule = input("\nRule: ").strip()

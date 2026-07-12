@@ -2,36 +2,17 @@ import requests
 import numpy as np
 
 
-def embedding_call(text, is_local=False, url=None, client=None,embedding_model=None):
-    """
-    Returns a numpy embedding vector.
-
-    Parameters
-    ----------
-    text : str
-
-    is_local : bool
-        True  -> local embedding server
-        False -> OpenAI-compatible API
-
-    url : str
-        Local embedding endpoint.
-
-    client :
-        OpenAI client.
-
-    embedding_model : str
-        Embedding model name.
-    """
+def embedding_call(text, is_local=False, embedding_url=None, client=None, embedding_model=None):
 
     # LOCAL
     if is_local:
 
-        if url is None:
-            raise ValueError("url is required when is_local=True")
+        if embedding_url is None:
+            raise ValueError("embedding_url is required when is_local=True")
 
+        embedding_url=embedding_url+"/v1/embeddings"
         response = requests.post(
-            url,
+            embedding_url,
             json={
                 "input": text,
             },
@@ -41,13 +22,15 @@ def embedding_call(text, is_local=False, url=None, client=None,embedding_model=N
 
         data = response.json()
 
-        # adapt this depending on your server output
-        return np.array(data["embedding"], dtype=np.float32)
+        return np.array(
+            data["data"][0]["embedding"],
+            dtype=np.float32,
+        )
 
     # REMOTE
     if client is None or embedding_model is None:
         raise ValueError(
-            "client and model are required when is_local=False"
+            "client and embedding_model are required when is_local=False"
         )
 
     response = client.embeddings.create(

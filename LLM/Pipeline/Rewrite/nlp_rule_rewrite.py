@@ -14,8 +14,8 @@ def cosine_similarity(a, b):
 
 
 
-def find_best_examples(rule, index,is_local, n=3,url=None, client=None, embedding_model=None):
-    query_embedding = embedding_call(text=rule, is_local=is_local,url=url,client=client,embedding_model=embedding_model)
+def find_best_examples(rule, index,is_local, n=3, embedding_url=None, client=None, embedding_model=None):
+    query_embedding = embedding_call(text=rule, is_local=is_local,embedding_url=embedding_url,client=client,embedding_model=embedding_model)
 
     ranked = sorted(
         index,
@@ -29,12 +29,12 @@ def find_best_examples(rule, index,is_local, n=3,url=None, client=None, embeddin
     return ranked[:n]
 
 
-def llm_explain( rule, example_index,is_local, n=3,url=None,client=None,model=None, embedding_model=None):
+def llm_explain( rule, example_index,is_local, n=3,chat_url=None, embedding_url=None,client=None,model=None, embedding_model=None):
 
-    examples = find_best_examples(rule,example_index,is_local, n=n, url=url, client=client, embedding_model=embedding_model)
+    examples = find_best_examples(rule,example_index,is_local, n=n, embedding_url=embedding_url, client=client, embedding_model=embedding_model)
 
-    # for example in examples:
-    #     print(f"(using example: {example['rule']})")
+    for example in examples:
+        print(f"(using example: {example['rule']})")
 
     messages = [
         {
@@ -66,6 +66,6 @@ def llm_explain( rule, example_index,is_local, n=3,url=None,client=None,model=No
 
     prompt= json.dumps(messages,indent=2)
 
-    response= llm_call(prompt,temperature=0.2, max_tokens=120,is_local=is_local, url=url,client=client,model=model)
+    response= llm_call(prompt,temperature=0.2, max_tokens=120,is_local=is_local, chat_url=chat_url,client=client,model=model)
 
     return response.strip()

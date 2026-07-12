@@ -1,10 +1,17 @@
 import requests
 
+MODEL_PROMPT_WRAPPER = """
+<|im_start|>system
+You are a helpful assistant that explains Trino authorization rules.
+<|im_end|>
+<|im_start|>user
+{prompt}
+<|im_end|>
+<|im_start|>assistant
+"""
 
-MODEL_PROMPT_WRAPPER = """{prompt}"""
 
-
-def llm_call(prompt,temperature=0.0,max_tokens=600,system_prompt=None,response_format=None,is_local=False, url=None,client=None,model=None):
+def llm_call(prompt,temperature=0.0,max_tokens=600,system_prompt=None,response_format=None,is_local=False, chat_url=None,client=None,model=None):
     """
     Unified LLM call.
 
@@ -29,7 +36,7 @@ def llm_call(prompt,temperature=0.0,max_tokens=600,system_prompt=None,response_f
         True -> llama-server
         False -> external API
 
-    url : str
+    chat_url : str
         llama-server URL (required if is_local=True).
 
     client :
@@ -40,11 +47,11 @@ def llm_call(prompt,temperature=0.0,max_tokens=600,system_prompt=None,response_f
     """
 
     if is_local:
-        if url is None:
-            raise ValueError("url is required when is_local=True")
+        if chat_url is None:
+            raise ValueError("chat_url is required when is_local=True")
 
         response = requests.post(
-            url,
+            chat_url + "/completion",
             json={
                 "prompt": MODEL_PROMPT_WRAPPER.format(prompt=prompt),
                 "temperature": temperature,
@@ -54,7 +61,13 @@ def llm_call(prompt,temperature=0.0,max_tokens=600,system_prompt=None,response_f
         )
 
         response.raise_for_status()
-        return response.json()["content"]
+
+        data = response.json()
+
+        # print("\n[RAW LLAMA RESPONSE]")
+        # print(data)
+
+        return data["content"]
 
     # External API
     if client is None or model is None:

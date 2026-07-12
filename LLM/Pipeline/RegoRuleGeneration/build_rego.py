@@ -156,11 +156,11 @@ def cosine_similarity(a, b):
     )
 
 
-def find_best_rego_examples(extracted_entity,example_rego,is_local,n=3,url=None,client=None,embedding_model=None):
+def find_best_rego_examples(extracted_entity,example_rego,is_local,n=3,embedding_url=None,client=None,embedding_model=None):
     # Turn the extracted entity into text for embedding
     query = json.dumps(extracted_entity, sort_keys=True, indent=2)
 
-    query_embedding = embedding_call(text=query,is_local=is_local,url=url,client=client,embedding_model=embedding_model)
+    query_embedding = embedding_call(text=query,is_local=is_local,embedding_url=embedding_url,client=client,embedding_model=embedding_model)
 
     ranked = sorted(
         example_rego,
@@ -174,7 +174,7 @@ def find_best_rego_examples(extracted_entity,example_rego,is_local,n=3,url=None,
     return ranked[:n]
 
 
-def llm_generate_rego( extracted_entity, example_rego,is_local,  url=None,client=None,model=None):
+def llm_generate_rego( extracted_entity, example_rego,is_local,  chat_url=None,client=None,model=None):
 
     prompt=[
             {
@@ -189,7 +189,7 @@ def llm_generate_rego( extracted_entity, example_rego,is_local,  url=None,client
 
     prompt= json.dumps(prompt,indent=2)
 
-    response=llm_call(prompt, is_local=is_local,url=url, model=model, client=client)
+    response=llm_call(prompt, is_local=is_local,chat_url=chat_url, model=model, client=client)
 
     return response.strip()
 
@@ -210,16 +210,16 @@ def clean_rego_output(raw):
     return raw
 
 
-def generate_rego_policy(extracted_entity,example_rego,is_local,url=None,client=None,model=None, embedding_model=None):
+def generate_rego_policy(extracted_entity,example_rego,is_local,chat_url=None, embedding_url=None,client=None,model=None, embedding_model=None):
 
-    examples = find_best_rego_examples(extracted_entity=extracted_entity,example_rego=example_rego,is_local=is_local,n=3,url=url,client=client,embedding_model=embedding_model)
+    examples = find_best_rego_examples(extracted_entity=extracted_entity,example_rego=example_rego,is_local=is_local,n=3,embedding_url=embedding_url,client=client,embedding_model=embedding_model)
 
     # Concatenate the retrieved Rego examples
     example_text = "\n\n".join(
         ex["output"] for ex in examples
     )
 
-    raw = llm_generate_rego(extracted_entity,example_text,is_local,url=url,client=client,model=model)
+    raw = llm_generate_rego(extracted_entity,example_text,is_local,chat_url=chat_url,client=client,model=model)
 
     print("\n[RAW REGO OUTPUT]\n", raw)
 

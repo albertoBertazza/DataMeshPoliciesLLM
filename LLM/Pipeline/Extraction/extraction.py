@@ -68,7 +68,7 @@ Relevant examples:
 """
 
 
-def retrieve_examples(rule, extraction_indexes,is_local, n=3, url=None,client=None, embedding_model=None ):
+def retrieve_examples(rule, extraction_indexes,is_local, n=3, embedding_url=None,client=None, embedding_model=None ):
 
     texts = [
         x["input"]
@@ -77,12 +77,12 @@ def retrieve_examples(rule, extraction_indexes,is_local, n=3, url=None,client=No
 
     example_embeddings = np.array(
         [
-            embedding_call(text=text, is_local=is_local,url=url,client=client, embedding_model=embedding_model)
+            embedding_call(text=text, is_local=is_local,embedding_url=embedding_url,client=client, embedding_model=embedding_model)
             for text in texts
         ]
     )
 
-    rule_embedding = embedding_call(text=rule, is_local=is_local,url=url,client=client, embedding_model=embedding_model)
+    rule_embedding = embedding_call(text=rule, is_local=is_local,embedding_url=embedding_url,client=client, embedding_model=embedding_model)
 
     example_embeddings = (
         example_embeddings /
@@ -151,9 +151,9 @@ def get_extract_system_prompt(
 
 
 
-def llm_extract(rule, check_for_action,extraction_index,security_groups, is_local, url=None,client=None,model=None, embedding_model=None):
+def llm_extract(rule, check_for_action,extraction_index,security_groups, is_local, chat_url=None, embedding_url=None,client=None,model=None, embedding_model=None):
 
-    examples = retrieve_examples(rule,extraction_index,is_local, n=3, url=url,client=client, embedding_model=embedding_model)
+    examples = retrieve_examples(rule,extraction_index,is_local, n=3, embedding_url=embedding_url,client=client, embedding_model=embedding_model)
 
     prompt=[
 
@@ -184,15 +184,15 @@ def llm_extract(rule, check_for_action,extraction_index,security_groups, is_loca
     # cast prompt to string
     prompt=json.dumps(prompt,indent=2)
 
-    response = llm_call(prompt, is_local, response_format={"type": "json_object"}, is_local=is_local, url=url, client=client,  model=model)
+    response = llm_call(prompt, is_local, response_format={"type": "json_object"}, is_local=is_local, chat_url=chat_url, client=client,  model=model)
 
     return response.strip()
 
 
 
-def extract_entities(rule,check_for_action,extraction_indexes,security_groups, is_local, url=None,client=None,model=None, embedding_model=None):
+def extract_entities(rule,check_for_action,extraction_indexes,security_groups, is_local, chat_url=None, embedding_url=None,client=None,model=None, embedding_model=None):
 
-    raw = llm_extract(rule,check_for_action,extraction_indexes,security_groups, is_local, url=url,client=client,model=model, embedding_model=embedding_model)
+    raw = llm_extract(rule,check_for_action,extraction_indexes,security_groups, is_local, chat_url=chat_url ,embedding_url=embedding_url,client=client,model=model, embedding_model=embedding_model)
 
 
     print(

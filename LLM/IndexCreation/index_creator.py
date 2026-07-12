@@ -25,15 +25,34 @@ INPUT_EXTRACTION_PATH = os.path.join( os.path.join(INPUT_DIR, "Extraction"), "ex
 INPUT_REWRITE_RULE_PATH = os.path.join( os.path.join(INPUT_DIR, "Rewrite"), "rewrite_rule.json")
 INPUT_BUILD_REGO_PATH = os.path.join( os.path.join(INPUT_DIR, "RegoRuleGeneration"), "build_rego.json")
 
-OUTPUT_EXTRACTION_INDEX_PATH = os.path.join( os.path.join(OUTPUT_DIR, "Extraction"), "extraction_index.json")
-OUTPUT_REWRITE_RULE_INDEX_PATH = os.path.join( os.path.join(OUTPUT_DIR, "Rewrite"), "rewrite_rule_index.json")
-OUTPUT_BUILD_REGO_INDEX_PATH = os.path.join( os.path.join(OUTPUT_DIR, "RegoRuleGeneration"), "build_rego_index.json")
+#OUTPUT_EXTRACTION_INDEX_PATH = os.path.join( os.path.join(OUTPUT_DIR, "Extraction"), "extraction_index.json")
+#OUTPUT_REWRITE_RULE_INDEX_PATH = os.path.join( os.path.join(OUTPUT_DIR, "Rewrite"), "rewrite_rule_index.json")
+#OUTPUT_BUILD_REGO_INDEX_PATH = os.path.join( os.path.join(OUTPUT_DIR, "RegoRuleGeneration"), "build_rego_index.json")
+
+def get_index_path(directory, filename, embedding_model):
+
+    model_name = sanitize_model_name(embedding_model)
+
+    return os.path.join(
+        directory,
+        f"{filename}_{model_name}.json"
+    )
+
+
 
 
 def load_json(path):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
+def sanitize_model_name(model):
+    return (
+        model
+        .replace("/", "_")
+        .replace("\\", "_")
+        .replace(".", "_")
+        .replace("-", "_")
+    )
 
 
 
@@ -41,7 +60,7 @@ def save_index(
     output_path,
     source_path,
     examples,
-    embedding_model="text-embedding-3-small"
+    embedding_model
 ):
     payload = {
         "source_file": source_path,
@@ -62,7 +81,8 @@ def load_index(path):
 
 def needs_rebuild(
     source_path,
-    index_path
+    index_path,
+    embedding_model
 ):
     # index missing
     if not os.path.exists(index_path):
@@ -73,6 +93,7 @@ def needs_rebuild(
     except Exception:
         return True
 
+    # source changed
     source_mtime = os.path.getmtime(source_path)
 
     saved_mtime = index.get(
@@ -80,10 +101,35 @@ def needs_rebuild(
         0
     )
 
-    return source_mtime > saved_mtime
+    if source_mtime > saved_mtime:
+        return True
 
-def build_index_if_needed(input_path,output_path,generator,is_local=False,url=None,client=None,embedding_model=None,):
-    if not needs_rebuild(input_path, output_path):
+    # embedding model changed
+    saved_embedding_model = index.get(
+        "embedding_model",
+        None
+    )
+
+    if saved_embedding_model != embedding_model:
+        return True
+
+    return False
+
+def build_index_if_needed(
+    input_path,
+    output_path,
+    generator,
+    is_local=False,
+    embedding_url=None,
+    client=None,
+    embedding_model=None,
+):
+
+    if not needs_rebuild(
+        input_path,
+        output_path,
+        embedding_model
+    ):
         print(f"Index already up to date: {output_path}")
         return load_index(output_path)["examples"]
 
@@ -91,43 +137,76 @@ def build_index_if_needed(input_path,output_path,generator,is_local=False,url=No
 
     examples = load_json(input_path)
 
-    index = generator(examples=examples,is_local=is_local,url=url,client=client,embedding_model=embedding_model)
+    index = generator(
+        examples=examples,
+        is_local=is_local,
+        embedding_url=embedding_url,
+        client=client,
+        embedding_model=embedding_model
+    )
 
-    save_index(output_path,input_path,index,embedding_model)
+    save_index(
+        output_path,
+        input_path,
+        index,
+        embedding_model=embedding_model
+    )
 
     print(f"Created {len(index)} embeddings.")
 
     return index
 
+def reload_indexes(
+    is_local=False,
+    embedding_url=None,
+    client=None,
+    embedding_model=None
+):
 
-def reload_indexes(is_local=False,url=None,client=None,embedding_model=None):
+    extraction_index_path = get_index_path(
+        os.path.join(OUTPUT_DIR, "Extraction"),
+        "extraction_index",
+        embedding_model
+    )
+
+    rewrite_index_path = get_index_path(
+        os.path.join(OUTPUT_DIR, "Rewrite"),
+        "rewrite_rule_index",
+        embedding_model
+    )
+
+    build_rego_index_path = get_index_path(
+        os.path.join(OUTPUT_DIR, "RegoRuleGeneration"),
+        "build_rego_index",
+        embedding_model
+    )
 
     extraction_index = build_index_if_needed(
         INPUT_EXTRACTION_PATH,
-        OUTPUT_EXTRACTION_INDEX_PATH,
+        extraction_index_path,
         gen_index_extraction,
         is_local=is_local,
-        url=url,
+        embedding_url=embedding_url,
         client=client,
         embedding_model=embedding_model,
     )
 
     rewrite_rule_index = build_index_if_needed(
         INPUT_REWRITE_RULE_PATH,
-        OUTPUT_REWRITE_RULE_INDEX_PATH,
+        rewrite_index_path,
         gen_index_rewrite,
         is_local=is_local,
-        url=url,
+        embedding_url=embedding_url,
         client=client,
         embedding_model=embedding_model,
     )
 
     build_rego_index = build_index_if_needed(
         INPUT_BUILD_REGO_PATH,
-        OUTPUT_BUILD_REGO_INDEX_PATH,
+        build_rego_index_path,
         gen_index_build,
         is_local=is_local,
-        url=url,
+        embedding_url=embedding_url,
         client=client,
         embedding_model=embedding_model,
     )
