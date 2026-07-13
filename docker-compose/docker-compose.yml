@@ -4,11 +4,16 @@ services:
     image: quay.io/keycloak/keycloak:26.0
     container_name: keycloak
     hostname: keycloak
+
     command: start-dev --import-realm
+
     environment:
       KC_HOSTNAME: keycloak
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT: "false"
+
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
     volumes:
       - ./keycloak/import:/opt/keycloak/data/import
     ports:
@@ -21,6 +26,23 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+
+  keycloak-microservice:
+    build: ./keycloak/microservice
+    container_name: keycloak-microservice
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: trino
+      KEYCLOAK_CLIENT_ID: admin-cli
+      KEYCLOAK_USERNAME: admin
+      KEYCLOAK_PASSWORD: admin
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    networks:
+      - trino-network
 
 
   trino-coordinator:

@@ -7,19 +7,32 @@ import future.keywords.contains
 default allow := false
 
 
-
 user_info := resp.body if {
-    user := input.context.identity.user
-
+    print("input user:", input.context.identity.user)
     resp := http.send({
         "method": "GET",
-        "url": sprintf("http://ldap-micro-service:5000/users/%s", [user]),
+        "url": sprintf("http://keycloak-microservice:5000/users/%s", [input.context.identity.user]),
         "raise_error": false
     })
 
     print("HTTP RESPONSE:", resp)
 
     resp.status_code == 200
+}
+user_hr if {
+    user_info
+    groups := object.get(user_info, "groups", [])
+    "hr_manager" in groups
+}
+
+allow if {
+    print("Before HTTP")
+
+    x := user_info
+
+    print("After HTTP:", x)
+
+    false
 }
 
 ############ ROLES ############

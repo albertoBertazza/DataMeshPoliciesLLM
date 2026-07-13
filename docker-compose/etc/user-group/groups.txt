@@ -1,2 +1,14 @@
-admin:trino
-hr_managers:alice,Mario
+admin:admin,trino
+analyst:analyst
+auditor:auditor
+data_engineer:engineer
+data_scientist:scientist
+etl_job:etl
+finance_manager:finance
+hr_manager:hr,mario
+intern:intern
+inventory_manager:inventory
+procurement_manager:procurement
+sales_manager:sales
+service_account:service
+support_manager:support
