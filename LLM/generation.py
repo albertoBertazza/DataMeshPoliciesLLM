@@ -29,13 +29,14 @@ IS_LOCAL = os.getenv("IS_LOCAL", "False") == "True"
 
 LLM_DIR = os.getenv("LLM_DIR")
 
-REGO_POLICY_CREATION_DIR = os.path.join(LLM_DIR, "RegoPolicyCreation")
-
-STRUCTURE_DIR = os.path.join(REGO_POLICY_CREATION_DIR, "Structure")
+STRUCTURE_DIR = os.path.join(LLM_DIR, "Structure")
 
 CHECK_FOR_ACTION_PATH = os.path.join(STRUCTURE_DIR, "checkForAction.json")
 INPUT_SCHEMA_PATH = os.path.join(STRUCTURE_DIR, "input.json")
 SECURITY_GROUPS_PATH=os.path.join(STRUCTURE_DIR, "security_groups.json")
+
+
+REGO_POLICY_CREATION_DIR = os.path.join(LLM_DIR, "RegoPolicyCreation")
 
 EXAMPLE_DIR = os.path.join(REGO_POLICY_CREATION_DIR, "ExampleDatastore")
 

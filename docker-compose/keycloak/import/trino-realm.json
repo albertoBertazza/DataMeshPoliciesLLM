@@ -3,33 +3,87 @@
   "enabled": true,
   "sslRequired": "external",
   "registrationAllowed": false,
+
   "groups": [
-    { "name": "hr_managers" },
-    { "name": "admin" }
+    { "name": "admin" },
+    { "name": "data_engineer" },
+    { "name": "data_scientist" },
+    { "name": "analyst" },
+    { "name": "hr_manager" },
+    { "name": "finance_manager" },
+    { "name": "sales_manager" },
+    { "name": "inventory_manager" },
+    { "name": "procurement_manager" },
+    { "name": "support_manager" },
+    { "name": "auditor" },
+    { "name": "intern" },
+    { "name": "service_account" },
+    { "name": "etl_job" }
   ],
+
   "users": [
     {
-      "username": "alice",
+      "username": "unemployed",
       "enabled": true,
-      "email": "alice@example.com",
-      "firstName": "Alice",
-      "lastName": "Smith",
+      "email": "unemployed@example.com",
+      "firstName": "Unemployed",
+      "lastName": "Manager",
       "emailVerified": true,
-      "groups": ["/hr_managers"],
+      "groups": [],
       "credentials": [
-        { "type": "password", "value": "alice123", "temporary": false }
+        {
+          "type": "password",
+          "value": "unemployed123",
+          "temporary": false
+        }
       ]
     },
     {
-      "username": "Mario",
+      "username": "hr",
+      "enabled": true,
+      "email": "hr@example.com",
+      "firstName": "Hr",
+      "lastName": "Manager",
+      "emailVerified": true,
+      "groups": ["/hr_manager"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "hr123",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "mario",
       "enabled": true,
       "email": "mario@example.com",
       "firstName": "Mario",
-      "lastName": "Smith",
+      "lastName": "Rossi",
       "emailVerified": true,
-      "groups": ["/hr_managers"],
+      "groups": ["/hr_manager"],
       "credentials": [
-        { "type": "password", "value": "mario123", "temporary": false }
+        {
+          "type": "password",
+          "value": "mario123",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "admin",
+      "enabled": true,
+      "email": "admin@example.com",
+      "firstName": "Admin",
+      "lastName": "Admin",
+      "emailVerified": true,
+      "groups": ["/admin"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
       ]
     },
     {
@@ -37,14 +91,211 @@
       "enabled": true,
       "email": "trino@example.com",
       "firstName": "Trino",
-      "lastName": "User",
+      "lastName": "Admin",
       "emailVerified": true,
       "groups": ["/admin"],
       "credentials": [
-        { "type": "password", "value": "trino123", "temporary": false }
+        {
+          "type": "password",
+          "value": "trino123",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "engineer",
+      "enabled": true,
+      "email": "engineer@example.com",
+      "firstName": "Data",
+      "lastName": "Engineer",
+      "emailVerified": true,
+      "groups": ["/data_engineer"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "engineer123",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "scientist",
+      "enabled": true,
+      "email": "scientist@example.com",
+      "firstName": "Data",
+      "lastName": "Scientist",
+      "emailVerified": true,
+      "groups": ["/data_scientist"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "scientist123",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "analyst",
+      "enabled": true,
+      "email": "analyst@example.com",
+      "firstName": "Business",
+      "lastName": "Analyst",
+      "emailVerified": true,
+      "groups": ["/analyst"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "analyst123",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "finance",
+      "enabled": true,
+      "email": "finance@example.com",
+      "firstName": "Finance",
+      "lastName": "Manager",
+      "emailVerified": true,
+      "groups": ["/finance_manager"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "finance123",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "sales",
+      "enabled": true,
+      "email": "sales@example.com",
+      "firstName": "Sales",
+      "lastName": "Manager",
+      "emailVerified": true,
+      "groups": ["/sales_manager"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "sales123",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "inventory",
+      "enabled": true,
+      "email": "inventory@example.com",
+      "firstName": "Inventory",
+      "lastName": "Manager",
+      "emailVerified": true,
+      "groups": ["/inventory_manager"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "inventory123",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "procurement",
+      "enabled": true,
+      "email": "procurement@example.com",
+      "firstName": "Procurement",
+      "lastName": "Manager",
+      "emailVerified": true,
+      "groups": ["/procurement_manager"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "procurement123",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "support",
+      "enabled": true,
+      "email": "support@example.com",
+      "firstName": "Support",
+      "lastName": "Manager",
+      "emailVerified": true,
+      "groups": ["/support_manager"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "support123",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "auditor",
+      "enabled": true,
+      "email": "auditor@example.com",
+      "firstName": "Security",
+      "lastName": "Auditor",
+      "emailVerified": true,
+      "groups": ["/auditor"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "auditor123",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "intern",
+      "enabled": true,
+      "email": "intern@example.com",
+      "firstName": "Summer",
+      "lastName": "Intern",
+      "emailVerified": true,
+      "groups": ["/intern"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "intern123",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "service",
+      "enabled": true,
+      "email": "service@example.com",
+      "firstName": "Service",
+      "lastName": "Account",
+      "emailVerified": true,
+      "groups": ["/service_account"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "service123",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "etl",
+      "enabled": true,
+      "email": "etl@example.com",
+      "firstName": "ETL",
+      "lastName": "Job",
+      "emailVerified": true,
+      "groups": ["/etl_job"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "etl123",
+          "temporary": false
+        }
       ]
     }
   ],
+
   "clients": [
     {
       "clientId": "trino",
