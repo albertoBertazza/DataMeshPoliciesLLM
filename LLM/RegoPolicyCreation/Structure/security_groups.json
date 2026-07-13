@@ -64,14 +64,6 @@
     }
   },
   {
-    "name": "production_manager",
-    "permissions": ["SELECT", "INSERT", "DELETE", "UPDATE"],
-    "limitation": {
-      "catalog": "iceberg",
-      "schema": "production"
-    }
-  },
-  {
     "name": "auditor",
     "permissions": ["SHOW", "SELECT"]
   },
