@@ -28,7 +28,7 @@ to match whatever you actually named your stage-1 file.
 
 import json
 
-from Interface.llm_call import llm_call
+from RegoPolicyCreation.Interface.llm_call import llm_call
 
 # ---------------------------------------------------------------------------
 # How each Trino operation's `input.action.resource` is shaped.
@@ -147,7 +147,7 @@ def get_generate_rego_system_prompt(example_rego):
     )
 
 import numpy as np
-from Interface.embedding_call import embedding_call
+from RegoPolicyCreation.Interface.embedding_call import embedding_call
 
 
 def cosine_similarity(a, b):

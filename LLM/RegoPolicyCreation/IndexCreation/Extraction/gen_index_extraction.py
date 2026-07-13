@@ -1,7 +1,6 @@
-from Interface.embedding_call import embedding_call   # adjust import path
+from RegoPolicyCreation.Interface.embedding_call import embedding_call
 
-
-def gen_index_rewrite(
+def gen_index_extraction(
     examples,
     is_local=False,
     embedding_url=None,
@@ -13,7 +12,7 @@ def gen_index_rewrite(
     for example in examples:
 
         embedding = embedding_call(
-            text=example["rule"],
+            text=example["input"],
             is_local=is_local,
             embedding_url=embedding_url,
             client=client,
@@ -21,8 +20,8 @@ def gen_index_rewrite(
         )
 
         index.append({
-            "rule": example["rule"],
-            "explanation": example["explanation"],
+            "input": example["input"],
+            "output": example["output"],
             "embedding": embedding.tolist()
         })
 

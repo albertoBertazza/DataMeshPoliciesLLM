@@ -6,10 +6,10 @@ import requests
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from IndexCreation.index_creator import reload_indexes
-from Pipeline.Extraction.extraction import extract_entities
-from Pipeline.RegoRuleGeneration.build_rego import generate_rego_policy
-from Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
+from RegoPolicyCreation.IndexCreation.index_creator import reload_indexes
+from RegoPolicyCreation.Pipeline.Extraction.extraction import extract_entities
+from RegoPolicyCreation.Pipeline.RegoRuleGeneration.build_rego import generate_rego_policy
+from RegoPolicyCreation.Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
 
 # ---------------------------------------------------------------------------
 # Config
@@ -29,13 +29,15 @@ IS_LOCAL = os.getenv("IS_LOCAL", "False") == "True"
 
 LLM_DIR = os.getenv("LLM_DIR")
 
-STRUCTURE_DIR = os.path.join(LLM_DIR, "Structure")
+REGO_POLICY_CREATION_DIR = os.path.join(LLM_DIR, "RegoPolicyCreation")
+
+STRUCTURE_DIR = os.path.join(REGO_POLICY_CREATION_DIR, "Structure")
 
 CHECK_FOR_ACTION_PATH = os.path.join(STRUCTURE_DIR, "checkForAction.json")
 INPUT_SCHEMA_PATH = os.path.join(STRUCTURE_DIR, "input.json")
 SECURITY_GROUPS_PATH=os.path.join(STRUCTURE_DIR, "security_groups.json")
 
-EXAMPLE_DIR = os.path.join(LLM_DIR, "ExampleDatastore")
+EXAMPLE_DIR = os.path.join(REGO_POLICY_CREATION_DIR, "ExampleDatastore")
 
 REWRITE_RULE_EXAMPLES_PATH = os.path.join(EXAMPLE_DIR, "rewrite_rule.json")
 EXTRACTION_EXAMPLES_PATH = os.path.join(EXAMPLE_DIR, "extraction.json")
@@ -71,7 +73,7 @@ def wait_for_llm(url, timeout=120):
     raise RuntimeError("LLM server did not start within timeout")
 
 if IS_LOCAL:
-    LLAMA_DIR = r"C:\Users\berta\BertaFiles\Project\DataMeshPoliciesLLM\LLM\LocalLLMIntelIpex\llama-cpp-ipex-llm-2.3.0b20250424-win"
+    LLAMA_DIR = r"C:\Users\berta\BertaFiles\Project\DataMeshPoliciesLLM\LLM\RegoPolicyCreation\LocalLLMIntelIpex\llama-cpp-ipex-llm-2.3.0b20250424-win"
 
     # Generation model
     subprocess.Popen(

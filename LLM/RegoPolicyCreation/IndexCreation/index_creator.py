@@ -3,9 +3,9 @@ import json
 import os
 import time
 
-from IndexCreation.Extraction.gen_index_extraction import gen_index_extraction
-from IndexCreation.RegoRuleGeneration.gen_index_build import gen_index_build
-from IndexCreation.Rewrite.gen_index_rewrite import gen_index_rewrite
+from RegoPolicyCreation.IndexCreation.Extraction.gen_index_extraction import gen_index_extraction
+from RegoPolicyCreation.IndexCreation.RegoRuleGeneration.gen_index_build import gen_index_build
+from RegoPolicyCreation.IndexCreation.Rewrite.gen_index_rewrite import gen_index_rewrite
 
 # ---------------------------------------------------------------------------
 # Config
@@ -15,8 +15,10 @@ load_dotenv()
 
 LLM_DIR = os.getenv("LLM_DIR")
 
+REGO_POLICY_CREATION_DIR = os.path.join(LLM_DIR, "RegoPolicyCreation")
+
 # join with path /Example/Datastore
-EXAMPLE_DIR = os.path.join(LLM_DIR, "Example")
+EXAMPLE_DIR = os.path.join(REGO_POLICY_CREATION_DIR, "Example")
 
 INPUT_DIR = os.path.join( EXAMPLE_DIR, "Datastore")
 OUTPUT_DIR = os.path.join(EXAMPLE_DIR, "Indexed")
