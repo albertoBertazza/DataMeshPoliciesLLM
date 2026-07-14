@@ -46,6 +46,7 @@ STRUCTURE_DIR = os.path.join(LLM_DIR, "Structure")
 CHECK_FOR_ACTION_PATH = os.path.join(STRUCTURE_DIR, "checkForAction.json")
 INPUT_SCHEMA_PATH = os.path.join(STRUCTURE_DIR, "input.json")
 SECURITY_GROUPS_PATH=os.path.join(STRUCTURE_DIR, "security_groups.json")
+DATA_MESH_STRUCTURE_PATH=os.path.join(STRUCTURE_DIR, "data_mesh.json")
 
 LLM_PIPELINE_DIR = os.path.join(LLM_DIR, "LLMPipeline")
 REGO_POLICY_CREATION_DIR = os.path.join(LLM_PIPELINE_DIR, "RegoPolicyCreation")
@@ -70,6 +71,7 @@ def load_json(path):
 CHECK_FOR_ACTION = load_json(CHECK_FOR_ACTION_PATH)   # action -> [checks...]
 INPUT_SCHEMA = load_json(INPUT_SCHEMA_PATH)           # shape Trino sends to OPA
 SECURITY_GROUPS = load_json(SECURITY_GROUPS_PATH)
+DATA_MESH = load_json(DATA_MESH_STRUCTURE_PATH)
 
 def wait_for_llm(url, timeout=120):
     print("Waiting for local LLM server...")
@@ -138,40 +140,50 @@ def process_rule(rule):
     global explanation
     try:
         print("\n[Interpretation]")
-        explanation = llm_explain(rule, INDEX_REWRITE_RULE,is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
-        print(explanation)
+        explanation = llm_explain(rule, INDEX_REWRITE_RULE,DATA_MESH, SECURITY_GROUPS,is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
+        print(explanation["text"])
+
+        if not explanation["existSecureGroup"] and not explanation["pathExistOnDataMeshStructure"]:
+            print("Skipping: invalid security group and data mesh path.")
+            return
+        elif not explanation["pathExistOnDataMeshStructure"]:
+            print("Skipping: invalid data mesh path.")
+            return
+        elif not explanation["existSecureGroup"]:
+            print("Skipping: invalid security group.")
+            return
     except Exception as e:
         print("  (could not get explanation:", e, ")")
 
-
-    #-----------------------------------------------------------------------
-    # 2) EXTRACTION
-    #----------------------------------------------------------------------
-    print("\n[Extracting entities...]")
-    try:
-        entities = extract_entities(explanation, CHECK_FOR_ACTION, INDEX_EXTRACTION, SECURITY_GROUPS, is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
-    except Exception as e:
-        print("  Failed to extract_entities:", e)
-        return
-
-    #-----------------------------------------------------------------------
-    # 3) REGO POLICY GENERATION
-    #----------------------------------------------------------------------
-    print("\n[Generating OPA policy...]")
-    try:
-        policy  = generate_rego_policy(entities, INDEX_BUILD_REGO, is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
-    except ValueError as e:
-        print("  Failed to build policy:", e)
-        return
-
-    filename = f"policy_{explanation[:30].replace(' ', '_')}.rego"
-    filename = os.path.join(OUTPUT_REGO_DIR, filename)
-    os.makedirs(OUTPUT_REGO_DIR, exist_ok=True)
-
-    with open(filename, "w") as f:
-        f.write(policy)
-
-    print(f"Saved to: {filename}")
+    #
+    # #-----------------------------------------------------------------------
+    # # 2) EXTRACTION
+    # #----------------------------------------------------------------------
+    # print("\n[Extracting entities...]")
+    # try:
+    #     entities = extract_entities(explanation,INDEX_EXTRACTION,  CHECK_FOR_ACTION, SECURITY_GROUPS, is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
+    # except Exception as e:
+    #     print("  Failed to extract_entities:", e)
+    #     return
+    #
+    # #-----------------------------------------------------------------------
+    # # 3) REGO POLICY GENERATION
+    # #----------------------------------------------------------------------
+    # print("\n[Generating OPA policy...]")
+    # try:
+    #     policy  = generate_rego_policy(entities, INDEX_BUILD_REGO, is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
+    # except ValueError as e:
+    #     print("  Failed to build policy:", e)
+    #     return
+    #
+    # filename = f"policy_{explanation[:30].replace(' ', '_')}.rego"
+    # filename = os.path.join(OUTPUT_REGO_DIR, filename)
+    # os.makedirs(OUTPUT_REGO_DIR, exist_ok=True)
+    #
+    # with open(filename, "w") as f:
+    #     f.write(policy)
+    #
+    # print(f"Saved to: {filename}")
 
 
 # --- MAIN LOOP ---

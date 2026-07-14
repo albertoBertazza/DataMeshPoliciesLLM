@@ -196,7 +196,7 @@ def llm_extract(rule, check_for_action,extraction_indexes,security_groups, is_lo
 
 
 
-def extract_entities(rule,check_for_action,extraction_indexes,security_groups, is_local, chat_url=None, embedding_url=None,client=None,model=None, embedding_model=None):
+def extract_entities(rule,extraction_indexes, check_for_action,security_groups, is_local, chat_url=None, embedding_url=None,client=None,model=None, embedding_model=None):
 
     try:
         raw = llm_extract(rule=rule,check_for_action=check_for_action,extraction_indexes=extraction_indexes,security_groups=security_groups, is_local=is_local, chat_url=chat_url ,embedding_url=embedding_url,client=client,model=model, embedding_model=embedding_model)

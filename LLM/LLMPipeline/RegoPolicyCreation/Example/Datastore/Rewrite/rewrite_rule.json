@@ -1,82 +1,362 @@
 [
   {
-    "rule": "The analyst needs to consult the employee demographics dataset to prepare the monthly workforce report.",
-    "explanation": "The Analyst role is a read-only role. It should be allowed to execute SELECT statements on catalog: iceberg, schema: demographics, table: employees."
+    "input": {
+      "dataMeshStructure": {
+        "iceberg": {
+          "hr": {
+            "employees": [
+              "employee_id",
+              "name",
+              "department",
+              "salary"
+            ]
+          },
+          "finance": {
+            "transactions": [
+              "transaction_id",
+              "amount",
+              "currency"
+            ]
+          }
+        },
+        "hive": {
+          "sales": {
+            "orders": [
+              "order_id",
+              "customer_id",
+              "total"
+            ]
+          }
+        }
+      },
+      "securityGroups": [
+        "Admin",
+        "Analyst",
+        "Data Engineer",
+        "Finance Manager",
+        "HR Manager"
+      ],
+      "rule": "The Analyst needs to consult the employee demographics dataset."
+    },
+    "explanation": {
+      "text": "The Analyst role should be allowed to execute SELECT statements on catalog: iceberg, schema: hr, table: employees.",
+      "existSecureGroup": true,
+      "pathExistOnDataMeshStructure": true
+    }
   },
   {
-    "rule": "A data engineer has to load the latest sales records into the orders table after the nightly ETL process.",
-    "explanation": "The Data Engineer role is responsible for data ingestion and maintenance. It should be allowed to INSERT into catalog: hive, schema: sales, table: orders."
+    "input": {
+      "dataMeshStructure": {
+        "iceberg": {
+          "hr": {
+            "employees": [
+              "employee_id",
+              "name",
+              "department",
+              "salary"
+            ]
+          },
+          "finance": {
+            "transactions": [
+              "transaction_id",
+              "amount",
+              "currency"
+            ]
+          }
+        },
+        "hive": {
+          "sales": {
+            "orders": [
+              "order_id",
+              "customer_id",
+              "total"
+            ]
+          }
+        }
+      },
+      "securityGroups": [
+        "Admin",
+        "Analyst",
+        "Data Engineer",
+        "Finance Manager",
+        "HR Manager"
+      ],
+      "rule": "The Finance Manager wants to update the transactions table."
+    },
+    "explanation": {
+      "text": "The Finance Manager role can UPDATE records in catalog: iceberg, schema: finance, table: transactions.",
+      "existSecureGroup": true,
+      "pathExistOnDataMeshStructure": true
+    }
   },
   {
-    "rule": "The platform administrator must be able to manage every database object regardless of where it is stored.",
-    "explanation": "The Admin role has unrestricted access to every catalog, schema, table and database object."
+    "input": {
+      "dataMeshStructure": {
+        "iceberg": {
+          "hr": {
+            "employees": [
+              "employee_id",
+              "name",
+              "department",
+              "salary"
+            ]
+          },
+          "finance": {
+            "transactions": [
+              "transaction_id",
+              "amount",
+              "currency"
+            ]
+          }
+        },
+        "hive": {
+          "sales": {
+            "orders": [
+              "order_id",
+              "customer_id",
+              "total"
+            ]
+          }
+        }
+      },
+      "securityGroups": [
+        "Admin",
+        "Analyst",
+        "Data Engineer",
+        "Finance Manager",
+        "HR Manager"
+      ],
+      "rule": "The Finance Manager wants to query the asset table."
+    },
+    "explanation": {
+      "text": "Invalid request: table asset does not exist in catalog iceberg, schema finance.",
+      "existSecureGroup": true,
+      "pathExistOnDataMeshStructure": false
+    }
   },
   {
-    "rule": "An HR manager needs to update an employee's department information in the HR database.",
-    "explanation": "The HR Manager role can UPDATE records only inside catalog: iceberg, schema: hr."
+    "input": {
+      "dataMeshStructure": {
+        "iceberg": {
+          "hr": {
+            "employees": [
+              "employee_id",
+              "name",
+              "department",
+              "salary"
+            ]
+          },
+          "finance": {
+            "transactions": [
+              "transaction_id",
+              "amount",
+              "currency"
+            ]
+          }
+        },
+        "hive": {
+          "sales": {
+            "orders": [
+              "order_id",
+              "customer_id",
+              "total"
+            ]
+          }
+        }
+      },
+      "securityGroups": [
+        "Admin",
+        "Analyst",
+        "Data Engineer",
+        "Finance Manager",
+        "HR Manager"
+      ],
+      "rule": "The Analyst wants to query iceberg.sales.orders."
+    },
+    "explanation": {
+      "text": "Invalid request: schema sales does not exist in catalog iceberg.",
+      "existSecureGroup": true,
+      "pathExistOnDataMeshStructure": false
+    }
   },
   {
-    "rule": "A finance manager wants to review and correct a transaction stored in the finance domain.",
-    "explanation": "The Finance Manager role can SELECT and UPDATE data only inside catalog: iceberg, schema: finance."
+    "input": {
+      "dataMeshStructure": {
+        "iceberg": {
+          "hr": {
+            "employees": [
+              "employee_id",
+              "name",
+              "department",
+              "salary"
+            ]
+          },
+          "finance": {
+            "transactions": [
+              "transaction_id",
+              "amount",
+              "currency"
+            ]
+          }
+        },
+        "hive": {
+          "sales": {
+            "orders": [
+              "order_id",
+              "customer_id",
+              "total"
+            ]
+          }
+        }
+      },
+      "securityGroups": [
+        "Admin",
+        "Analyst",
+        "Data Engineer",
+        "Finance Manager",
+        "HR Manager"
+      ],
+      "rule": "The Analyst wants to query mysql.hr.employees."
+    },
+    "explanation": {
+      "text": "Invalid request: catalog mysql does not exist.",
+      "existSecureGroup": true,
+      "pathExistOnDataMeshStructure": false
+    }
   },
   {
-    "rule": "An analyst wants to modify an employee record after finding an error.",
-    "explanation": "The request should be denied because the Analyst role only has read permissions and cannot UPDATE data."
+    "input": {
+      "dataMeshStructure": {
+        "iceberg": {
+          "hr": {
+            "employees": [
+              "employee_id",
+              "name",
+              "department",
+              "salary"
+            ]
+          },
+          "finance": {
+            "transactions": [
+              "transaction_id",
+              "amount",
+              "currency"
+            ]
+          }
+        },
+        "hive": {
+          "sales": {
+            "orders": [
+              "order_id",
+              "customer_id",
+              "total"
+            ]
+          }
+        }
+      },
+      "securityGroups": [
+        "Admin",
+        "Analyst",
+        "Data Engineer",
+        "Finance Manager",
+        "HR Manager"
+      ],
+      "rule": "The HR Manager wants to read the address column from iceberg.hr.employees."
+    },
+    "explanation": {
+      "text": "Invalid request: column address does not exist in catalog iceberg, schema hr, table employees.",
+      "existSecureGroup": true,
+      "pathExistOnDataMeshStructure": false
+    }
   },
   {
-    "rule": "A data scientist needs to build a reusable view containing customer purchase statistics.",
-    "explanation": "The Data Scientist role can CREATE VIEW objects and SELECT the required source data."
+    "input": {
+      "dataMeshStructure": {
+        "iceberg": {
+          "hr": {
+            "employees": [
+              "employee_id",
+              "name",
+              "department",
+              "salary"
+            ]
+          },
+          "finance": {
+            "transactions": [
+              "transaction_id",
+              "amount",
+              "currency"
+            ]
+          }
+        },
+        "hive": {
+          "sales": {
+            "orders": [
+              "order_id",
+              "customer_id",
+              "total"
+            ]
+          }
+        }
+      },
+      "securityGroups": [
+        "Admin",
+        "Analyst",
+        "Data Engineer",
+        "Finance Manager",
+        "HR Manager"
+      ],
+      "rule": "The Intern wants to query iceberg.hr.employees."
+    },
+    "explanation": {
+      "text": "Invalid request: security group Intern does not exist.",
+      "existSecureGroup": false,
+      "pathExistOnDataMeshStructure": true
+    }
   },
   {
-    "rule": "An intern is trying to query the sales schema to understand historical orders.",
-    "explanation": "The request should be denied because the Intern role only has read access to the HR and Finance schemas of the Iceberg catalog."
-  },
-  {
-    "rule": "An auditor wants to inspect which tables are available inside the audit schema.",
-    "explanation": "The Auditor role can list schemas and tables and read authorized datasets but cannot modify data."
-  },
-  {
-    "rule": "An automated ETL job needs to merge today's records into the existing orders table.",
-    "explanation": "The ETL Job role is allowed to execute MERGE operations on datasets used for data synchronization."
-  },
-  {
-    "rule": "The payroll application needs to update employee information automatically.",
-    "explanation": "The Service Account can UPDATE only the predefined application tables, including iceberg.hr.employees."
-  },
-  {
-    "rule": "A user belonging to the data engineering group has to create a staging table for an ingestion pipeline.",
-    "explanation": "Members of the Data Engineering Group inherit permissions that allow them to create and manage datasets required for engineering activities."
-  },
-  {
-    "rule": "Members of the analytics team need to consult customer behavior data for a dashboard.",
-    "explanation": "The Analytics Group is intended for business intelligence workloads and should receive read-only access to analytical datasets."
-  },
-  {
-    "rule": "Employees in the Human Resources department should automatically receive access to HR datasets.",
-    "explanation": "Department Groups inherit permissions that grant access to resources belonging to their own business domain."
-  },
-  {
-    "rule": "The salary column should not reveal its real values to regular analysts.",
-    "explanation": "A column masking policy should be applied to the salary column so unauthorized users receive masked values."
-  },
-  {
-    "rule": "Managers should only see employees belonging to their own department.",
-    "explanation": "A row-level security policy should filter the returned rows so users only access records they are authorized to view."
-  },
-  {
-    "rule": "The administrator wants to rename a production table before the next software release.",
-    "explanation": "The Admin role can rename database objects because it has unrestricted administrative privileges."
-  },
-  {
-    "rule": "A data engineer needs to remove a temporary staging table that is no longer required.",
-    "explanation": "The Data Engineer role can DROP database objects as part of maintaining data pipelines."
-  },
-  {
-    "rule": "An HR manager attempts to update a finance transaction.",
-    "explanation": "The request should be denied because the HR Manager is restricted to the HR schema and cannot access Finance resources."
-  },
-  {
-    "rule": "A business user requests access to customer information required for preparing quarterly reports.",
-    "explanation": "Business users receive only the permissions necessary for their responsibilities, following the principle of least privilege."
+    "input": {
+      "dataMeshStructure": {
+        "iceberg": {
+          "hr": {
+            "employees": [
+              "employee_id",
+              "name",
+              "department",
+              "salary"
+            ]
+          },
+          "finance": {
+            "transactions": [
+              "transaction_id",
+              "amount",
+              "currency"
+            ]
+          }
+        },
+        "hive": {
+          "sales": {
+            "orders": [
+              "order_id",
+              "customer_id",
+              "total"
+            ]
+          }
+        }
+      },
+      "securityGroups": [
+        "Admin",
+        "Analyst",
+        "Data Engineer",
+        "Finance Manager",
+        "HR Manager"
+      ],
+      "rule": "The Guest wants to query iceberg.finance.asset."
+    },
+    "explanation": {
+      "text": "Invalid request: security group Guest does not exist and table asset does not exist in catalog iceberg, schema finance.",
+      "existSecureGroup": false,
+      "pathExistOnDataMeshStructure": false
+    }
   }
 ]

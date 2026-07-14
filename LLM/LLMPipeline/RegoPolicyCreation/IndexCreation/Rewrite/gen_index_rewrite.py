@@ -1,4 +1,4 @@
-from Interface.embedding_call import embedding_call   # adjust import path
+from Interface.embedding_call import embedding_call
 
 
 def gen_index_rewrite(
@@ -6,24 +6,27 @@ def gen_index_rewrite(
     is_local=False,
     embedding_url=None,
     client=None,
-    embedding_model=None
+    embedding_model=None,
 ):
     index = []
 
     for example in examples:
-
         embedding = embedding_call(
-            text=example["rule"],
+            text=example["input"]["rule"],
             is_local=is_local,
             embedding_url=embedding_url,
             client=client,
-            embedding_model=embedding_model
+            embedding_model=embedding_model,
         )
 
+        # Convert NumPy arrays to lists if necessary
+        if hasattr(embedding, "tolist"):
+            embedding = embedding.tolist()
+
         index.append({
-            "rule": example["rule"],
+            "input": example["input"],
             "explanation": example["explanation"],
-            "embedding": embedding.tolist()
+            "embedding": embedding,
         })
 
     return index
