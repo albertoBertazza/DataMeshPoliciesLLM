@@ -50,6 +50,9 @@ SECURITY_GROUPS_PATH=os.path.join(STRUCTURE_DIR, "security_groups.json")
 LLM_PIPELINE_DIR = os.path.join(LLM_DIR, "LLMPipeline")
 REGO_POLICY_CREATION_DIR = os.path.join(LLM_PIPELINE_DIR, "RegoPolicyCreation")
 
+OUTPUT_DIR=os.path.join(REGO_POLICY_CREATION_DIR, "output")
+OUTPUT_REGO_DIR=os.path.join(OUTPUT_DIR, "rego_policies")
+
 EXAMPLE_DIR = os.path.join(REGO_POLICY_CREATION_DIR, "ExampleDatastore")
 
 REWRITE_RULE_EXAMPLES_PATH = os.path.join(EXAMPLE_DIR, "rewrite_rule.json")
@@ -161,10 +164,9 @@ def process_rule(rule):
         print("  Failed to build policy:", e)
         return
 
-    output_dir = "RegoPolicyCreation/output/rego_policies"
     filename = f"policy_{explanation[:30].replace(' ', '_')}.rego"
-    filename = os.path.join(output_dir, filename)
-    os.makedirs(output_dir, exist_ok=True)
+    filename = os.path.join(OUTPUT_REGO_DIR, filename)
+    os.makedirs(OUTPUT_REGO_DIR, exist_ok=True)
 
     with open(filename, "w") as f:
         f.write(policy)

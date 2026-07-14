@@ -1,3 +1,1 @@
-RegoPolicyCreation/LocalLLMIntelIpex/llama-cpp-ipex-llm-2.3.0b20250424-win
-
-output/rego_policies/*.rego
+LLMPipeline/RegoPolicyCreation/output/rego_policies/*.rego
