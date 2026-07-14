@@ -23,22 +23,10 @@ Return ONLY valid JSON. Never explain anything. Never output markdown.
 
 IMPORTANT RULES:
 
-- If the subject is a group, "subject_value" MUST be one of the allowed security groups.
-- Never invent group names.
-- If a group is mentioned but it does not exist in security_groups, do not extract it as a valid group.
-- Prefer exact group names when matching.
-- Users are free text identifiers.
-- Groups are controlled vocabulary.
 - "trino_action" MUST contain the authorization actions required by the requested operation.
 - Do not return SQL actions such as SELECT, INSERT, UPDATE. Convert them using the action mapping.
 - If the requested operation requires multiple Trino permissions, return all required permissions.
 - If the user has unrestricted access, return "*".
-
-
-Available security groups:
-
-{security_groups}
-
 
 User action to Trino authorization mapping:
 
@@ -68,21 +56,41 @@ Relevant examples:
 """
 
 
-def retrieve_examples(rule, extraction_indexes,is_local, n=3, embedding_url=None,client=None, embedding_model=None ):
+def retrieve_examples(
+    rule,
+    extraction_indexes,
+    is_local,
+    n=3,
+    embedding_url=None,
+    client=None,
+    embedding_model=None
+):
 
     texts = [
-        x["input"]
+        x["input"]["extractionText"]
         for x in extraction_indexes
     ]
 
     example_embeddings = np.array(
         [
-            embedding_call(text=text, is_local=is_local,embedding_url=embedding_url,client=client, embedding_model=embedding_model)
+            embedding_call(
+                text=text,
+                is_local=is_local,
+                embedding_url=embedding_url,
+                client=client,
+                embedding_model=embedding_model
+            )
             for text in texts
         ]
     )
 
-    rule_embedding = embedding_call(text=rule, is_local=is_local,embedding_url=embedding_url,client=client, embedding_model=embedding_model)
+    rule_embedding = embedding_call(
+        text=rule,
+        is_local=is_local,
+        embedding_url=embedding_url,
+        client=client,
+        embedding_model=embedding_model
+    )
 
     example_embeddings = (
         example_embeddings /
@@ -117,7 +125,7 @@ def format_examples(examples):
         result.append(
             f"""
 Input:
-{ex['input']}
+{ex['input']['extractionText']}
 
 Output:
 {json.dumps(ex['output'], indent=2)}
@@ -127,10 +135,8 @@ Output:
     return "\n".join(result)
 
 
-
 def get_extract_system_prompt(
     check_for_action,
-    security_groups,
     examples
 ):
 
@@ -141,67 +147,102 @@ def get_extract_system_prompt(
             indent=2
         ),
 
-        security_groups=json.dumps(
-            security_groups,
-            indent=2
-        ),
-
         examples=examples
     )
 
 
-
-def llm_extract(rule, check_for_action,extraction_indexes,security_groups, is_local, chat_url=None, embedding_url=None,client=None,model=None, embedding_model=None):
-
-    try:
-        examples = retrieve_examples(rule,extraction_indexes,is_local, n=3, embedding_url=embedding_url,client=client, embedding_model=embedding_model)
-    except Exception as e:
-        print("  Failed to retrieve_examples in llm_extract:", e)
-        return
-    prompt=[
-
-            {
-                "role": "system",
-                "content":
-                    get_extract_system_prompt(
-                        check_for_action,
-
-                        [
-                            g["name"] if isinstance(g, dict) else g
-                            for g in security_groups
-                        ],
-
-                        format_examples(
-                            examples
-                        )
-                    )
-            },
-
-            {
-                "role": "user",
-                "content": rule
-            }
-
-        ]
-
-    # cast prompt to string
-    prompt=json.dumps(prompt,indent=2)
+def llm_extract(
+    rule,
+    check_for_action,
+    extraction_indexes,
+    is_local,
+    chat_url=None,
+    embedding_url=None,
+    client=None,
+    model=None,
+    embedding_model=None
+):
 
     try:
-        response = llm_call(prompt,response_format={"type": "json_object"},is_local=is_local,chat_url=chat_url,client=client,model=model)
+        examples = retrieve_examples(
+            rule,
+            extraction_indexes,
+            is_local,
+            n=3,
+            embedding_url=embedding_url,
+            client=client,
+            embedding_model=embedding_model
+        )
+
     except Exception as e:
-        print("  Failed to llm_call in llm_extract:", e)
+        print("Failed to retrieve_examples in llm_extract:", e)
         return
+
+
+    prompt = [
+        {
+            "role": "system",
+            "content": get_extract_system_prompt(
+                check_for_action,
+                format_examples(examples)
+            )
+        },
+        {
+            "role": "user",
+            "content": rule
+        }
+    ]
+
+
+    prompt = json.dumps(prompt, indent=2)
+
+
+    try:
+        response = llm_call(
+            prompt,
+            response_format={"type": "json_object"},
+            is_local=is_local,
+            chat_url=chat_url,
+            client=client,
+            model=model
+        )
+
+    except Exception as e:
+        print("Failed to llm_call in llm_extract:", e)
+        return
+
+
     return response.strip()
 
 
 
-def extract_entities(rule,extraction_indexes, check_for_action,security_groups, is_local, chat_url=None, embedding_url=None,client=None,model=None, embedding_model=None):
+def extract_entities(
+    rule,
+    extraction_indexes,
+    check_for_action,
+    is_local,
+    chat_url=None,
+    embedding_url=None,
+    client=None,
+    model=None,
+    embedding_model=None
+):
 
     try:
-        raw = llm_extract(rule=rule,check_for_action=check_for_action,extraction_indexes=extraction_indexes,security_groups=security_groups, is_local=is_local, chat_url=chat_url ,embedding_url=embedding_url,client=client,model=model, embedding_model=embedding_model)
+        raw = llm_extract(
+            rule=rule,
+            check_for_action=check_for_action,
+            extraction_indexes=extraction_indexes,
+            is_local=is_local,
+            chat_url=chat_url,
+            embedding_url=embedding_url,
+            client=client,
+            model=model,
+            embedding_model=embedding_model
+        )
+
     except Exception as e:
-        print("  Failed to llm_extract in extract_entities:", e)
+        print("Failed to llm_extract in extract_entities:", e)
         return
 
 
@@ -211,36 +252,7 @@ def extract_entities(rule,extraction_indexes, check_for_action,security_groups, 
     )
 
 
-    start = raw.find("{")
-    end = raw.rfind("}")
-
-
-    if start == -1 or end == -1:
-        raise ValueError(
-            "No JSON found in model output"
-        )
-
-
-    result = json.loads(
-        raw[start:end+1]
-    )
-
-
-    if result["subject_attribute"] == "groups":
-
-        allowed_groups = {
-            g["name"] if isinstance(g, dict) else g
-            for g in security_groups
-
-        }
-
-
-        if result["subject_value"] not in allowed_groups:
-
-            raise ValueError(
-                f"Invalid security group extracted: "
-                f"{result['subject_value']}"
-            )
+    result = json.loads(raw)
 
 
     return result

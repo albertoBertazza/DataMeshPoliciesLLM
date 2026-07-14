@@ -155,17 +155,17 @@ def process_rule(rule):
     except Exception as e:
         print("  (could not get explanation:", e, ")")
 
-    #
-    # #-----------------------------------------------------------------------
-    # # 2) EXTRACTION
-    # #----------------------------------------------------------------------
-    # print("\n[Extracting entities...]")
-    # try:
-    #     entities = extract_entities(explanation,INDEX_EXTRACTION,  CHECK_FOR_ACTION, SECURITY_GROUPS, is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
-    # except Exception as e:
-    #     print("  Failed to extract_entities:", e)
-    #     return
-    #
+
+    #-----------------------------------------------------------------------
+    # 2) EXTRACTION
+    #----------------------------------------------------------------------
+    print("\n[Extracting entities...]")
+    try:
+        entities = extract_entities(explanation["text"],INDEX_EXTRACTION, CHECK_FOR_ACTION, is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
+    except Exception as e:
+        print("  Failed to extract_entities:", e)
+        return
+
     # #-----------------------------------------------------------------------
     # # 3) REGO POLICY GENERATION
     # #----------------------------------------------------------------------
