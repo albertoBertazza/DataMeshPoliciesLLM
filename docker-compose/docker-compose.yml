@@ -97,7 +97,7 @@ services:
       bash -c "
         mkdir -p /opt/metastore_db &&
         chown -R hive:hive /opt/metastore_db || true &&
-        exec /entrypoint.sh
+        exec /script/entrypoint.sh
       "
     depends_on:
       - postgres
