@@ -196,60 +196,6 @@
           ]
         },
         {
-          "name": "raw_finance",
-          "tables": [
-            {
-              "name": "employee_finance_raw",
-              "columns": []
-            }
-          ]
-        },
-        {
-          "name": "raw_hr",
-          "tables": [
-            {
-              "name": "people_raw",
-              "columns": []
-            }
-          ]
-        },
-        {
-          "name": "raw_inventory",
-          "tables": [
-            {
-              "name": "products_raw",
-              "columns": []
-            }
-          ]
-        },
-        {
-          "name": "raw_procurement",
-          "tables": [
-            {
-              "name": "product_catalog_raw",
-              "columns": []
-            }
-          ]
-        },
-        {
-          "name": "raw_sales",
-          "tables": [
-            {
-              "name": "offers_raw",
-              "columns": []
-            }
-          ]
-        },
-        {
-          "name": "raw_support",
-          "tables": [
-            {
-              "name": "support_tickets_raw",
-              "columns": []
-            }
-          ]
-        },
-        {
           "name": "sales",
           "tables": [
             {

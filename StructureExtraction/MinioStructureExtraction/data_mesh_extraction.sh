@@ -198,5 +198,10 @@ TMP_JSON=$(mktemp)
 jq '.' "$OUTPUT_FILE" > "$TMP_JSON"
 mv "$TMP_JSON" "$OUTPUT_FILE"
 
+# remove raw CSV as Hive external table
+jq '
+  .catalogs[].schemas |= map(select(.name | startswith("raw_") | not))
+' "$OUTPUT_FILE" > /tmp/data_mesh.json && mv /tmp/data_mesh.json "$OUTPUT_FILE"
+
 echo "✅ Data mesh written to:"
 echo "$OUTPUT_FILE"
