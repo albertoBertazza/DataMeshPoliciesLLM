@@ -3,9 +3,9 @@ import json
 import os
 import time
 
-from RegoPolicyCreation.IndexCreation.Extraction.gen_index_extraction import gen_index_extraction
-from RegoPolicyCreation.IndexCreation.RegoRuleGeneration.gen_index_build import gen_index_build
-from RegoPolicyCreation.IndexCreation.Rewrite.gen_index_rewrite import gen_index_rewrite
+from LLMPipeline.RegoPolicyCreation.IndexCreation.Extraction.gen_index_extraction import gen_index_extraction
+from LLMPipeline.RegoPolicyCreation.IndexCreation.RegoRuleGeneration.gen_index_build import gen_index_build
+from LLMPipeline.RegoPolicyCreation.IndexCreation.Rewrite.gen_index_rewrite import gen_index_rewrite
 
 # ---------------------------------------------------------------------------
 # Config
@@ -27,7 +27,8 @@ LLM_DIR = current
 
 print(LLM_DIR)
 
-REGO_POLICY_CREATION_DIR = os.path.join(LLM_DIR, "RegoPolicyCreation")
+LLM_PIPELINE_DIR = os.path.join(LLM_DIR, "LLMPipeline")
+REGO_POLICY_CREATION_DIR = os.path.join(LLM_PIPELINE_DIR, "RegoPolicyCreation")
 
 # join with path /Example/Datastore
 EXAMPLE_DIR = os.path.join(REGO_POLICY_CREATION_DIR, "Example")
@@ -39,9 +40,6 @@ INPUT_EXTRACTION_PATH = os.path.join( os.path.join(INPUT_DIR, "Extraction"), "ex
 INPUT_REWRITE_RULE_PATH = os.path.join( os.path.join(INPUT_DIR, "Rewrite"), "rewrite_rule.json")
 INPUT_BUILD_REGO_PATH = os.path.join( os.path.join(INPUT_DIR, "RegoRuleGeneration"), "build_rego.json")
 
-#OUTPUT_EXTRACTION_INDEX_PATH = os.path.join( os.path.join(OUTPUT_DIR, "Extraction"), "extraction_index.json")
-#OUTPUT_REWRITE_RULE_INDEX_PATH = os.path.join( os.path.join(OUTPUT_DIR, "Rewrite"), "rewrite_rule_index.json")
-#OUTPUT_BUILD_REGO_INDEX_PATH = os.path.join( os.path.join(OUTPUT_DIR, "RegoRuleGeneration"), "build_rego_index.json")
 
 def get_index_path(directory, filename, embedding_model):
 

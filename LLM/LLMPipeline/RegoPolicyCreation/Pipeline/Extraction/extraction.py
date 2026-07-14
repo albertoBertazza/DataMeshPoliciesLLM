@@ -1,8 +1,8 @@
 import json
 import numpy as np
 
-from RegoPolicyCreation.Interface.embedding_call import embedding_call
-from RegoPolicyCreation.Interface.llm_call import llm_call
+from Interface.embedding_call import embedding_call
+from Interface.llm_call import llm_call
 
 
 EXTRACT_SYSTEM_PROMPT_TEMPLATE = """

@@ -1,8 +1,6 @@
-import json
-from RegoPolicyCreation.Interface.embedding_call import embedding_call   # adjust import path
+from Interface.embedding_call import embedding_call
 
-
-def gen_index_build(
+def gen_index_extraction(
     examples,
     is_local=False,
     embedding_url=None,
@@ -12,14 +10,9 @@ def gen_index_build(
     index = []
 
     for example in examples:
-        # Convert dict → string
-        input_text = json.dumps(
-            example["input"],
-            ensure_ascii=False
-        )
 
         embedding = embedding_call(
-            text=input_text,
+            text=example["input"],
             is_local=is_local,
             embedding_url=embedding_url,
             client=client,

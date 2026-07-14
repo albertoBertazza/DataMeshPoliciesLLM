@@ -1,42 +1,9 @@
-"""
-Stage 2 of the pipeline: turn an *extracted* authorization entity
-(the JSON produced by `extract_entities` in the extraction script)
-into a Rego snippet that follows the exact conventions used in your
-reference `trino.authz` policy.
-
-Usage sketch
-------------
-
-    from extract_policy import extract_entities          # your stage-1 module
-    from rego_policy_generator import (
-        generate_rego_policy,
-        assemble_full_policy,
-    )
-
-    entity = extract_entities(
-        client, model, rule, check_for_action, extraction_indexes, security_groups
-    )
-
-    snippet = generate_rego_policy(client, model, entity, REFERENCE_POLICY)
-
-    # ... collect one snippet per rule, then:
-    full_policy = assemble_full_policy([snippet_1, snippet_2, ...])
-
-NOTE: adjust the `from extract_policy import extract_entities` line above
-to match whatever you actually named your stage-1 file.
-"""
 
 import json
+from Interface.llm_call import llm_call
+import numpy as np
+from Interface.embedding_call import embedding_call
 
-from RegoPolicyCreation.Interface.llm_call import llm_call
-
-# ---------------------------------------------------------------------------
-# How each Trino operation's `input.action.resource` is shaped.
-# This is the Rego-generation equivalent of the "action mapping" that stage 1
-# uses -- it removes ambiguity about which resource level (catalog / schema /
-# table / column) each operation carries, and whether it's a hard gate
-# (raises "Access Denied") or a soft gate (silently filters listings).
-# ---------------------------------------------------------------------------
 OPERATION_RESOURCE_SHAPES = {
     "ExecuteQuery": "no resource at all - fires before any table/schema is resolved; allow with no resource constraint",
     "AccessCatalog": "hard gate - input.action.resource.catalog.name",
@@ -146,8 +113,6 @@ def get_generate_rego_system_prompt(example_rego):
         example_rego=example_rego,
     )
 
-import numpy as np
-from RegoPolicyCreation.Interface.embedding_call import embedding_call
 
 
 def cosine_similarity(a, b):

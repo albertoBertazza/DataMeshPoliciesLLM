@@ -6,10 +6,10 @@ import requests
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from RegoPolicyCreation.IndexCreation.index_creator import reload_indexes
-from RegoPolicyCreation.Pipeline.Extraction.extraction import extract_entities
-from RegoPolicyCreation.Pipeline.RegoRuleGeneration.build_rego import generate_rego_policy
-from RegoPolicyCreation.Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
+from LLMPipeline.RegoPolicyCreation.IndexCreation.index_creator import reload_indexes
+from LLMPipeline.RegoPolicyCreation.Pipeline.Extraction.extraction import extract_entities
+from LLMPipeline.RegoPolicyCreation.Pipeline.RegoRuleGeneration.build_rego import generate_rego_policy
+from LLMPipeline.RegoPolicyCreation.Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
 
 # ---------------------------------------------------------------------------
 # Config
@@ -27,7 +27,19 @@ EMBEDDING_MODEL ="text-embedding-3-small"
 # WHICH LLM TO USE
 IS_LOCAL = os.getenv("IS_LOCAL", "False") == "True"
 
-LLM_DIR = os.getcwd()
+current = os.getcwd()
+
+while os.path.basename(current) != "LLM":
+    parent = os.path.dirname(current)
+
+    if parent == current:
+        raise RuntimeError("LLM folder not found")
+
+    current = parent
+
+LLM_DIR = current
+
+print(LLM_DIR)
 
 STRUCTURE_DIR = os.path.join(LLM_DIR, "Structure")
 
@@ -35,8 +47,8 @@ CHECK_FOR_ACTION_PATH = os.path.join(STRUCTURE_DIR, "checkForAction.json")
 INPUT_SCHEMA_PATH = os.path.join(STRUCTURE_DIR, "input.json")
 SECURITY_GROUPS_PATH=os.path.join(STRUCTURE_DIR, "security_groups.json")
 
-
-REGO_POLICY_CREATION_DIR = os.path.join(LLM_DIR, "RegoPolicyCreation")
+LLM_PIPELINE_DIR = os.path.join(LLM_DIR, "LLMPipeline")
+REGO_POLICY_CREATION_DIR = os.path.join(LLM_PIPELINE_DIR, "RegoPolicyCreation")
 
 EXAMPLE_DIR = os.path.join(REGO_POLICY_CREATION_DIR, "ExampleDatastore")
 
@@ -149,10 +161,9 @@ def process_rule(rule):
         print("  Failed to build policy:", e)
         return
 
-    output_dir = "output/rego_policies"
+    output_dir = "RegoPolicyCreation/output/rego_policies"
     filename = f"policy_{explanation[:30].replace(' ', '_')}.rego"
     filename = os.path.join(output_dir, filename)
-
     os.makedirs(output_dir, exist_ok=True)
 
     with open(filename, "w") as f:

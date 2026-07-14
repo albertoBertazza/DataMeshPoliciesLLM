@@ -1,8 +1,8 @@
 import numpy as np
 import json
 
-from RegoPolicyCreation.Interface.embedding_call import embedding_call
-from RegoPolicyCreation.Interface.llm_call import llm_call
+from Interface.embedding_call import embedding_call
+from Interface.llm_call import llm_call
 
 
 def cosine_similarity(a, b):
