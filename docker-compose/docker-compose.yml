@@ -171,7 +171,6 @@ services:
 
     volumes:
       - ./init:/init
-      - ./state:/state
 
     entrypoint: ["/bin/bash", "/init/init.sh"]
 
@@ -197,7 +196,6 @@ services:
 volumes:
   minio-data:
     driver: local
-  state:
 networks:
   trino-network:
     driver: bridge
