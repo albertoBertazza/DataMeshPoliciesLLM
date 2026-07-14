@@ -166,24 +166,24 @@ def process_rule(rule):
         print("  Failed to extract_entities:", e)
         return
 
-    # #-----------------------------------------------------------------------
-    # # 3) REGO POLICY GENERATION
-    # #----------------------------------------------------------------------
-    # print("\n[Generating OPA policy...]")
-    # try:
-    #     policy  = generate_rego_policy(entities, INDEX_BUILD_REGO, is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
-    # except ValueError as e:
-    #     print("  Failed to build policy:", e)
-    #     return
-    #
-    # filename = f"policy_{explanation[:30].replace(' ', '_')}.rego"
-    # filename = os.path.join(OUTPUT_REGO_DIR, filename)
-    # os.makedirs(OUTPUT_REGO_DIR, exist_ok=True)
-    #
-    # with open(filename, "w") as f:
-    #     f.write(policy)
-    #
-    # print(f"Saved to: {filename}")
+    #-----------------------------------------------------------------------
+    # 3) REGO POLICY GENERATION
+    #----------------------------------------------------------------------
+    print("\n[Generating OPA policy...]")
+    try:
+        policy  = generate_rego_policy(entities, INDEX_BUILD_REGO, is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
+    except ValueError as e:
+        print("  Failed to build policy:", e)
+        return
+
+    filename = f"policy_{explanation['text'][:30].replace(' ', '_')}.rego"
+    filename = os.path.join(OUTPUT_REGO_DIR, filename)
+    os.makedirs(OUTPUT_REGO_DIR, exist_ok=True)
+
+    with open(filename, "w") as f:
+        f.write(policy)
+
+    print(f"Saved to: {filename}")
 
 
 # --- MAIN LOOP ---
