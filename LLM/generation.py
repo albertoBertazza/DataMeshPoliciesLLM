@@ -27,7 +27,7 @@ EMBEDDING_MODEL ="text-embedding-3-small"
 # WHICH LLM TO USE
 IS_LOCAL = os.getenv("IS_LOCAL", "False") == "True"
 
-LLM_DIR = os.getenv("LLM_DIR")
+LLM_DIR = os.getcwd()
 
 STRUCTURE_DIR = os.path.join(LLM_DIR, "Structure")
 
@@ -121,7 +121,6 @@ def process_rule(rule):
     # 1) INTERPRETATION
     #----------------------------------------------------------------------
     global explanation
-    print("\n[1]")
     try:
         print("\n[Interpretation]")
         explanation = llm_explain(rule, INDEX_REWRITE_RULE,is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
@@ -137,7 +136,7 @@ def process_rule(rule):
     try:
         entities = extract_entities(explanation, CHECK_FOR_ACTION, INDEX_EXTRACTION, SECURITY_GROUPS, is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
     except Exception as e:
-        print("  Failed to parse entities:", e)
+        print("  Failed to extract_entities:", e)
         return
 
     #-----------------------------------------------------------------------

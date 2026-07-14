@@ -151,10 +151,13 @@ def get_extract_system_prompt(
 
 
 
-def llm_extract(rule, check_for_action,extraction_index,security_groups, is_local, chat_url=None, embedding_url=None,client=None,model=None, embedding_model=None):
+def llm_extract(rule, check_for_action,extraction_indexes,security_groups, is_local, chat_url=None, embedding_url=None,client=None,model=None, embedding_model=None):
 
-    examples = retrieve_examples(rule,extraction_index,is_local, n=3, embedding_url=embedding_url,client=client, embedding_model=embedding_model)
-
+    try:
+        examples = retrieve_examples(rule,extraction_indexes,is_local, n=3, embedding_url=embedding_url,client=client, embedding_model=embedding_model)
+    except Exception as e:
+        print("  Failed to retrieve_examples in llm_extract:", e)
+        return
     prompt=[
 
             {
@@ -164,7 +167,7 @@ def llm_extract(rule, check_for_action,extraction_index,security_groups, is_loca
                         check_for_action,
 
                         [
-                            g["name"]
+                            g["name"] if isinstance(g, dict) else g
                             for g in security_groups
                         ],
 
@@ -184,15 +187,22 @@ def llm_extract(rule, check_for_action,extraction_index,security_groups, is_loca
     # cast prompt to string
     prompt=json.dumps(prompt,indent=2)
 
-    response = llm_call(prompt, is_local, response_format={"type": "json_object"}, is_local=is_local, chat_url=chat_url, client=client,  model=model)
-
+    try:
+        response = llm_call(prompt,response_format={"type": "json_object"},is_local=is_local,chat_url=chat_url,client=client,model=model)
+    except Exception as e:
+        print("  Failed to llm_call in llm_extract:", e)
+        return
     return response.strip()
 
 
 
 def extract_entities(rule,check_for_action,extraction_indexes,security_groups, is_local, chat_url=None, embedding_url=None,client=None,model=None, embedding_model=None):
 
-    raw = llm_extract(rule,check_for_action,extraction_indexes,security_groups, is_local, chat_url=chat_url ,embedding_url=embedding_url,client=client,model=model, embedding_model=embedding_model)
+    try:
+        raw = llm_extract(rule=rule,check_for_action=check_for_action,extraction_indexes=extraction_indexes,security_groups=security_groups, is_local=is_local, chat_url=chat_url ,embedding_url=embedding_url,client=client,model=model, embedding_model=embedding_model)
+    except Exception as e:
+        print("  Failed to llm_extract in extract_entities:", e)
+        return
 
 
     print(
@@ -219,8 +229,9 @@ def extract_entities(rule,check_for_action,extraction_indexes,security_groups, i
     if result["subject_attribute"] == "groups":
 
         allowed_groups = {
-            g["name"]
+            g["name"] if isinstance(g, dict) else g
             for g in security_groups
+
         }
 
 

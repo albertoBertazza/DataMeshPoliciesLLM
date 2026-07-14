@@ -13,7 +13,19 @@ from RegoPolicyCreation.IndexCreation.Rewrite.gen_index_rewrite import gen_index
 
 load_dotenv()
 
-LLM_DIR = os.getenv("LLM_DIR")
+current = os.getcwd()
+
+while os.path.basename(current) != "LLM":
+    parent = os.path.dirname(current)
+
+    if parent == current:
+        raise RuntimeError("LLM folder not found")
+
+    current = parent
+
+LLM_DIR = current
+
+print(LLM_DIR)
 
 REGO_POLICY_CREATION_DIR = os.path.join(LLM_DIR, "RegoPolicyCreation")
 
@@ -62,13 +74,17 @@ def save_index(
     output_path,
     source_path,
     examples,
-    embedding_model
+    embedding_model=None,
+    embedding_url=None,
+    is_local=False
 ):
+    embedding_identifier = embedding_url if is_local else embedding_model
+
     payload = {
         "source_file": source_path,
         "source_mtime": os.path.getmtime(source_path),
         "created_at": time.time(),
-        "embedding_model": embedding_model,
+        "embedding_model": embedding_identifier,
         "examples": examples
     }
 
@@ -165,22 +181,24 @@ def reload_indexes(
     embedding_model=None
 ):
 
+    index_suffix = embedding_url if is_local else embedding_model
+
     extraction_index_path = get_index_path(
         os.path.join(OUTPUT_DIR, "Extraction"),
         "extraction_index",
-        embedding_model
+        index_suffix
     )
 
     rewrite_index_path = get_index_path(
         os.path.join(OUTPUT_DIR, "Rewrite"),
         "rewrite_rule_index",
-        embedding_model
+        index_suffix
     )
 
     build_rego_index_path = get_index_path(
         os.path.join(OUTPUT_DIR, "RegoRuleGeneration"),
         "build_rego_index",
-        embedding_model
+        index_suffix
     )
 
     extraction_index = build_index_if_needed(

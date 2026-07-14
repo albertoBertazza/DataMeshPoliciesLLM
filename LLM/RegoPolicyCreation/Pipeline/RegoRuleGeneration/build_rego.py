@@ -211,15 +211,21 @@ def clean_rego_output(raw):
 
 
 def generate_rego_policy(extracted_entity,example_rego,is_local,chat_url=None, embedding_url=None,client=None,model=None, embedding_model=None):
-
-    examples = find_best_rego_examples(extracted_entity=extracted_entity,example_rego=example_rego,is_local=is_local,n=3,embedding_url=embedding_url,client=client,embedding_model=embedding_model)
-
+    try:
+        examples = find_best_rego_examples(extracted_entity=extracted_entity,example_rego=example_rego,is_local=is_local,n=3,embedding_url=embedding_url,client=client,embedding_model=embedding_model)
+    except Exception as e:
+        print("  Failed to find_best_rego_examples in generate_rego_policy:", e)
+        return
     # Concatenate the retrieved Rego examples
     example_text = "\n\n".join(
         ex["output"] for ex in examples
     )
 
-    raw = llm_generate_rego(extracted_entity,example_text,is_local,chat_url=chat_url,client=client,model=model)
+    try:
+        raw = llm_generate_rego(extracted_entity,example_text,is_local,chat_url=chat_url,client=client,model=model)
+    except Exception as e:
+        print("  Failed to llm_generate_rego in generate_rego_policy:", e)
+        return
 
     print("\n[RAW REGO OUTPUT]\n", raw)
 
