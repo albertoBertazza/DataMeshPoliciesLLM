@@ -6,6 +6,9 @@ set -e
 #   1.2 write /LLM/Structure/security_groups.json useful to save the existing security group for generation
 bash StructureExtraction/SecurityGroupExtraction/security_group_extraction.sh
 
+# write a json file
+bash StructureExtraction/UserCredentialsExtraction/user_credential_extraction.sh
+
 
 # 2) launch docker compose
 cd docker-compose
