@@ -6,10 +6,10 @@ import requests
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from LLMPipeline.RegoPolicyCreation.IndexCreation.index_creator import reload_indexes
-from LLMPipeline.RegoPolicyCreation.Pipeline.Extraction.extraction import extract_entities
-from LLMPipeline.RegoPolicyCreation.Pipeline.RegoRuleGeneration.build_rego import generate_rego_policy
-from LLMPipeline.RegoPolicyCreation.Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
+from LLM.LLMPipeline.RegoPolicyCreation.IndexCreation.index_creator import reload_indexes
+from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.Extraction.extraction import extract_entities
+from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.RegoRuleGeneration.build_rego import generate_rego_policy
+from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
 
 # ---------------------------------------------------------------------------
 # Config

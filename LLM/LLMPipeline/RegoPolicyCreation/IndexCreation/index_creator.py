@@ -3,9 +3,9 @@ import json
 import os
 import time
 
-from LLMPipeline.RegoPolicyCreation.IndexCreation.Extraction.gen_index_extraction import gen_index_extraction
-from LLMPipeline.RegoPolicyCreation.IndexCreation.RegoRuleGeneration.gen_index_build import gen_index_build
-from LLMPipeline.RegoPolicyCreation.IndexCreation.Rewrite.gen_index_rewrite import gen_index_rewrite
+from LLM.LLMPipeline.RegoPolicyCreation.IndexCreation.Extraction.gen_index_extraction import gen_index_extraction
+from LLM.LLMPipeline.RegoPolicyCreation.IndexCreation.RegoRuleGeneration.gen_index_build import gen_index_build
+from LLM.LLMPipeline.RegoPolicyCreation.IndexCreation.Rewrite.gen_index_rewrite import gen_index_rewrite
 
 # ---------------------------------------------------------------------------
 # Config

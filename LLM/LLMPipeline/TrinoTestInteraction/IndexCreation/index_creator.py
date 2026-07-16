@@ -3,7 +3,7 @@ import json
 import os
 import time
 
-from LLMPipeline.TrinoTestInteraction.IndexCreation.Interaction.gen_index_interaction import gen_index_test_creation
+from LLM.LLMPipeline.TrinoTestInteraction.IndexCreation.Interaction.gen_index_interaction import gen_index_test_creation
 
 # ---------------------------------------------------------------------------
 # Config

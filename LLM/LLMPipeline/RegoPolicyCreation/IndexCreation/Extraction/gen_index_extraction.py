@@ -1,4 +1,4 @@
-from Interface.embedding_call import embedding_call
+from LLM.Interface.embedding_call import embedding_call
 
 
 def gen_index_extraction(

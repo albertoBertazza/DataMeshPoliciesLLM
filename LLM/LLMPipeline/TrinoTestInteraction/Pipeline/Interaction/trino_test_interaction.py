@@ -1,8 +1,8 @@
 import json
 import numpy as np
 
-from Interface.embedding_call import embedding_call
-from Interface.llm_call import llm_call
+from LLM.Interface.embedding_call import embedding_call
+from LLM.Interface.llm_call import llm_call
 
 
 TEST_CREATION_SYSTEM_PROMPT_TEMPLATE = """

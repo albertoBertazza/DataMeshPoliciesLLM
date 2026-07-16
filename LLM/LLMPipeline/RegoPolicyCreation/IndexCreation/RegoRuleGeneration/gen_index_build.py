@@ -1,5 +1,5 @@
 import json
-from Interface.embedding_call import embedding_call   # adjust import path
+from LLM.Interface.embedding_call import embedding_call   # adjust import path
 
 
 def gen_index_build(

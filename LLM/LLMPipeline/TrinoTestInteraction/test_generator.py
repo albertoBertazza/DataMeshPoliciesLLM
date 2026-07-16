@@ -6,8 +6,8 @@ import requests
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from LLMPipeline.TrinoTestInteraction.IndexCreation.index_creator import reload_indexes
-from LLMPipeline.TrinoTestInteraction.Pipeline.Interaction.trino_test_interaction import (
+from LLM.LLMPipeline.TrinoTestInteraction.IndexCreation.index_creator import reload_indexes
+from LLM.LLMPipeline.TrinoTestInteraction.Pipeline.Interaction.trino_test_interaction import (
     create_trino_tests,
 )
 

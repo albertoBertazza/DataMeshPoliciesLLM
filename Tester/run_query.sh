@@ -58,7 +58,6 @@ if [[ -z "$USERNAME" || -z "$PASSWORD" || -z "$QUERY" ]]; then
     exit 1
 fi
 
-echo "🔐 Requesting OAuth token..." >&2
 
 TOKEN_RESPONSE=$(docker run --rm \
     --network "$NETWORK" \
@@ -81,7 +80,6 @@ if [[ -z "$TOKEN" ]]; then
     exit 2
 fi
 
-echo "✅ Token OK" >&2
 
 if [[ "$DEBUG" == "true" ]]; then
     echo "==============================" >&2
