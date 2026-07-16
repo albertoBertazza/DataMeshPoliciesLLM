@@ -1,5 +1,5 @@
-import numpy as np
 import json
+import numpy as np
 
 from Interface.embedding_call import embedding_call
 from Interface.llm_call import llm_call
@@ -11,26 +11,30 @@ def cosine_similarity(a, b):
     )
 
 
-def find_best_examples(rule, index, is_local, n=3,
-                       embedding_url=None,
-                       client=None,
-                       embedding_model=None):
-
+def find_best_examples(
+    rule,
+    index,
+    is_local,
+    n=3,
+    embedding_url=None,
+    client=None,
+    embedding_model=None,
+):
     query_embedding = embedding_call(
         text=rule,
         is_local=is_local,
         embedding_url=embedding_url,
         client=client,
-        embedding_model=embedding_model
+        embedding_model=embedding_model,
     )
 
     ranked = sorted(
         index,
         key=lambda example: cosine_similarity(
             query_embedding,
-            example["embedding"]
+            example["embedding"],
         ),
-        reverse=True
+        reverse=True,
     )
 
     return ranked[:n]
@@ -60,9 +64,6 @@ def llm_explain(
         embedding_model=embedding_model,
     )
 
-    # for example in examples:
-    #     print(f"(using example: {example['input']['rule']})")
-
     messages = [
         {
             "role": "system",
@@ -71,43 +72,56 @@ def llm_explain(
 
                 "Your task is to explain the Trino access rule.\n\n"
 
-                "Return ONLY a valid JSON object with exactly this structure:\n"
-                
+                "IMPORTANT:\n"
+                "- The Data Mesh Structure provided below is the ONLY source of truth.\n"
+                "- Never invent catalogs, schemas, tables or columns.\n"
+                "- Never copy catalog, schema, table or column names from the examples.\n"
+                "- The retrieved examples illustrate ONLY the explanation style.\n"
+                "- If an example contains resources that differ from the Data Mesh Structure, IGNORE them.\n"
+                "- Always validate every resource against the provided Data Mesh Structure before generating the explanation.\n\n"
+
+                "Return ONLY a valid JSON object with exactly this structure:\n\n"
+
                 "{\n"
                 '  "text": "<explanation>",\n'
                 '  "existSecureGroup": true,\n'
                 '  "pathExistOnDataMeshStructure": true\n'
                 "}\n\n"
-                
+
                 "Do not return markdown.\n"
                 "Do not wrap the JSON inside ```.\n"
                 "Return only the JSON object.\n\n"
-                
+
                 "If the resource is catalog.schema.table, rewrite it as:\n"
                 "catalog: <catalog>, schema: <schema>, table: <table>.\n\n"
 
-                "### Security Groups\n"
-                "Only the following security groups exist.\n"
-                "Never invent or rename security groups.\n"
+                "### Existing Security Groups\n"
                 f"{json.dumps(security_groups, indent=2)}\n\n"
 
-                "If the rule refers to a security group that is not listed above, "
-                "explicitly state that the security group does not exist.\n\n"
+                "If the rule refers to a security group not listed above:\n"
+                "- set existSecureGroup=false\n"
+                "- explain that the security group does not exist.\n\n"
 
-                "### Data Mesh Structure\n"
-                "Only the following catalogs, schemas, tables and columns exist.\n"
-                "Never invent catalogs, schemas, tables or columns.\n"
+                "### Existing Data Mesh Structure\n"
                 f"{json.dumps(data_mesh_structure, indent=2)}\n\n"
 
-                "If the rule refers to a catalog, schema, table or column that is "
-                "not present in the data mesh structure, explain that the requested "
-                "path does not exist instead of describing it."
+                "If any catalog, schema, table or column referenced by the rule does not exist in the Data Mesh Structure:\n"
+                "- set pathExistOnDataMeshStructure=false\n"
+                "- explain exactly which part of the path does not exist.\n"
             ),
         }
     ]
 
-    # Add retrieved few-shot examples
+    # Examples are explicitly marked as examples only
     for example in examples:
+        messages.append({
+            "role": "system",
+            "content": (
+                "Example for style only. "
+                "Do NOT reuse the resource names appearing in this example."
+            ),
+        })
+
         messages.append({
             "role": "user",
             "content": example["input"]["rule"],
@@ -115,21 +129,29 @@ def llm_explain(
 
         messages.append({
             "role": "assistant",
-            "content": example["explanation"]["text"],
+            "content": json.dumps(
+                example["explanation"],
+                indent=2,
+            ),
         })
 
-    # Add the real rule
     messages.append({
         "role": "user",
-        "content": rule,
+        "content": (
+            "Rule:\n"
+            f"{rule}\n\n"
+            "Remember:\n"
+            "- Ignore all resource names that appeared in the examples.\n"
+            "- Use ONLY the Data Mesh Structure provided in the system prompt."
+        ),
     })
 
     prompt = json.dumps(messages, indent=2)
 
     response = llm_call(
         prompt,
-        temperature=0.2,
-        max_tokens=120,
+        temperature=0.0,
+        response_format={"type": "json_object"},
         is_local=is_local,
         chat_url=chat_url,
         client=client,
