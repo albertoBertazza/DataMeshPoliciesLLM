@@ -1,8 +1,11 @@
 import json
 import os
+
+from charset_normalizer.utils import is_cjk
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from LLM.Interface.activate_local_llm import activate_llm
 from LLM.Interface.llm_call import llm_call
 
 
@@ -16,7 +19,7 @@ CHAT_URL = "http://127.0.0.1:8080"
 # REMOTE LLM
 load_dotenv()
 
-client = OpenAI(
+CLIENT = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
 
@@ -30,6 +33,7 @@ IS_LOCAL = os.getenv(
     "IS_LOCAL",
     "False"
 ) == "True"
+
 
 
 
@@ -106,6 +110,12 @@ POLICY_PATH = os.path.join(
     "opa",
     "policy.rego"
 )
+
+
+LLAMA_DIR = r"C:\Users\berta\BertaFiles\Project\DataMeshPoliciesLLM\LLM\LocalLLMIntelIpex\llama-cpp-ipex-llm-2.3.0b20250424-win"
+
+activate_llm(LLAMA_DIR, IS_LOCAL, CHAT_URL,"Qwen2.5.1-Coder-7B-Instruct-Q4_K_M.gguf", '8080' )
+
 
 
 
@@ -204,14 +214,7 @@ Return ONLY JSON:
 # ---------------------------------------------------------------------------
 
 
-def evaluate_interaction(
-    interaction,
-    policy,
-    data_mesh,
-    users,
-    actions,
-    examples
-):
+def evaluate_interaction(interaction,policy, data_mesh,users,actions,examples,is_local,chat_url=None,client=None,model=None):
 
 
     username = interaction["input"]["username"]
@@ -267,27 +270,12 @@ def evaluate_interaction(
 
     ]
 
-
-    response = llm_call(
-
-        prompt=json.dumps(
-            messages,
-            indent=2
-        ),
-
-        temperature=0,
-
-        max_tokens=1200,
-
-        is_local=IS_LOCAL,
-
-        chat_url=CHAT_URL,
-
-        client=client,
-
-        model=MODEL,
-
+    prompt = json.dumps(
+        messages,
+        indent=2
     )
+
+    response = llm_call(prompt,temperature=0,max_tokens=1200,is_local=is_local,chat_url=chat_url,client=client,model=model)
 
     response = response.strip()
 
@@ -333,6 +321,7 @@ def evaluate_interaction(
 def main():
 
 
+    global CLIENT
     print("=" * 60)
     print(" Authorization Evaluation")
     print("=" * 60)
@@ -340,6 +329,7 @@ def main():
 
     if IS_LOCAL:
         print("Using LOCAL LLM")
+        CLIENT = None
     else:
         print(
             f"Using model: {MODEL}"
@@ -387,22 +377,7 @@ def main():
         )
 
         try:
-
-            result = evaluate_interaction(
-
-                interaction=item,
-
-                policy=policy,
-
-                data_mesh=data_mesh,
-
-                users=users,
-
-                actions=actions,
-
-                examples=examples
-
-            )
+            result = evaluate_interaction(interaction=item, policy=policy,data_mesh=data_mesh,users=users,actions=actions, examples=examples, is_local=IS_LOCAL, client=CLIENT, model=MODEL, chat_url=CHAT_URL )
 
         except Exception as e:
 

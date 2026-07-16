@@ -222,17 +222,7 @@ def llm_create_tests(
     return response.strip()
 
 
-def create_trino_tests(
-    rule_explanation,
-    user_credentials,
-    test_creation_example_indexes,
-    is_local,
-    chat_url=None,
-    embedding_url=None,
-    client=None,
-    model=None,
-    embedding_model=None,
-):
+def create_trino_tests(rule_explanation,user_credentials,test_creation_example_indexes,is_local,chat_url=None,embedding_url=None,client=None,model=None,embedding_model=None):
 
     raw = llm_create_tests(
         rule_explanation=rule_explanation,

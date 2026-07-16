@@ -11,17 +11,9 @@ from LLM.LLMPipeline.TrinoTestInteraction.IndexCreation.Interaction.gen_index_in
 
 load_dotenv()
 
-current = os.getcwd()
+DATA_MESH_DIR = os.getcwd()
 
-while os.path.basename(current) != "LLM":
-    parent = os.path.dirname(current)
-
-    if parent == current:
-        raise RuntimeError("LLM folder not found")
-
-    current = parent
-
-LLM_DIR = current
+LLM_DIR= os.path.join(DATA_MESH_DIR, "LLM")
 
 print(LLM_DIR)
 
@@ -56,6 +48,7 @@ def load_json(path):
 def sanitize_model_name(model):
     return (
         model
+        .replace(":", "_")
         .replace("/", "_")
         .replace("\\", "_")
         .replace(".", "_")

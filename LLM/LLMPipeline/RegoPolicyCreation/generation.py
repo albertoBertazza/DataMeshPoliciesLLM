@@ -1,11 +1,9 @@
 import json
 import os
-import time
-import subprocess
-import requests
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from LLM.Interface.activate_local_llm import activate_llm
 from LLM.LLMPipeline.RegoPolicyCreation.IndexCreation.index_creator import reload_indexes
 from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.Extraction.extraction import extract_entities
 from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.RegoRuleGeneration.build_rego import generate_rego_policy
@@ -27,19 +25,10 @@ EMBEDDING_MODEL ="text-embedding-3-small"
 # WHICH LLM TO USE
 IS_LOCAL = os.getenv("IS_LOCAL", "False") == "True"
 
-current = os.getcwd()
+DATA_MESH_DIR = os.getcwd()
 
-while os.path.basename(current) != "LLM":
-    parent = os.path.dirname(current)
+LLM_DIR= os.path.join(DATA_MESH_DIR, "LLM")
 
-    if parent == current:
-        raise RuntimeError("LLM folder not found")
-
-    current = parent
-
-LLM_DIR = current
-
-print(LLM_DIR)
 
 STRUCTURE_DIR = os.path.join(LLM_DIR, "Structure")
 
@@ -73,57 +62,11 @@ INPUT_SCHEMA = load_json(INPUT_SCHEMA_PATH)           # shape Trino sends to OPA
 SECURITY_GROUPS = load_json(SECURITY_GROUPS_PATH)
 DATA_MESH = load_json(DATA_MESH_STRUCTURE_PATH)
 
-def wait_for_llm(url, timeout=120):
-    print("Waiting for local LLM server...")
-    start = time.time()
+LLAMA_DIR = r"C:\Users\berta\BertaFiles\Project\DataMeshPoliciesLLM\LLM\LocalLLMIntelIpex\llama-cpp-ipex-llm-2.3.0b20250424-win"
 
-    while time.time() - start < timeout:
-        try:
-            r = requests.get(url+"/health")
-            if r.status_code == 200:
-                print("LLM server ready")
-                return True
-        except requests.exceptions.ConnectionError:
-            pass
+activate_llm(LLAMA_DIR, IS_LOCAL, CHAT_URL,"Qwen2.5.1-Coder-7B-Instruct-Q4_K_M.gguf", '8080' )
+activate_llm(LLAMA_DIR, IS_LOCAL, EMBEDDING_URL, "nomic-embed-text-v1.5.f16.gguf",  '8081', other_params=' --embedding')
 
-        time.sleep(2)
-
-    raise RuntimeError("LLM server did not start within timeout")
-
-if IS_LOCAL:
-    LLAMA_DIR = r"C:\Users\berta\BertaFiles\Project\DataMeshPoliciesLLM\LLM\RegoPolicyCreation\LocalLLMIntelIpex\llama-cpp-ipex-llm-2.3.0b20250424-win"
-
-    # Generation model
-    subprocess.Popen(
-        [
-            "powershell.exe",
-            "-NoExit",
-            "-Command",
-            fr'''
-    cd "{LLAMA_DIR}"
-    .\llama-server.exe -m .\models\Qwen2.5.1-Coder-7B-Instruct-Q4_K_M.gguf --port 8080
-    '''
-        ],
-        creationflags=subprocess.CREATE_NEW_CONSOLE,
-    )
-
-    wait_for_llm(CHAT_URL)
-
-    # Embedding model
-    subprocess.Popen(
-        [
-            "powershell.exe",
-            "-NoExit",
-            "-Command",
-            fr'''
-    cd "{LLAMA_DIR}"
-    .\llama-server.exe -m .\models\nomic-embed-text-v1.5.f16.gguf --embedding --port 8081
-    '''
-        ],
-        creationflags=subprocess.CREATE_NEW_CONSOLE,
-    )
-
-    wait_for_llm(EMBEDDING_URL)
 
 
 INDEX_EXTRACTION, INDEX_REWRITE_RULE, INDEX_BUILD_REGO = reload_indexes(IS_LOCAL,embedding_url=EMBEDDING_URL, client=client, embedding_model=EMBEDDING_MODEL)

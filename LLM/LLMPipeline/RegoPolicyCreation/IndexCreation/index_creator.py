@@ -12,18 +12,9 @@ from LLM.LLMPipeline.RegoPolicyCreation.IndexCreation.Rewrite.gen_index_rewrite 
 # ---------------------------------------------------------------------------
 
 load_dotenv()
+DATA_MESH_DIR = os.getcwd()
 
-current = os.getcwd()
-
-while os.path.basename(current) != "LLM":
-    parent = os.path.dirname(current)
-
-    if parent == current:
-        raise RuntimeError("LLM folder not found")
-
-    current = parent
-
-LLM_DIR = current
+LLM_DIR= os.path.join(DATA_MESH_DIR, "LLM")
 
 print(LLM_DIR)
 
@@ -57,9 +48,11 @@ def load_json(path):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
+
 def sanitize_model_name(model):
     return (
         model
+        .replace(":", "_")
         .replace("/", "_")
         .replace("\\", "_")
         .replace(".", "_")
