@@ -84,7 +84,7 @@
       "rule": "The Finance Manager wants to update the transactions table."
     },
     "explanation": {
-      "text": "The Finance Manager role can UPDATE records in catalog: iceberg, schema: finance, table: transactions.",
+      "text": "The Finance Manager role can UPDATE records in catalog: iceberg, schema: finance, table: employee_finance.",
       "existSecureGroup": true,
       "pathExistOnDataMeshStructure": true
     }

@@ -39,8 +39,18 @@ while os.path.basename(current) != "LLM":
     current = parent
 
 LLM_DIR = current
-
 print(LLM_DIR)
+
+while os.path.basename(current) != "DataMeshPoliciesLLM":
+    parent = os.path.dirname(current)
+
+    if parent == current:
+        raise RuntimeError("DataMeshPoliciesLLM folder not found")
+
+    current = parent
+
+DATA_MESH_DIR = current
+print("dataMeshDir: ", DATA_MESH_DIR)
 
 STRUCTURE_DIR = os.path.join(LLM_DIR, "Structure")
 USER_CREDENTIALS_PATH = os.path.join(STRUCTURE_DIR, "user_credentials.json")
@@ -50,6 +60,9 @@ TRINO_TEST_DIR = os.path.join(LLM_PIPELINE_DIR, "TrinoTestInteraction")
 
 OUTPUT_DIR = os.path.join(TRINO_TEST_DIR, "output")
 OUTPUT_TESTS_DIR = os.path.join(OUTPUT_DIR, "generated_tests")
+
+TEST_DIR = os.path.join(DATA_MESH_DIR, "Tester")
+TEST_INPUT_DIR = os.path.join(TEST_DIR, "tests")
 
 
 def load_json(path):
@@ -153,10 +166,24 @@ def process_rule(rule_explanation):
         f"tests_{safe_name}.json",
     )
 
+
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(tests, f, indent=2)
 
     print(f"Saved to: {filename}")
+
+    # overwrite the tests file:
+    os.makedirs(TEST_INPUT_DIR, exist_ok=True)
+
+    test_file_name= os.path.join(TEST_INPUT_DIR, f"tests.json")
+
+    with open(test_file_name, "w", encoding="utf-8") as f:
+        json.dump(tests, f, indent=2)
+
+    print(f"Overwrite the tests file: {test_file_name}")
+
+
+
 
 
 if __name__ == "__main__":
