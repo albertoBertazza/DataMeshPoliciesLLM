@@ -4,28 +4,73 @@ import os
 import datetime
 
 
-REPORT = {"results": []}
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
 
 DATA_MESH_DIR = os.getcwd()
-TESTER_DIR_PATH = os.path.join(DATA_MESH_DIR, "Tester")
 
-TESTS_DIR_PATH = os.path.join(TESTER_DIR_PATH, "tests")
-TEST_PATH = os.path.join(TESTS_DIR_PATH, "tests.json")
-
-OUTPUT_DIR_PATH = os.path.join(TESTER_DIR_PATH, "output")
-OUTPUT_FILE_PATH = os.path.join(OUTPUT_DIR_PATH, "tests_outputs.json")
-
-LLM_DIR = os.path.join(DATA_MESH_DIR, "LLM")
-LLM_PIPELINE_DIR = os.path.join(LLM_DIR, "LLMPipeline")
-EVALUATION_DIR = os.path.join(LLM_PIPELINE_DIR, "Evaluation")
-RESULTS_DIR = os.path.join(EVALUATION_DIR, "ResultInteraction")
-TEST_OUTPUT_FILE_PATH = os.path.join(RESULTS_DIR, "test_results.json")
-
-print("test", TEST_OUTPUT_FILE_PATH)
+TESTER_DIR_PATH = os.path.join(
+    DATA_MESH_DIR,
+    "Tester"
+)
 
 
+TESTS_DIR_PATH = os.path.join(
+    TESTER_DIR_PATH,
+    "tests"
+)
+
+
+TEST_PATH = os.path.join(
+    TESTS_DIR_PATH,
+    "tests.json"
+)
+
+
+OUTPUT_DIR_PATH = os.path.join(
+    TESTER_DIR_PATH,
+    "output"
+)
+
+
+OUTPUT_FILE_PATH = os.path.join(
+    OUTPUT_DIR_PATH,
+    "tests_outputs.json"
+)
+
+
+LLM_DIR = os.path.join(
+    DATA_MESH_DIR,
+    "LLM"
+)
+
+
+EVALUATION_DIR = os.path.join(
+    LLM_DIR,
+    "LLMPipeline",
+    "Evaluation"
+)
+
+
+RESULTS_DIR = os.path.join(
+    EVALUATION_DIR,
+    "ResultInteraction"
+)
+
+
+TEST_OUTPUT_FILE_PATH = os.path.join(
+    RESULTS_DIR,
+    "test_results.json"
+)
+
+
+# ---------------------------------------------------------------------------
+# OPA LOGS
+# ---------------------------------------------------------------------------
 
 def get_opa_logs_since(since):
+
     proc = subprocess.run(
         [
             "docker",
@@ -41,12 +86,21 @@ def get_opa_logs_since(since):
         errors="replace",
     )
 
-    logs = proc.stderr if proc.stderr else proc.stdout
+    logs = (
+        proc.stderr
+        if proc.stderr
+        else proc.stdout
+    )
 
     return logs.splitlines()
 
 
-def parse_opa_logs(logs, username):
+
+def parse_opa_logs(
+    logs,
+    username
+):
+
     user_info = {}
     requests = []
 
@@ -55,45 +109,80 @@ def parse_opa_logs(logs, username):
 
     for line in logs:
 
+
         try:
-            raw_json = line.split(" ", 1)[1]
-            entry = json.loads(raw_json)
+
+            raw_json = line.split(
+                " ",
+                1
+            )[1]
+
+            entry = json.loads(
+                raw_json
+            )
+
 
         except Exception:
+
             continue
 
 
-        msg = entry.get("msg", "")
-        req_id = entry.get("req_id")
+
+        msg = entry.get(
+            "msg",
+            ""
+        )
+
+        req_id = entry.get(
+            "req_id"
+        )
+
 
 
         # ---------------------------------
-        # Received Trino authorization request
+        # Trino request
         # ---------------------------------
+
         if msg == "Received request.":
 
+
             try:
+
                 req_body = json.loads(
-                    entry.get("req_body", "{}")
+                    entry.get(
+                        "req_body",
+                        "{}"
+                    )
                 )
 
-                action = (
-                    req_body
-                    .get("input", {})
-                    .get("action", {})
-                    .get("operation")
+
+                input_data = req_body.get(
+                    "input",
+                    {}
                 )
 
-                identity = (
-                    req_body
-                    .get("input", {})
-                    .get("context", {})
-                    .get("identity", {})
+
+                action = input_data.get(
+                    "action",
+                    {}
+                ).get(
+                    "operation"
                 )
+
+
+                identity = input_data.get(
+                    "context",
+                    {}
+                ).get(
+                    "identity",
+                    {}
+                )
+
 
                 request_user = identity.get(
                     "user"
                 )
+
 
                 if request_user == username:
 
@@ -101,15 +190,19 @@ def parse_opa_logs(logs, username):
                         "action": action
                     }
 
+
             except Exception:
+
                 pass
 
 
 
         # ---------------------------------
-        # Extract user information
+        # User info
         # ---------------------------------
+
         if "HTTP RESPONSE:" in msg:
+
 
             try:
 
@@ -118,31 +211,42 @@ def parse_opa_logs(logs, username):
                     1
                 )[1].strip()
 
+
                 response = json.loads(
                     response_raw
                 )
+
 
                 body = response.get(
                     "body",
                     {}
                 )
 
-                if body.get("username") == username:
+
+                if body.get(
+                    "username"
+                ) == username:
+
                     user_info = body
 
+
             except Exception:
+
                 pass
 
 
 
         # ---------------------------------
-        # Authorization response
+        # OPA response
         # ---------------------------------
+
         if msg == "Sent response.":
+
 
             try:
 
                 if req_id in pending_requests:
+
 
                     response = json.loads(
                         entry.get(
@@ -151,50 +255,112 @@ def parse_opa_logs(logs, username):
                         )
                     )
 
-                    pending_requests[req_id]["result"] = (
-                        response.get("result")
+
+                    pending_requests[req_id][
+                        "result"
+                    ] = response.get(
+                        "result"
                     )
+
 
                     requests.append(
-                        pending_requests.pop(req_id)
+                        pending_requests.pop(
+                            req_id
+                        )
                     )
 
+
             except Exception:
+
                 pass
+
 
 
     return {
         "user_info": user_info,
-        "requests": requests,
+        "requests": requests
     }
 
 
 
-def launch_test():
+# ---------------------------------------------------------------------------
+# Test execution
+# ---------------------------------------------------------------------------
 
-    with open(TEST_PATH) as f:
-        interactions = json.load(f)["output"]
+def launch_test(
+    test_path=TEST_PATH
+):
+
+
+    print("=" * 50)
+    print("Trino Test Interaction")
+    print("=" * 50)
+
+
+
+    with open(
+        test_path,
+        "r",
+        encoding="utf-8"
+    ) as f:
+
+        tests = json.load(f)
+
+
+
+    interactions = tests.get(
+        "output",
+        []
+    )
+
+
+    report = {
+        "results": []
+    }
+
 
 
     for interaction in interactions:
 
-        since = (
-            datetime.datetime.now(datetime.UTC)
-            .isoformat(timespec="milliseconds")
-            .replace("+00:00", "Z")
+
+        print(
+            "\nExecuting:",
+            interaction["query"]
         )
 
 
+        since = (
+            datetime.datetime.now(
+                datetime.UTC
+            )
+            .isoformat(
+                timespec="milliseconds"
+            )
+            .replace(
+                "+00:00",
+                "Z"
+            )
+        )
+
+
+
         cmd = [
+
             "bash",
+
             "./Tester/run_query.sh",
+
             "--user",
             interaction["username"],
+
             "--password",
             interaction["password"],
+
             "--query",
-            interaction["query"],
+            interaction["query"]
+
         ]
+
 
 
         proc = subprocess.run(
@@ -204,6 +370,7 @@ def launch_test():
             encoding="utf-8",
             errors="replace",
         )
+
 
 
         opa_logs = get_opa_logs_since(
@@ -217,36 +384,63 @@ def launch_test():
         )
 
 
-        REPORT["results"].append(
-            {
-                "input": {
-                    "username": interaction["username"],
-                    "password": interaction["password"],
-                    "query": interaction["query"],
-                    "expected_allowed": interaction["allowed"],
-                },
-                "output": {
-                    "actual_allowed": proc.returncode == 0,
-                    "return_code": proc.returncode,
 
-                    "trino_error": (
+        report["results"].append(
+
+            {
+
+                "input": {
+
+                    "username":
+                        interaction["username"],
+
+                    "password":
+                        interaction["password"],
+
+                    "query":
+                        interaction["query"],
+
+                    "expected_allowed":
+                        interaction["allowed"]
+
+                },
+
+
+                "output": {
+
+                    "actual_allowed":
+                        proc.returncode == 0,
+
+
+                    "return_code":
+                        proc.returncode,
+
+
+                    "trino_error":
                         proc.stderr.strip()
                         if proc.stderr.strip()
-                        else None
-                    ),
+                        else None,
 
-                    "trino_output": (
+
+                    "trino_output":
                         proc.stdout.strip()
                         if proc.stdout.strip()
-                        else None
-                    ),
+                        else None,
 
-                    "user_info": opa_analysis["user_info"],
 
-                    "requests": opa_analysis["requests"],
-                },
+                    "user_info":
+                        opa_analysis["user_info"],
+
+
+                    "requests":
+                        opa_analysis["requests"]
+
+                }
+
             }
+
         )
+
 
 
     os.makedirs(
@@ -255,38 +449,58 @@ def launch_test():
     )
 
 
+
     with open(
         OUTPUT_FILE_PATH,
         "w",
-        encoding="utf-8",
+        encoding="utf-8"
     ) as f:
+
         json.dump(
-            REPORT,
+            report,
             f,
             indent=4,
-            ensure_ascii=False,
+            ensure_ascii=False
         )
 
-    # write in evaluation folder
-    os.makedirs(RESULTS_DIR, exist_ok=True)
+
+
+    os.makedirs(
+        RESULTS_DIR,
+        exist_ok=True
+    )
+
+
 
     with open(
         TEST_OUTPUT_FILE_PATH,
-            "w",
-            encoding="utf-8",
+        "w",
+        encoding="utf-8"
     ) as f:
+
         json.dump(
-            REPORT,
+            report,
             f,
             indent=4,
-            ensure_ascii=False,
+            ensure_ascii=False
         )
 
 
-if __name__ == "__main__":
 
-    print("=" * 50)
-    print(" Trino Test Interaction")
-    print("=" * 50)
+    print(
+        "\nSaved:",
+        TEST_OUTPUT_FILE_PATH
+    )
+
+
+    return report
+
+
+
+# ---------------------------------------------------------------------------
+# Standalone
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
 
     launch_test()

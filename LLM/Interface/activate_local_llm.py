@@ -44,7 +44,7 @@ def activate_llm(llama_dir, islocal, url, model_name, port, other_params=""):
             "-Command",
             fr'''
 cd "{llama_dir}"
-.\llama-server.exe -m .\models\{model_name} --port {port} {other_params}
+.\llama-server.exe -m .\models\{model_name} --port {port} {other_params} --ctx-size 16384 --gpu-layers 999
 '''
         ],
         creationflags=subprocess.CREATE_NEW_CONSOLE,

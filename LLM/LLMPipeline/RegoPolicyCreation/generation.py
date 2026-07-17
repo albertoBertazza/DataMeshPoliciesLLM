@@ -1,5 +1,7 @@
 import json
 import os
+import subprocess
+
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -9,143 +11,501 @@ from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.Extraction.extraction import ex
 from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.RegoRuleGeneration.build_rego import generate_rego_policy
 from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
 
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
-# LOCAL LLM
 CHAT_URL = "http://127.0.0.1:8080"
 EMBEDDING_URL = "http://127.0.0.1:8081"
-# REMOTE LLM
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-EMBEDDING_MODEL ="text-embedding-3-small"
 
-# WHICH LLM TO USE
-IS_LOCAL = os.getenv("IS_LOCAL", "False") == "True"
+load_dotenv()
+
+CLIENT = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY")
+)
+
+MODEL = os.getenv(
+    "OPENAI_MODEL",
+    "gpt-4o-mini"
+)
+
+EMBEDDING_MODEL = "text-embedding-3-small"
+
+IS_LOCAL = os.getenv(
+    "IS_LOCAL",
+    "False"
+) == "True"
+
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
 
 DATA_MESH_DIR = os.getcwd()
 
-LLM_DIR= os.path.join(DATA_MESH_DIR, "LLM")
+LLM_DIR = os.path.join(
+    DATA_MESH_DIR,
+    "LLM"
+)
 
 
-STRUCTURE_DIR = os.path.join(LLM_DIR, "Structure")
-
-CHECK_FOR_ACTION_PATH = os.path.join(STRUCTURE_DIR, "checkForAction.json")
-INPUT_SCHEMA_PATH = os.path.join(STRUCTURE_DIR, "input.json")
-SECURITY_GROUPS_PATH=os.path.join(STRUCTURE_DIR, "security_groups.json")
-DATA_MESH_STRUCTURE_PATH=os.path.join(STRUCTURE_DIR, "data_mesh.json")
-
-LLM_PIPELINE_DIR = os.path.join(LLM_DIR, "LLMPipeline")
-REGO_POLICY_CREATION_DIR = os.path.join(LLM_PIPELINE_DIR, "RegoPolicyCreation")
-
-OUTPUT_DIR=os.path.join(REGO_POLICY_CREATION_DIR, "output")
-OUTPUT_REGO_DIR=os.path.join(OUTPUT_DIR, "rego_policies")
-
-EXAMPLE_DIR = os.path.join(REGO_POLICY_CREATION_DIR, "ExampleDatastore")
-
-REWRITE_RULE_EXAMPLES_PATH = os.path.join(EXAMPLE_DIR, "rewrite_rule.json")
-EXTRACTION_EXAMPLES_PATH = os.path.join(EXAMPLE_DIR, "extraction.json")
+STRUCTURE_DIR = os.path.join(
+    LLM_DIR,
+    "Structure"
+)
 
 
+CHECK_FOR_ACTION_PATH = os.path.join(
+    STRUCTURE_DIR,
+    "checkForAction.json"
+)
 
+SECURITY_GROUPS_PATH = os.path.join(
+    STRUCTURE_DIR,
+    "security_groups.json"
+)
+
+DATA_MESH_STRUCTURE_PATH = os.path.join(
+    STRUCTURE_DIR,
+    "data_mesh.json"
+)
+
+
+LLM_PIPELINE_DIR = os.path.join(
+    LLM_DIR,
+    "LLMPipeline"
+)
+
+
+REGO_POLICY_CREATION_DIR = os.path.join(
+    LLM_PIPELINE_DIR,
+    "RegoPolicyCreation"
+)
+
+
+OUTPUT_REGO_DIR = os.path.join(
+    REGO_POLICY_CREATION_DIR,
+    "output",
+    "rego_policies"
+)
+
+
+EXAMPLE_DIR = os.path.join(
+    REGO_POLICY_CREATION_DIR,
+    "ExampleDatastore"
+)
+
+
+REWRITE_RULE_EXAMPLES_PATH = os.path.join(
+    EXAMPLE_DIR,
+    "rewrite_rule.json"
+)
+
+
+EXTRACTION_EXAMPLES_PATH = os.path.join(
+    EXAMPLE_DIR,
+    "extraction.json"
+)
+
+
+DOCKER_COMPOSE_PATH = os.path.join(
+    DATA_MESH_DIR,
+    "docker-compose"
+)
+
+
+OPA_FILE_PATH = os.path.join(
+    DOCKER_COMPOSE_PATH,
+    "opa",
+    "policy.rego"
+)
+
+
+
+# ---------------------------------------------------------------------------
+# Utils
+# ---------------------------------------------------------------------------
 
 def load_json(path):
-    with open(path, "r", encoding="utf-8") as f:
+
+    with open(
+        path,
+        "r",
+        encoding="utf-8"
+    ) as f:
         return json.load(f)
 
 
-# Loaded once at startup - these are the two files you already have
-CHECK_FOR_ACTION = load_json(CHECK_FOR_ACTION_PATH)   # action -> [checks...]
-INPUT_SCHEMA = load_json(INPUT_SCHEMA_PATH)           # shape Trino sends to OPA
-SECURITY_GROUPS = load_json(SECURITY_GROUPS_PATH)
-DATA_MESH = load_json(DATA_MESH_STRUCTURE_PATH)
+
+def restart_opa():
+
+    try:
+
+        subprocess.run(
+            [
+                "docker",
+                "compose",
+                "restart",
+                "opa"
+            ],
+            cwd=DOCKER_COMPOSE_PATH,
+            check=True
+        )
+
+        print("OPA restarted successfully.")
+
+
+    except subprocess.CalledProcessError as e:
+
+        print(
+            f"Failed to restart OPA: {e}"
+        )
+
+
+
+# ---------------------------------------------------------------------------
+# Load structure
+# ---------------------------------------------------------------------------
+
+CHECK_FOR_ACTION = load_json(
+    CHECK_FOR_ACTION_PATH
+)
+
+SECURITY_GROUPS = load_json(
+    SECURITY_GROUPS_PATH
+)
+
+DATA_MESH = load_json(
+    DATA_MESH_STRUCTURE_PATH
+)
+
+
+
+# ---------------------------------------------------------------------------
+# LLM
+# ---------------------------------------------------------------------------
 
 LLAMA_DIR = r"C:\Users\berta\BertaFiles\Project\DataMeshPoliciesLLM\LLM\LocalLLMIntelIpex\llama-cpp-ipex-llm-2.3.0b20250424-win"
 
-activate_llm(LLAMA_DIR, IS_LOCAL, CHAT_URL,"Qwen2.5.1-Coder-7B-Instruct-Q4_K_M.gguf", '8080' )
-activate_llm(LLAMA_DIR, IS_LOCAL, EMBEDDING_URL, "nomic-embed-text-v1.5.f16.gguf",  '8081', other_params=' --embedding')
+LOCAL_CHAT_MODEL = os.getenv(
+    "LOCAL_CHAT_MODEL"
+)
+
+LOCAL_EMBEDDING_MODEL = os.getenv(
+    "LOCAL_EMBEDDING_MODEL"
+)
+
+
+activate_llm(
+    LLAMA_DIR,
+    IS_LOCAL,
+    CHAT_URL,
+    LOCAL_CHAT_MODEL,
+    "8080"
+)
+
+
+activate_llm(
+    LLAMA_DIR,
+    IS_LOCAL,
+    EMBEDDING_URL,
+    LOCAL_EMBEDDING_MODEL,
+    "8081",
+    other_params=" --embedding"
+)
 
 
 
-INDEX_EXTRACTION, INDEX_REWRITE_RULE, INDEX_BUILD_REGO = reload_indexes(IS_LOCAL,embedding_url=EMBEDDING_URL, client=client, embedding_model=EMBEDDING_MODEL)
+INDEX_EXTRACTION, INDEX_REWRITE_RULE, INDEX_BUILD_REGO = reload_indexes(
+    IS_LOCAL,
+    embedding_url=EMBEDDING_URL,
+    client=CLIENT,
+    embedding_model=EMBEDDING_MODEL
+)
 
-VALID_ACTIONS = list(CHECK_FOR_ACTION.keys())
+
+
+VALID_ACTIONS = list(
+    CHECK_FOR_ACTION.keys()
+)
 
 
 
+# ---------------------------------------------------------------------------
+# Pipeline
+# ---------------------------------------------------------------------------
 
-def process_rule(rule):
-    #-----------------------------------------------------------------------
-    # 1) INTERPRETATION
-    #----------------------------------------------------------------------
-    global explanation
+def process_rule(
+    rule_passed,
+    index_rewrite_rule,
+    index_extraction,
+    index_build_rego,
+    check_for_action,
+    data_mesh,
+    security_group,
+    is_local=False,
+    chat_url=None,
+    embedding_url=None,
+    client=None,
+    model=None,
+    embedding_model=None
+):
+
+
+    # --------------------------------------------------
+    # 1) Explanation
+    # --------------------------------------------------
+
+    print("\n[Interpretation]")
+
+
     try:
-        print("\n[Interpretation]")
-        explanation = llm_explain(rule, INDEX_REWRITE_RULE,DATA_MESH, SECURITY_GROUPS,is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
-        print(explanation["text"])
 
-        if not explanation["existSecureGroup"] and not explanation["pathExistOnDataMeshStructure"]:
-            print("Skipping: invalid security group and data mesh path.")
-            return
-        elif not explanation["pathExistOnDataMeshStructure"]:
-            print("Skipping: invalid data mesh path.")
-            return
-        elif not explanation["existSecureGroup"]:
-            print("Skipping: invalid security group.")
-            return
+        explanation = llm_explain(
+            rule_passed,
+            index_rewrite_rule,
+            data_mesh,
+            security_group,
+            is_local=is_local,
+            chat_url=chat_url,
+            embedding_url=embedding_url,
+            client=client,
+            model=model,
+            embedding_model=embedding_model
+        )
+
+
+        print(
+            explanation["text"]
+        )
+
+
+        if not explanation.get(
+            "existSecureGroup",
+            False
+        ):
+
+            print(
+                "Skipping: invalid security group."
+            )
+
+            return False, None
+
+
+        if not explanation.get(
+            "pathExistOnDataMeshStructure",
+            False
+        ):
+
+            print(
+                "Skipping: invalid data mesh path."
+            )
+
+            return False, None
+
+
+
     except Exception as e:
-        print("  (could not get explanation:", e, ")")
+
+        print(
+            "Explanation failed:",
+            e
+        )
+
+        return False, None
 
 
-    #-----------------------------------------------------------------------
-    # 2) EXTRACTION
-    #----------------------------------------------------------------------
-    print("\n[Extracting entities...]")
+
+    # --------------------------------------------------
+    # 2) Extraction
+    # --------------------------------------------------
+
+    print(
+        "\n[Extracting entities...]"
+    )
+
+
     try:
-        entities = extract_entities(explanation["text"],INDEX_EXTRACTION, CHECK_FOR_ACTION, is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
+
+        entities = extract_entities(
+            explanation["text"],
+            index_extraction,
+            check_for_action,
+            is_local=is_local,
+            chat_url=chat_url,
+            embedding_url=embedding_url,
+            client=client,
+            model=model,
+            embedding_model=embedding_model
+        )
+
+
     except Exception as e:
-        print("  Failed to extract_entities:", e)
-        return
 
-    #-----------------------------------------------------------------------
-    # 3) REGO POLICY GENERATION
-    #----------------------------------------------------------------------
-    print("\n[Generating OPA policy...]")
+        print(
+            "Extraction failed:",
+            e
+        )
+
+        return False, None
+
+
+
+    # --------------------------------------------------
+    # 3) Generate Rego
+    # --------------------------------------------------
+
+    print(
+        "\n[Generating OPA policy...]"
+    )
+
+
     try:
-        policy  = generate_rego_policy(entities, INDEX_BUILD_REGO, is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=client, model=MODEL, embedding_model=EMBEDDING_MODEL)
-    except ValueError as e:
-        print("  Failed to build policy:", e)
-        return
 
-    filename = f"policy_{explanation['text'][:30].replace(' ', '_')}.rego"
-    filename = os.path.join(OUTPUT_REGO_DIR, filename)
-    os.makedirs(OUTPUT_REGO_DIR, exist_ok=True)
-
-    with open(filename, "w") as f:
-        f.write(policy)
-
-    print(f"Saved to: {filename}")
+        policy = generate_rego_policy(
+            entities,
+            index_build_rego,
+            is_local=is_local,
+            chat_url=chat_url,
+            embedding_url=embedding_url,
+            client=client,
+            model=model,
+            embedding_model=embedding_model
+        )
 
 
-# --- MAIN LOOP ---
+    except Exception as e:
+
+        print(
+            "Policy generation failed:",
+            e
+        )
+
+        return False, None
+
+
+
+    os.makedirs(
+        OUTPUT_REGO_DIR,
+        exist_ok=True
+    )
+
+
+    REGO_HEADER = """
+package trino.authz
+
+import future.keywords.in
+import future.keywords.if
+import future.keywords.contains
+
+default allow := false
+
+"""
+
+
+    full_policy = (
+        REGO_HEADER
+        +
+        policy
+    )
+
+
+    filename = (
+        "policy_"
+        +
+        explanation["text"][:40]
+        .replace(" ", "_")
+        +
+        ".rego"
+    )
+
+
+    output_file = os.path.join(
+        OUTPUT_REGO_DIR,
+        filename
+    )
+
+
+    with open(
+        output_file,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        f.write(full_policy)
+
+
+
+    with open(
+        OPA_FILE_PATH,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        f.write(full_policy)
+
+
+
+    print(
+        "Saved policy:",
+        output_file
+    )
+
+
+    print(
+        "Updated OPA:",
+        OPA_FILE_PATH
+    )
+
+
+    restart_opa()
+
+
+    return True, explanation
+
+
+
+# ---------------------------------------------------------------------------
+# Standalone
+# ---------------------------------------------------------------------------
+
 if __name__ == "__main__":
-    print("=" * 50)
-    print(" OPA Policy Generator — ChatGPT API")
-    print(f" Loaded {len(VALID_ACTIONS)} action types from {CHECK_FOR_ACTION_PATH}")
-    if IS_LOCAL:
-        print("LOCAL LLM IntelIpex")
-    else:
-        print(f" Using model: {MODEL} and embeddings model: {EMBEDDING_MODEL}")
+
 
     print("=" * 50)
+    print("OPA Policy Generator")
+    print("=" * 50)
+
 
     while True:
-        rule = input("\nRule: ").strip()
 
-        if rule.lower() in ("exit", "quit"):
+        rule = input(
+            "\nRule: "
+        ).strip()
+
+
+        if rule.lower() in (
+            "exit",
+            "quit"
+        ):
             break
 
+
         if rule:
-            process_rule(rule)
+
+            process_rule(
+                rule,
+                INDEX_REWRITE_RULE,
+                INDEX_EXTRACTION,
+                INDEX_BUILD_REGO,
+                CHECK_FOR_ACTION,
+                DATA_MESH,
+                SECURITY_GROUPS,
+                is_local=IS_LOCAL,
+                chat_url=CHAT_URL,
+                embedding_url=EMBEDDING_URL,
+                client=CLIENT,
+                model=MODEL,
+                embedding_model=EMBEDDING_MODEL
+            )

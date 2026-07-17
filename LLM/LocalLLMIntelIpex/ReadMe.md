@@ -16,6 +16,11 @@ Move-Item "Qwen2.5.1-Coder-7B-Instruct-Q4_K_M.gguf" "models\"
 hf download nomic-ai/nomic-embed-text-v1.5-GGUF --include "nomic-embed-text-v1.5.f16.gguf" --local-dir ./
 ```
 
+# bigger model
+```bash
+hf download itlwas/Qwen2.5-Coder-14B-Instruct-Q4_K_M-GGUF --include "qwen2.5-coder-14b-instruct-q4_k_m.gguf" --local-dir ./
+```
+
 
 ```bash
 cd llama-cpp-ipex-llm-2.3.0b20250424-win

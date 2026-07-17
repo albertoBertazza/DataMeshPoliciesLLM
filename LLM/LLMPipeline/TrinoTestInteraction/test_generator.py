@@ -9,146 +9,358 @@ from LLM.LLMPipeline.TrinoTestInteraction.Pipeline.Interaction.trino_test_intera
     create_trino_tests,
 )
 
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
-# LOCAL LLM
 CHAT_URL = "http://127.0.0.1:8080"
 EMBEDDING_URL = "http://127.0.0.1:8081"
 
-# REMOTE LLM
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+
+CLIENT = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY")
+)
+
+MODEL = os.environ.get(
+    "OPENAI_MODEL",
+    "gpt-4o-mini"
+)
+
 EMBEDDING_MODEL = "text-embedding-3-small"
 
-# WHICH LLM TO USE
-IS_LOCAL = os.getenv("IS_LOCAL", "False") == "True"
+IS_LOCAL = os.getenv(
+    "IS_LOCAL",
+    "False"
+) == "True"
 
-current = os.getcwd()
+
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
 
 DATA_MESH_DIR = os.getcwd()
 
-LLM_DIR= os.path.join(DATA_MESH_DIR, "LLM")
+while os.path.basename(DATA_MESH_DIR) != "DataMeshPoliciesLLM":
+    parent = os.path.dirname(DATA_MESH_DIR)
 
-while os.path.basename(current) != "DataMeshPoliciesLLM":
-    parent = os.path.dirname(current)
+    if parent == DATA_MESH_DIR:
+        raise RuntimeError(
+            "DataMeshPoliciesLLM folder not found"
+        )
 
-    if parent == current:
-        raise RuntimeError("DataMeshPoliciesLLM folder not found")
+    DATA_MESH_DIR = parent
 
-    current = parent
 
-DATA_MESH_DIR = current
-print("dataMeshDir: ", DATA_MESH_DIR)
+LLM_DIR = os.path.join(
+    DATA_MESH_DIR,
+    "LLM"
+)
 
-STRUCTURE_DIR = os.path.join(LLM_DIR, "Structure")
-USER_CREDENTIALS_PATH = os.path.join(STRUCTURE_DIR, "user_credentials.json")
 
-LLM_PIPELINE_DIR = os.path.join(LLM_DIR, "LLMPipeline")
-TRINO_TEST_DIR = os.path.join(LLM_PIPELINE_DIR, "TrinoTestInteraction")
+STRUCTURE_DIR = os.path.join(
+    LLM_DIR,
+    "Structure"
+)
 
-OUTPUT_DIR = os.path.join(TRINO_TEST_DIR, "output")
-OUTPUT_TESTS_DIR = os.path.join(OUTPUT_DIR, "generated_tests")
 
-TEST_DIR = os.path.join(DATA_MESH_DIR, "Tester")
-TEST_INPUT_DIR = os.path.join(TEST_DIR, "tests")
+USER_CREDENTIALS_PATH = os.path.join(
+    STRUCTURE_DIR,
+    "user_credentials.json"
+)
+
+
+TRINO_TEST_DIR = os.path.join(
+    LLM_DIR,
+    "LLMPipeline",
+    "TrinoTestInteraction"
+)
+
+
+OUTPUT_TESTS_DIR = os.path.join(
+    TRINO_TEST_DIR,
+    "output",
+    "generated_tests"
+)
+
+
+DATA_MESH_PATH = os.path.join(
+    STRUCTURE_DIR,
+    "data_mesh.json"
+)
+
+TEST_INPUT_DIR = os.path.join(
+    DATA_MESH_DIR,
+    "Tester",
+    "tests"
+)
+
 
 
 def load_json(path):
-    with open(path, "r", encoding="utf-8") as f:
+
+    with open(
+        path,
+        "r",
+        encoding="utf-8"
+    ) as f:
         return json.load(f)
 
 
-USER_CREDENTIALS = load_json(USER_CREDENTIALS_PATH)
 
+USER_CREDENTIALS = load_json(
+    USER_CREDENTIALS_PATH
+)
+
+DATA_MESH = load_json(
+    DATA_MESH_PATH
+)
+
+
+# ---------------------------------------------------------------------------
+# LLM
+# ---------------------------------------------------------------------------
 
 LLAMA_DIR = r"C:\Users\berta\BertaFiles\Project\DataMeshPoliciesLLM\LLM\LocalLLMIntelIpex\llama-cpp-ipex-llm-2.3.0b20250424-win"
 
-activate_llm(LLAMA_DIR, IS_LOCAL, CHAT_URL,"Qwen2.5.1-Coder-7B-Instruct-Q4_K_M.gguf", '8080' )
-activate_llm(LLAMA_DIR, IS_LOCAL, EMBEDDING_URL, "nomic-embed-text-v1.5.f16.gguf",  '8081', other_params=' --embedding')
+LOCAL_CHAT_MODEL = os.getenv(
+    "LOCAL_CHAT_MODEL"
+)
 
+LOCAL_EMBEDDING_MODEL = os.getenv(
+    "LOCAL_EMBEDDING_MODEL"
+)
+
+
+activate_llm(
+    LLAMA_DIR,
+    IS_LOCAL,
+    CHAT_URL,
+    LOCAL_CHAT_MODEL,
+    "8080"
+)
+
+
+activate_llm(
+    LLAMA_DIR,
+    IS_LOCAL,
+    EMBEDDING_URL,
+    LOCAL_EMBEDDING_MODEL,
+    "8081",
+    other_params=" --embedding"
+)
 
 
 
 INDEX_TEST_CREATION = reload_indexes(
     IS_LOCAL,
     embedding_url=EMBEDDING_URL,
-    client=client,
+    client=CLIENT,
     embedding_model=EMBEDDING_MODEL,
 )
 
 
-def process_rule(rule_explanation):
 
-    print("\n[Generating Trino interaction tests...]")
+# ---------------------------------------------------------------------------
+# Generate tests
+# ---------------------------------------------------------------------------
 
-    try:
-        tests = create_trino_tests(
-            rule_explanation=rule_explanation,
-            user_credentials=USER_CREDENTIALS,
-            test_creation_example_indexes=INDEX_TEST_CREATION,
-            is_local=IS_LOCAL,
-            chat_url=CHAT_URL,
-            embedding_url=EMBEDDING_URL,
-            client=client,
-            model=MODEL,
-            embedding_model=EMBEDDING_MODEL,
-        )
-
-    except Exception as e:
-        print("Failed to generate tests:", e)
-        return
-
-    os.makedirs(OUTPUT_TESTS_DIR, exist_ok=True)
-
-    safe_name = "".join(
-        c if c.isalnum() or c in "_-" else "_"
-        for c in rule_explanation[:40]
-    )
-
-    filename = os.path.join(
-        OUTPUT_TESTS_DIR,
-        f"tests_{safe_name}.json",
-    )
-
-
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(tests, f, indent=2)
-
-    print(f"Saved to: {filename}")
-
-    # overwrite the tests file:
-    os.makedirs(TEST_INPUT_DIR, exist_ok=True)
-
-    test_file_name= os.path.join(TEST_INPUT_DIR, f"tests.json")
-
-    with open(test_file_name, "w", encoding="utf-8") as f:
-        json.dump(tests, f, indent=2)
-
-    print(f"Overwrite the tests file: {test_file_name}")
-
-
-
-
-
-if __name__ == "__main__":
+def generate_test(
+    rule_explanation,
+    data_mesh,
+    user_credentials,
+    test_creation_example_indexes,
+    is_local,
+    chat_url=None,
+    embedding_url=None,
+    client=None,
+    model=None,
+    embedding_model=None
+):
 
     print("=" * 50)
     print(" Trino Interaction Test Generator")
-    if IS_LOCAL:
+
+    if is_local:
         print("LOCAL LLM IntelIpex")
     else:
-        print(f"Using model: {MODEL}")
+        print(f"Using model: {model}")
+
     print("=" * 50)
+
+
+    print("\n[Generating Trino interaction tests...]")
+
+    print(rule_explanation)
+
+
+    if isinstance(rule_explanation, dict):
+
+        rule_text = rule_explanation.get(
+            "text",
+            ""
+        )
+
+
+    elif isinstance(rule_explanation, list):
+
+        rule_text = ""
+
+        for item in rule_explanation:
+
+            if isinstance(item, dict) and "text" in item:
+                rule_text = item["text"]
+                break
+
+        if not rule_text:
+            rule_text = json.dumps(
+                rule_explanation
+            )
+
+
+    else:
+
+        rule_text = str(rule_explanation)
+
+
+
+    try:
+
+        tests = create_trino_tests(
+            rule_explanation=rule_text,
+            data_mesh=data_mesh,
+            user_credentials=user_credentials,
+            test_creation_example_indexes=test_creation_example_indexes,
+            is_local=is_local,
+            chat_url=chat_url,
+            embedding_url=embedding_url,
+            client=client,
+            model=model,
+            embedding_model=embedding_model,
+        )
+
+        # Keep only the "output" section
+        if isinstance(tests, dict):
+            tests = tests.get("output", tests)
+
+
+
+
+    except Exception as e:
+
+        print(
+            "Failed to generate tests:",
+            e
+        )
+
+        return None
+
+
+
+    os.makedirs(
+        OUTPUT_TESTS_DIR,
+        exist_ok=True
+    )
+
+
+    safe_name = "".join(
+        c if c.isalnum() or c in "_-" else "_"
+        for c in rule_text[:40]
+    )
+
+
+    filename = os.path.join(
+        OUTPUT_TESTS_DIR,
+        f"tests_{safe_name}.json"
+    )
+
+
+    with open(
+        filename,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            tests,
+            f,
+            indent=2
+        )
+
+
+    print(
+        f"Saved: {filename}"
+    )
+
+
+
+    os.makedirs(
+        TEST_INPUT_DIR,
+        exist_ok=True
+    )
+
+
+    test_file = os.path.join(
+        TEST_INPUT_DIR,
+        "tests.json"
+    )
+
+
+    with open(
+        test_file,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            tests,
+            f,
+            indent=2
+        )
+
+
+    print(
+        f"Overwrite tests: {test_file}"
+    )
+
+
+    return tests
+
+
+
+# ---------------------------------------------------------------------------
+# Standalone
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
 
     while True:
 
-        rule = input("\nRule explanation: ").strip()
+        rule = input(
+            "\nRule explanation: "
+        ).strip()
 
-        if rule.lower() in ("exit", "quit"):
+
+        if rule.lower() in (
+            "exit",
+            "quit"
+        ):
             break
 
+
         if rule:
-            process_rule(rule)
+
+            generate_test(
+                rule,
+                DATA_MESH,
+                USER_CREDENTIALS,
+                INDEX_TEST_CREATION,
+                IS_LOCAL,
+                CHAT_URL,
+                EMBEDDING_URL,
+                CLIENT,
+                MODEL,
+                EMBEDDING_MODEL
+            )
