@@ -1,119 +1,498 @@
-
 import json
 from LLM.Interface.llm_call import llm_call
 import numpy as np
 from LLM.Interface.embedding_call import embedding_call
+from copy import deepcopy
+
 
 OPERATION_RESOURCE_SHAPES = {
-    "ExecuteQuery": "no resource at all - fires before any table/schema is resolved; allow with no resource constraint",
-    "AccessCatalog": "hard gate - input.action.resource.catalog.name",
-    "FilterCatalogs": "soft gate (SHOW CATALOGS listing) - input.action.resource.catalog.name",
-    "ShowSchemas": "hard gate for SHOW SCHEMAS FROM x - input.action.resource.catalog.name (parent level)",
-    "FilterSchemas": "soft gate (SHOW SCHEMAS listing) - input.action.resource.schema.catalogName / .schemaName",
-    "AccessSchema": "hard gate, needed for USE x.y and any query targeting the schema, also required for information_schema - input.action.resource.schema.catalogName / .schemaName",
-    "ShowTables": "hard gate for SHOW TABLES FROM x.y - input.action.resource.schema.catalogName / .schemaName",
-    "FilterTables": "soft gate (SHOW TABLES listing) - input.action.resource.table.catalogName / .schemaName",
-    "SelectFromColumns": "table-level read check, also fired against information_schema for SHOW/DESCRIBE - input.action.resource.table.catalogName / .schemaName / .tableName",
-    "GetColumnMask": "grants permission to query a possibly-masked column; does NOT itself define the mask expression - input.action.resource.table.catalogName / .schemaName / .tableName",
-    "GetRowFilters": "grants permission to query possibly row-filtered data; does NOT itself define the filter expression - input.action.resource.table.catalogName / .schemaName / .tableName",
-    "InsertIntoTable": "input.action.resource.table.catalogName / .schemaName / .tableName",
-    "UpdateTableColumns": "input.action.resource.table.catalogName / .schemaName / .tableName",
-    "DeleteFromTable": "input.action.resource.table.catalogName / .schemaName / .tableName",
-    "CreateView": "a view is created inside a schema - input.action.resource.schema.catalogName / .schemaName",
+
+    "ExecuteQuery":
+        "input.action.operation only. No resource is present.",
+
+    "AccessCatalog":
+        "input.action.resource.catalog.name",
+
+    "AccessSchema":
+        "input.action.resource.schema.catalogName and schemaName",
+
+    "SelectFromColumns":
+        "input.action.resource.table.catalogName/schemaName/tableName "
+        "OR input.action.resource.column.catalogName/schemaName/tableName/columnName",
+
+    "GetColumnMask":
+        "input.action.filterResources[].column.catalogName/schemaName/tableName/columnName. "
+        "Only generate masks if the extracted policy explicitly contains column masking.",
+
+    "GetRowFilters":
+        "input.action.resource.table.catalogName/schemaName/tableName. "
+        "Only generate filters if the extracted policy explicitly contains row filtering.",
+
+    "InsertIntoTable":
+        "input.action.resource.table.catalogName/schemaName/tableName",
+
+    "UpdateTableColumns":
+        "input.action.resource.table.catalogName/schemaName/tableName",
+
+    "DeleteFromTable":
+        "input.action.resource.table.catalogName/schemaName/tableName"
 }
 
 
 GENERATE_REGO_SYSTEM_PROMPT_TEMPLATE = """
 You are an expert OPA Rego author generating Trino authorization rules.
 
-You will receive, as the user message, a single extracted authorization
-policy as JSON with this shape:
+You receive an extracted authorization policy.
 
-{{
-  "subject_attribute": "user" | "groups",
-  "subject_value": "",
-  "resource_type": "catalog" | "schema" | "table" | "column" | "",
-  "resource_values": {{
-      "catalogName": "",
-      "schemaName": "",
-      "tableName": "",
-      "columnName": ""
-  }},
-  "trino_action": [] | "*"
-}}
+Extraction format:
 
-Your job is to emit ONLY the new Rego snippet needed to grant that subject
-exactly those actions on that resource scope, written to slot into the SAME
-policy file as the reference policy below (its `package`, imports,
-`default allow := false`, `is_admin`, `is_test`, and the generic `batch`
-rules already exist elsewhere in that file -- never redefine them).
+{extraction_structure}
 
-How to interpret each Trino operation's resource shape:
+Trino input format:
+
+{input_structure}
+
+Operation resource mapping:
+
 {operation_resource_shapes}
 
-STYLE RULES (follow the reference policy's conventions exactly):
 
-1. Define one role-membership helper rule named `is_<subject_value>`
-   (lowercase, spaces/hyphens converted to underscores):
-   - subject_attribute == "groups" -> `"<subject_value>" in input.context.identity.groups`
-   - subject_attribute == "user"   -> `input.context.identity.user == "<subject_value>"`
-
-2. For every action in trino_action, add one `allow if {{ ... }}` block
-   gated on `is_<subject_value>`, `input.action.operation == "<Action>"`,
-   and the correct resource-path equality checks for that action (see the
-   shape reference above). If a `resource_values` field is "*" (or absent),
-   OMIT that equality check entirely rather than comparing to the literal
-   string "*" -- do not write `== "*"`.
-
-3. When SelectFromColumns, GetColumnMask and GetRowFilters are ALL present
-   for the same resource scope, group them into one shared `allow if` block
-   using `input.action.operation in {{"SelectFromColumns", "GetColumnMask", "GetRowFilters"}}`,
-   exactly like the reference's `analyst_operation` set -- do not write three
-   separate blocks for them in that case.
-
-4. If the granted scope is catalog- or schema-level (resource_type is
-   "catalog" or "schema", or SelectFromColumns/etc. are requested with a
-   wildcard table), also add the supporting navigation allows so metadata
-   commands keep working: ShowSchemas/FilterSchemas for the relevant
-   catalog, ShowTables/FilterTables for the relevant schema, AccessSchema
-   and SelectFromColumns on "information_schema" within that catalog --
-   but only add these if AccessCatalog/AccessSchema-level actions were
-   actually requested; don't invent navigation access nobody asked for.
-
-5. If trino_action is the string "*" (unrestricted access), emit ONLY
-   `allow if is_<subject_value>` with no operation or resource constraints
-   at all -- mirror the reference's `is_admin` / `is_test` bypass style.
-
-6. Do not emit `rowFilters`, `columnMask`, or `batchColumnMasks` rules.
-   Those encode specific data-masking business logic that is not part of
-   the extracted action list, and must be authored separately.
-
-7. Never redefine `default allow := false`, `is_admin`, `is_test`,
-   `user_info`, the `batch` rules, or any package/import statement --
-   assume all of that already exists in the file this snippet is appended to.
-
-8. Separate each top-level rule (the helper and each `allow if` block) with
-   exactly one blank line, matching the reference's formatting, and add a
-   short `#` comment above non-obvious blocks (e.g. why a hard gate and a
-   soft gate are both needed) the way the reference does.
-
-9. Output RAW REGO ONLY. No markdown fences, no explanation, no repetition
-   of the reference policy itself.
-
-Reference policy (style example only -- do not repeat its contents, only
-imitate its structure and naming conventions):
+Reference Rego examples:
 
 {example_rego}
+
+The following base policy is always present:
+
+default allow := false
+default batchColumnMasks := []
+default rowFilters := []
+
+Generated output is merged into this base policy.
+
+Never generate these default rules.
+
+
+IMPORTANT GENERATION RULES:
+
+1. Generate ONLY Rego body.
+Do not generate:
+- package
+- imports
+- default rules
+
+
+2. Always generate:
+
+is_<subject> if {
+    ...
+}
+
+
+3. Generate allow rules ONLY for authorization operations:
+
+- ExecuteQuery
+- AccessCatalog
+- AccessSchema
+- SelectFromColumns
+- InsertIntoTable
+- UpdateTableColumns
+- DeleteFromTable
+
+
+4. GetColumnMask and GetRowFilters are OPTIONAL.
+
+Generate them ONLY when:
+- the extracted policy explicitly requests masking/filtering
+- the extracted resource is actually restricted
+
+
+Never create:
+
+batchColumnMasks
+
+or
+
+rowFilters
+
+just because Trino called the endpoint.
+
+
+Trino may call GetColumnMask and GetRowFilters even when no policy exists.
+In that case return nothing for those operations.
+
+5. Column masking and row filtering:
+
+The extraction may contain:
+
+"column_mask": true
+"column_mask_policy": {
+    "expression": "..."
+}
+
+"row_filter": true
+"row_filter_policy": {
+    "expression": "..."
+}
+
+
+If column_mask == true:
+
+Generate:
+
+batchColumnMasks contains result if {
+    ...
+    result := {
+        "column": column,
+        "mask": "<expression>"
+    }
+}
+
+
+If row_filter == true:
+
+Generate:
+
+rowFilters contains filter if {
+    ...
+    filter := {
+        "expression": "<expression>"
+    }
+}
+
+
+If column_mask == false:
+DO NOT generate batchColumnMasks.
+
+
+If row_filter == false:
+DO NOT generate rowFilters.
+
+
+Never invent policies.
+Use only expressions provided by extraction.
+
+6. Operation mapping:
+
+SelectFromColumns:
+    allow if {}
+
+
+GetColumnMask:
+    batchColumnMasks contains result if {}
+
+
+GetRowFilters:
+    rowFilters contains result if {}
+
+
+7. Never use:
+
+batchColumnMasks[x] if
+
+rowFilters[x] if
+
+
+8. Never invent:
+- columns
+- filters
+- masks
+- operations
+
+
+9. If the rule says:
+
+"finance manager can select all tables inside finance schema"
+
+generate schema/table authorization.
+
+Do NOT generate:
+- column masks
+- row filters
+- column restrictions
+
+
+10. Use exact Trino input paths.
+
 """
 
 
-def get_generate_rego_system_prompt(example_rego):
-    return GENERATE_REGO_SYSTEM_PROMPT_TEMPLATE.format(
-        operation_resource_shapes=json.dumps(OPERATION_RESOURCE_SHAPES, indent=2),
-        example_rego=example_rego,
+def build_input_examples(input_structure, extracted_entity):
+    """
+    Build minimal Trino examples.
+    Only include resources required by the operation.
+    """
+
+    examples = []
+
+    actions = extracted_entity["trino_action"]
+
+    values = extracted_entity["resource_values"]
+    resource_type = extracted_entity["resource_type"]
+
+    subject_attribute = extracted_entity["subject_attribute"]
+    subject_value = extracted_entity["subject_value"]
+
+
+    for operation in actions:
+
+        example = deepcopy(input_structure)
+
+
+        # identity
+
+        if subject_attribute == "groups":
+
+            example["context"]["identity"]["groups"] = [
+                subject_value
+            ]
+
+            example["context"]["identity"]["user"] = "<any-user>"
+
+
+        elif subject_attribute == "user":
+
+            example["context"]["identity"]["user"] = subject_value
+            example["context"]["identity"]["groups"] = []
+
+
+        example["action"]["operation"] = operation
+
+
+        example["action"].pop(
+            "resource",
+            None
+        )
+
+        example["action"].pop(
+            "filterResources",
+            None
+        )
+
+
+        # ExecuteQuery
+
+        if operation == "ExecuteQuery":
+
+            pass
+
+
+        # AccessCatalog
+
+        elif operation == "AccessCatalog":
+
+            example["action"]["resource"] = {
+                "catalog": {
+                    "name": values["catalogName"]
+                }
+            }
+
+
+        # AccessSchema
+
+        elif operation == "AccessSchema":
+
+            example["action"]["resource"] = {
+                "schema": {
+                    "catalogName": values["catalogName"],
+                    "schemaName": values["schemaName"]
+                }
+            }
+
+
+        # SelectFromColumns
+
+        elif operation == "SelectFromColumns":
+
+            if resource_type == "column":
+
+                example["action"]["resource"] = {
+                    "column": {
+                        "catalogName": values["catalogName"],
+                        "schemaName": values["schemaName"],
+                        "tableName": values["tableName"],
+                        "columnName": values["columnName"]
+                    }
+                }
+
+            else:
+
+                example["action"]["resource"] = {
+                    "table": {
+                        "catalogName": values["catalogName"],
+                        "schemaName": values["schemaName"],
+                        "tableName": values["tableName"]
+                    }
+                }
+
+
+        # GetColumnMask
+
+        elif operation == "GetColumnMask":
+
+            if (
+
+                    extracted_entity.get("column_mask") is True
+
+                    and "columnName" in values
+
+            ):
+
+                example["action"]["filterResources"] = [
+
+                    {
+
+                        "column": {
+
+                            "catalogName": values["catalogName"],
+
+                            "schemaName": values["schemaName"],
+
+                            "tableName": values["tableName"],
+
+                            "columnName": values["columnName"],
+
+                            "columnType": "varchar"
+
+                        }
+
+                    }
+
+                ]
+
+
+            else:
+
+                continue
+
+
+
+        # GetRowFilters
+
+        elif operation == "GetRowFilters":
+
+            if (
+
+                    extracted_entity.get("row_filter") is True
+
+                    and resource_type == "table"
+
+            ):
+
+                example["action"]["resource"] = {
+
+                    "table": {
+
+                        "catalogName": values["catalogName"],
+
+                        "schemaName": values["schemaName"],
+
+                        "tableName": values["tableName"]
+
+                    }
+
+                }
+
+
+            else:
+
+                continue
+
+
+        elif operation in {
+            "InsertIntoTable",
+            "UpdateTableColumns",
+            "DeleteFromTable"
+        }:
+
+            example["action"]["resource"] = {
+                "table": {
+                    "catalogName": values["catalogName"],
+                    "schemaName": values["schemaName"],
+                    "tableName": values["tableName"]
+                }
+            }
+
+
+        else:
+            raise ValueError(
+                f"Unsupported operation {operation}"
+            )
+
+
+        examples.append(example)
+
+
+    return examples
+
+
+def get_generate_rego_system_prompt(
+    example_rego,
+    input_structure,
+    extracted_entity
+):
+    extraction_structure = {
+        "subject_attribute": "user | groups",
+        "subject_value": "",
+        "resource_type": "catalog | schema | table | column",
+        "resource_values": {
+            "catalogName": "",
+            "schemaName": "",
+            "tableName": "",
+            "columnName": ""
+        },
+        "trino_action": [],
+
+        "column_mask": False,
+        "row_filter": False,
+
+        "column_mask_policy": {
+            "expression": ""
+        },
+
+        "row_filter_policy": {
+            "expression": ""
+        }
+    }
+
+    input_examples = build_input_examples(
+        input_structure,
+        extracted_entity
     )
 
+    prompt = GENERATE_REGO_SYSTEM_PROMPT_TEMPLATE
 
+    # DO NOT USE .format()
+    # Rego examples contain { } which are interpreted as format placeholders.
+    prompt = prompt.replace(
+        "{extraction_structure}",
+        json.dumps(
+            extraction_structure,
+            indent=2
+        )
+    )
+
+    prompt = prompt.replace(
+        "{input_structure}",
+        json.dumps(
+            input_examples,
+            indent=2
+        )
+    )
+
+    prompt = prompt.replace(
+        "{operation_resource_shapes}",
+        json.dumps(
+            OPERATION_RESOURCE_SHAPES,
+            indent=2
+        )
+    )
+
+    prompt = prompt.replace(
+        "{example_rego}",
+        example_rego or ""
+    )
+
+    return prompt
 
 def cosine_similarity(a, b):
     return np.dot(a, b) / (
@@ -121,14 +500,76 @@ def cosine_similarity(a, b):
     )
 
 
-def find_best_rego_examples(extracted_entity,example_rego,is_local,n=3,embedding_url=None,client=None,embedding_model=None):
-    # Turn the extracted entity into text for embedding
-    query = json.dumps(extracted_entity, sort_keys=True, indent=2)
+def find_best_rego_examples(
+    extracted_entity,
+    example_rego,
+    is_local,
+    n=3,
+    embedding_url=None,
+    client=None,
+    embedding_model=None
+):
 
-    query_embedding = embedding_call(text=query,is_local=is_local,embedding_url=embedding_url,client=client,embedding_model=embedding_model)
+    requested_operations = set(
+        extracted_entity["trino_action"]
+    )
+
+
+    # --------------------------------------------------
+    # 1. Filter examples by compatible operations
+    # --------------------------------------------------
+
+    compatible_examples = []
+
+    for ex in example_rego:
+
+        example_operations = set(
+            ex["input"]["extraction"]["trino_action"]
+        )
+
+        # keep examples sharing at least one operation
+        if requested_operations.intersection(example_operations):
+
+            example_extraction = ex["input"]["extraction"]
+
+            if (
+                    extracted_entity.get("column_mask") ==
+                    example_extraction.get("column_mask", False)
+                    and
+                    extracted_entity.get("row_filter") ==
+                    example_extraction.get("row_filter", False)
+            ):
+                compatible_examples.append(ex)
+
+
+    # fallback
+    if not compatible_examples:
+        compatible_examples = example_rego
+
+
+
+    # --------------------------------------------------
+    # 2. Embedding ranking inside compatible examples
+    # --------------------------------------------------
+
+    query = json.dumps(
+        extracted_entity,
+        sort_keys=True,
+        indent=2
+    )
+
+
+    query_embedding = embedding_call(
+        text=query,
+        is_local=is_local,
+        embedding_url=embedding_url,
+        client=client,
+        embedding_model=embedding_model
+    )
+
 
     ranked = sorted(
-        example_rego,
+        compatible_examples,
         key=lambda ex: cosine_similarity(
             query_embedding,
             ex["embedding"],
@@ -136,23 +577,34 @@ def find_best_rego_examples(extracted_entity,example_rego,is_local,n=3,embedding
         reverse=True,
     )
 
+
     return ranked[:n]
 
 
-def llm_generate_rego( extracted_entity, example_rego,is_local,  chat_url=None,client=None,model=None):
-
-    prompt=[
-            {
-                "role": "system",
-                "content": get_generate_rego_system_prompt(example_rego),
-            },
-            {
-                "role": "user",
-                "content": json.dumps(extracted_entity, indent=2),
-            },
-        ]
+def llm_generate_rego(extracted_entity,example_rego,input_structure,is_local,chat_url=None,client=None,model=None,):
+    prompt = [
+        {
+            "role": "system",
+            "content": get_generate_rego_system_prompt(
+                example_rego=example_rego,
+                input_structure=input_structure,
+                extracted_entity=extracted_entity,
+            ),
+        },
+        {
+            "role": "user",
+            "content": json.dumps(
+                extracted_entity,
+                indent=2,
+            ),
+        },
+    ]
 
     prompt= json.dumps(prompt,indent=2)
+
+    print("=" * 80)
+    print(prompt)
+    print("=" * 80)
 
     response=llm_call(prompt, is_local=is_local,chat_url=chat_url, model=model, client=client)
 
@@ -175,27 +627,54 @@ def clean_rego_output(raw):
     return raw
 
 
-def generate_rego_policy(extracted_entity,example_rego,is_local,chat_url=None, embedding_url=None,client=None,model=None, embedding_model=None):
-    try:
-        examples = find_best_rego_examples(extracted_entity=extracted_entity,example_rego=example_rego,is_local=is_local,n=3,embedding_url=embedding_url,client=client,embedding_model=embedding_model)
-    except Exception as e:
-        print("  Failed to find_best_rego_examples in generate_rego_policy:", e)
-        return
-    # Concatenate the retrieved Rego examples
-    example_text = "\n\n".join(
-        ex["output"] for ex in examples
-    )
+def generate_rego_policy(
+    extracted_entity,
+    example_rego,
+    input_structure,
+    is_local,
+    chat_url=None,
+    embedding_url=None,
+    client=None,
+    model=None,
+    embedding_model=None
+):
 
     try:
-        raw = llm_generate_rego(extracted_entity,example_text,is_local,chat_url=chat_url,client=client,model=model)
+        examples = find_best_rego_examples(
+            extracted_entity=extracted_entity,
+            example_rego=example_rego,
+            is_local=is_local,
+            n=3,
+            embedding_url=embedding_url,
+            client=client,
+            embedding_model=embedding_model
+        )
+
+        example_text = "\n\n".join(
+            ex["output"] for ex in examples
+        )
+
+        raw = llm_generate_rego(
+            extracted_entity,
+            example_text,
+            input_structure=input_structure,
+            is_local=is_local,
+            chat_url=chat_url,
+            client=client,
+            model=model
+        )
+
+        if not raw:
+            return ""
+
+        return clean_rego_output(raw)
+
     except Exception as e:
-        print("  Failed to llm_generate_rego in generate_rego_policy:", e)
-        return
-
-    print("\n[RAW REGO OUTPUT]\n", raw)
-
-    return clean_rego_output(raw)
-
+        print(
+            "Failed generate_rego_policy:",
+            repr(e)
+        )
+        return ""
 # ---------------------------------------------------------------------------
 # Boilerplate that is shared by every role and only needs to exist once in
 # the final policy file. Pulled verbatim from the reference policy's

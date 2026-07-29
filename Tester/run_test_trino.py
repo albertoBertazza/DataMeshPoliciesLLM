@@ -33,10 +33,15 @@ OUTPUT_DIR_PATH = os.path.join(
     "output"
 )
 
+RUN_TIMESTAMP = datetime.datetime.now(
+    datetime.UTC
+).strftime(
+    "%Y%m%d_%H%M%S"
+)
 
 OUTPUT_FILE_PATH = os.path.join(
     OUTPUT_DIR_PATH,
-    "tests_outputs.json"
+    f"tests_outputs_{RUN_TIMESTAMP}.json"
 )
 
 
@@ -57,6 +62,8 @@ RESULTS_DIR = os.path.join(
     EVALUATION_DIR,
     "ResultInteraction"
 )
+
+
 
 
 TEST_OUTPUT_FILE_PATH = os.path.join(
@@ -306,12 +313,12 @@ def launch_test(
 
         tests = json.load(f)
 
-
-
-    interactions = tests.get(
-        "output",
-        []
-    )
+    if isinstance(tests, list):
+        interactions = tests
+    elif isinstance(tests, dict):
+        interactions = tests.get("output", [])
+    else:
+        raise ValueError(f"Unexpected tests.json format: {type(tests)}")
 
 
     report = {
@@ -325,7 +332,7 @@ def launch_test(
 
         print(
             "\nExecuting:",
-            interaction["query"]
+            interaction["query"], "user: ", interaction["username"]
         )
 
 

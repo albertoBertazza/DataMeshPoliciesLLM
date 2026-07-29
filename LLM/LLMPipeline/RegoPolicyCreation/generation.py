@@ -71,6 +71,11 @@ DATA_MESH_STRUCTURE_PATH = os.path.join(
     "data_mesh.json"
 )
 
+INPUT_STRUCTURE_PATH = os.path.join(
+    STRUCTURE_DIR,
+    "input.json"
+)
+
 
 LLM_PIPELINE_DIR = os.path.join(
     LLM_DIR,
@@ -117,8 +122,7 @@ DOCKER_COMPOSE_PATH = os.path.join(
 
 OPA_FILE_PATH = os.path.join(
     DOCKER_COMPOSE_PATH,
-    "opa",
-    "policy.rego"
+    "opa"
 )
 
 
@@ -126,6 +130,61 @@ OPA_FILE_PATH = os.path.join(
 # ---------------------------------------------------------------------------
 # Utils
 # ---------------------------------------------------------------------------
+
+def remove_duplicate_rego_default(opa_path):
+    """
+    Remove duplicated default allow rules from existing OPA policies.
+    Keeps the first file with the default declaration.
+    """
+
+    default_found = False
+
+    if not os.path.exists(opa_path):
+        return
+
+    for filename in sorted(os.listdir(opa_path)):
+
+        if not filename.endswith(".rego"):
+            continue
+
+        file_path = os.path.join(
+            opa_path,
+            filename
+        )
+
+        with open(
+            file_path,
+            "r",
+            encoding="utf-8"
+        ) as f:
+            content = f.read()
+
+
+        if "default allow := false" in content:
+
+            if not default_found:
+                # Keep the first default
+                default_found = True
+                continue
+
+
+            # Remove duplicated default
+            content = content.replace(
+                "default allow := false\n",
+                ""
+            )
+
+            with open(
+                file_path,
+                "w",
+                encoding="utf-8"
+            ) as f:
+                f.write(content)
+
+            print(
+                "Removed duplicated default from:",
+                file_path
+            )
 
 def load_json(path):
 
@@ -180,6 +239,9 @@ DATA_MESH = load_json(
     DATA_MESH_STRUCTURE_PATH
 )
 
+INPUT_STRUCTURE = load_json(
+    INPUT_STRUCTURE_PATH
+)
 
 
 # ---------------------------------------------------------------------------
@@ -244,6 +306,7 @@ def process_rule(
     check_for_action,
     data_mesh,
     security_group,
+    input_structure,
     is_local=False,
     chat_url=None,
     embedding_url=None,
@@ -366,6 +429,7 @@ def process_rule(
         policy = generate_rego_policy(
             entities,
             index_build_rego,
+            input_structure,
             is_local=is_local,
             chat_url=chat_url,
             embedding_url=embedding_url,
@@ -374,6 +438,7 @@ def process_rule(
             embedding_model=embedding_model
         )
 
+        print(policy)
 
     except Exception as e:
 
@@ -400,6 +465,9 @@ import future.keywords.if
 import future.keywords.contains
 
 default allow := false
+
+default batchColumnMasks := []
+default rowFilters := []
 
 """
 
@@ -436,9 +504,14 @@ default allow := false
         f.write(full_policy)
 
 
+    output_opa_file = os.path.join(
+        OPA_FILE_PATH,
+        filename
+    )
+
 
     with open(
-        OPA_FILE_PATH,
+        output_opa_file,
         "w",
         encoding="utf-8"
     ) as f:
@@ -455,9 +528,11 @@ default allow := false
 
     print(
         "Updated OPA:",
-        OPA_FILE_PATH
+        output_opa_file
     )
 
+    # Remove old duplicated OPA defaults before adding new policy
+    remove_duplicate_rego_default(OPA_FILE_PATH)
 
     restart_opa()
 
@@ -502,6 +577,7 @@ if __name__ == "__main__":
                 CHECK_FOR_ACTION,
                 DATA_MESH,
                 SECURITY_GROUPS,
+                INPUT_STRUCTURE,
                 is_local=IS_LOCAL,
                 chat_url=CHAT_URL,
                 embedding_url=EMBEDDING_URL,

@@ -1,7 +1,7 @@
 [
   {
     "input": {
-      "extractionText": "The Analyst role is a read-only role. It should be allowed to execute SELECT statements on catalog: iceberg, schema: demographics, table: employees.",
+      "extraction": "The Analyst role is a read-only role. It should be allowed to execute SELECT statements on catalog: iceberg, schema: demographics, table: employees.",
       "checkForAction": {
         "AddColumn": [
           "AccessCatalog",
@@ -63,15 +63,15 @@
       "trino_action": [
         "AccessCatalog",
         "ExecuteQuery",
-        "GetColumnMask",
-        "GetRowFilters",
         "SelectFromColumns"
-      ]
+      ],
+      "column_mask": false,
+      "row_filter": false
     }
   },
   {
     "input": {
-      "extractionText": "The Data Engineer role is responsible for data ingestion and maintenance. It should be allowed to INSERT into catalog: hive, schema: sales, table: orders.",
+      "extraction": "The Data Engineer role is responsible for data ingestion and maintenance. It should be allowed to INSERT into catalog: hive, schema: sales, table: orders.",
       "checkForAction": {
         "Insert": [
           "AccessCatalog",
@@ -93,12 +93,14 @@
         "AccessCatalog",
         "ExecuteQuery",
         "InsertIntoTable"
-      ]
+      ],
+      "column_mask": false,
+      "row_filter": false
     }
   },
   {
     "input": {
-      "extractionText": "The Admin role has unrestricted access to every catalog, schema, table and database object.",
+      "extraction": "The Admin role has unrestricted access to every catalog, schema, table and database object.",
       "checkForAction": {
         "*": [
           "AccessCatalog",
@@ -121,12 +123,23 @@
         "schemaName": "*",
         "tableName": "*"
       },
-      "trino_action": "*"
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "CreateSchema",
+        "CreateTable",
+        "DropTable",
+        "InsertIntoTable",
+        "DeleteFromTable",
+        "UpdateTableColumns"
+      ],
+      "column_mask": false,
+      "row_filter": false
     }
   },
   {
     "input": {
-      "extractionText": "The HR Manager role can UPDATE records only inside catalog: iceberg, schema: hr.",
+      "extraction": "The HR Manager role can UPDATE records only inside catalog: iceberg, schema: hr.",
       "checkForAction": {
         "Update": [
           "AccessCatalog",
@@ -148,12 +161,14 @@
         "AccessCatalog",
         "ExecuteQuery",
         "UpdateTableColumns"
-      ]
+      ],
+      "column_mask": false,
+      "row_filter": false
     }
   },
   {
     "input": {
-      "extractionText": "The Finance Manager role can SELECT and UPDATE data only inside catalog: iceberg, schema: finance.",
+      "extraction": "The Finance Manager role can SELECT and UPDATE data only inside catalog: iceberg, schema: finance.",
       "checkForAction": {
         "Select": [
           "AccessCatalog",
@@ -181,16 +196,16 @@
       "trino_action": [
         "AccessCatalog",
         "ExecuteQuery",
-        "GetColumnMask",
-        "GetRowFilters",
         "SelectFromColumns",
         "UpdateTableColumns"
-      ]
+      ],
+      "column_mask": false,
+      "row_filter": false
     }
   },
   {
     "input": {
-      "extractionText": "The Analyst role only has read permissions and cannot modify data.",
+      "extraction": "The Analyst role only has read permissions and cannot modify data.",
       "checkForAction": {
         "Select": [
           "AccessCatalog",
@@ -213,15 +228,15 @@
       "trino_action": [
         "AccessCatalog",
         "ExecuteQuery",
-        "GetColumnMask",
-        "GetRowFilters",
         "SelectFromColumns"
-      ]
+      ],
+      "column_mask": false,
+      "row_filter": false
     }
   },
   {
     "input": {
-      "extractionText": "The Data Scientist role can CREATE VIEW objects and SELECT the required source data.",
+      "extraction": "The Data Scientist role can CREATE VIEW objects and SELECT the required source data.",
       "checkForAction": {
         "CreateView": [
           "AccessCatalog",
@@ -246,10 +261,120 @@
         "AccessCatalog",
         "CreateView",
         "ExecuteQuery",
-        "GetColumnMask",
-        "GetRowFilters",
         "SelectFromColumns"
-      ]
+      ],
+      "column_mask": false,
+      "row_filter": false
+    }
+  },
+  {
+    "input": {
+      "extraction": "The Finance Manager role can SELECT from catalog: iceberg, schema: finance, table: employee_finance, but salary and bonus columns must be masked.",
+      "checkForAction": {
+        "Select": [
+          "AccessCatalog",
+          "ExecuteQuery",
+          "GetColumnMask",
+          "GetRowFilters",
+          "SelectFromColumns"
+        ]
+      }
+    },
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "finance_manager",
+      "resource_type": "column",
+      "resource_values": {
+        "catalogName": "iceberg",
+        "schemaName": "finance",
+        "tableName": "employee_finance",
+        "columnName": "salary"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "SelectFromColumns",
+        "GetColumnMask"
+      ],
+      "column_mask": true,
+      "row_filter": false,
+      "column_mask_policy": {
+        "expression": "NULL"
+      }
+    }
+  },
+  {
+    "input": {
+      "extraction": "The Regional Manager role can SELECT from catalog: iceberg, schema: sales, table: orders, but only rows where region equals EU are visible.",
+      "checkForAction": {
+        "Select": [
+          "AccessCatalog",
+          "ExecuteQuery",
+          "GetColumnMask",
+          "GetRowFilters",
+          "SelectFromColumns"
+        ]
+      }
+    },
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "regional_manager",
+      "resource_type": "table",
+      "resource_values": {
+        "catalogName": "iceberg",
+        "schemaName": "sales",
+        "tableName": "orders"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "SelectFromColumns",
+        "GetRowFilters"
+      ],
+      "column_mask": false,
+      "row_filter": true,
+      "row_filter_policy": {
+        "expression": "region = 'EU'"
+      }
+    }
+  },
+  {
+    "input": {
+      "extraction": "The External Auditor role can SELECT from catalog: iceberg, schema: finance, table: transactions. The salary column must be masked and only EU transactions can be viewed.",
+      "checkForAction": {
+        "Select": [
+          "AccessCatalog",
+          "ExecuteQuery",
+          "GetColumnMask",
+          "GetRowFilters",
+          "SelectFromColumns"
+        ]
+      }
+    },
+    "output": {
+      "subject_attribute": "groups",
+      "subject_value": "external_auditor",
+      "resource_type": "table",
+      "resource_values": {
+        "catalogName": "iceberg",
+        "schemaName": "finance",
+        "tableName": "transactions"
+      },
+      "trino_action": [
+        "AccessCatalog",
+        "ExecuteQuery",
+        "SelectFromColumns",
+        "GetColumnMask",
+        "GetRowFilters"
+      ],
+      "column_mask": true,
+      "row_filter": true,
+      "column_mask_policy": {
+        "expression": "NULL"
+      },
+      "row_filter_policy": {
+        "expression": "region = 'EU'"
+      }
     }
   }
 ]

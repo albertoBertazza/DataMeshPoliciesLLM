@@ -7,6 +7,48 @@ from openai import OpenAI
 from LLM.Interface.activate_local_llm import activate_llm
 from LLM.Interface.llm_call import llm_call
 
+from pathlib import Path
+
+import datetime
+
+
+def load_policies(policy_path: str) -> str:
+    """
+    Load one .rego file or all .rego files inside a directory.
+    """
+
+    path = Path(policy_path)
+
+    if not path.exists():
+        raise FileNotFoundError(path)
+
+    # Single file
+    if path.is_file():
+        return path.read_text(encoding="utf-8")
+
+    # Directory
+    rego_files = sorted(path.glob("*.rego"))
+
+    if not rego_files:
+        raise FileNotFoundError(
+            f"No .rego files found in {path}"
+        )
+
+    policies = []
+
+    for file in rego_files:
+        policies.append(
+            f"""
+// ======================================================
+// FILE: {file.name}
+// ======================================================
+
+{file.read_text(encoding="utf-8")}
+"""
+        )
+
+    return "\n\n".join(policies)
+
 
 # ---------------------------------------------------------------------------
 # Config
@@ -54,6 +96,16 @@ EVALUATION_DIR = os.path.join(
     "Evaluation"
 )
 
+# ---------------------------------------------------------------------------
+# Run identifier
+# ---------------------------------------------------------------------------
+
+RUN_TIMESTAMP = datetime.datetime.now(
+    datetime.UTC
+).strftime(
+    "%Y%m%d_%H%M%S_%f"
+)
+
 
 RESULT_PATH = os.path.join(
     EVALUATION_DIR,
@@ -65,7 +117,7 @@ RESULT_PATH = os.path.join(
 OUTPUT_PATH = os.path.join(
     EVALUATION_DIR,
     "Output",
-    "evaluation_result.json"
+    f"evaluation_result_{RUN_TIMESTAMP}.json"
 )
 
 
@@ -97,8 +149,7 @@ EXAMPLES_PATH = os.path.join(
 POLICY_PATH = os.path.join(
     DATA_MESH_DIR,
     "docker-compose",
-    "opa",
-    "policy.rego"
+    "opa"
 )
 
 
@@ -330,10 +381,8 @@ def evaluate_test(
     if model is None:
         model = MODEL
 
-
-    policy = load_text(
-        policy_path
-    )
+    # inside policy_path we have different REGO policy file .rego to load
+    policy = load_policies(policy_path)
 
 
     results = load_json(
@@ -356,7 +405,7 @@ def evaluate_test(
 
         print(
             "\nEvaluating:",
-            item["input"]["query"]
+            item["input"]["query"], "user: ", item["input"]["username"]
         )
 
 

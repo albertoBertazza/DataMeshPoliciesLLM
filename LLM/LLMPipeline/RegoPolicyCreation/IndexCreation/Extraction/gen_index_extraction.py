@@ -13,7 +13,7 @@ def gen_index_extraction(
     for example in examples:
 
         embedding = embedding_call(
-            text=example["input"]["extractionText"],
+            text=example["input"]["extraction"],
             is_local=is_local,
             embedding_url=embedding_url,
             client=client,

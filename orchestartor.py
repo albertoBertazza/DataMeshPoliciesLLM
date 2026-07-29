@@ -11,6 +11,7 @@ from LLM.LLMPipeline.RegoPolicyCreation.generation import process_rule
 from LLM.LLMPipeline.TrinoTestInteraction.test_generator import generate_test
 from Tester.run_test_trino import launch_test
 
+from reset_rego import delete_files_generated
 
 # ==========================================================
 # LLM CONFIG
@@ -82,6 +83,10 @@ DATA_MESH_STRUCTURE_PATH = os.path.join(
     "data_mesh.json"
 )
 
+INPUT_STRUCTURE_PATH = os.path.join(
+    STRUCTURE_DIR,
+    "input.json"
+)
 
 
 REGO_DIR = os.path.join(
@@ -144,8 +149,7 @@ DOCKER_COMPOSE_PATH = os.path.join(
 
 POLICY_PATH = os.path.join(
     DOCKER_COMPOSE_PATH,
-    "opa",
-    "policy.rego"
+    "opa"
 )
 
 
@@ -187,6 +191,10 @@ DATA_MESH = load_json(
 
 USER_CREDENTIALS = load_json(
     USER_CREDENTIALS_PATH
+)
+
+INPUT_STRUCTURE = load_json(
+    INPUT_STRUCTURE_PATH
 )
 
 
@@ -258,6 +266,8 @@ if __name__ == "__main__":
     print(" DATA MESH POLICY PIPELINE")
     print("=" * 60)
 
+    # Delete all .rego files inside docker-compose/opa
+    delete_files_generated()
 
     while True:
 
@@ -290,6 +300,7 @@ if __name__ == "__main__":
             CHECK_FOR_ACTION,
             DATA_MESH,
             SECURITY_GROUPS,
+            INPUT_STRUCTURE,
             is_local=IS_LOCAL,
             chat_url=CHAT_URL,
             embedding_url=EMBEDDING_URL,
@@ -302,47 +313,47 @@ if __name__ == "__main__":
         if not result:
             continue
 
-
-
-        # -------------------------------
-        # Generate Trino tests
-        # -------------------------------
-
-        generate_test(
-            explanation,
-            data_mesh=DATA_MESH,
-            user_credentials=USER_CREDENTIALS,
-            test_creation_example_indexes=INDEX_TEST_CREATION,
-            is_local=IS_LOCAL,
-            chat_url=CHAT_URL,
-            embedding_url=EMBEDDING_URL,
-            client=CLIENT,
-            model=MODEL,
-            embedding_model=EMBEDDING_MODEL
-        )
-
-
-
-        # -------------------------------
-        # Execute Trino tests
-        # -------------------------------
-
-        launch_test()
-
-
-
-        # -------------------------------
-        # Evaluate results
-        # -------------------------------
-
-        evaluate_test(
-            data_mesh=DATA_MESH,
-            users=USER_CREDENTIALS,
-            actions=CHECK_FOR_ACTION,
-            policy_path=POLICY_PATH,
-            examples_path=EVALUATION_EXAMPLES_PATH,
-            is_local=IS_LOCAL,
-            chat_url=CHAT_URL,
-            client=CLIENT,
-            model=MODEL
-        )
+        #
+        #
+        # # -------------------------------
+        # # Generate Trino tests
+        # # -------------------------------
+        #
+        # generate_test(
+        #     explanation,
+        #     data_mesh=DATA_MESH,
+        #     user_credentials=USER_CREDENTIALS,
+        #     test_creation_example_indexes=INDEX_TEST_CREATION,
+        #     is_local=IS_LOCAL,
+        #     chat_url=CHAT_URL,
+        #     embedding_url=EMBEDDING_URL,
+        #     client=CLIENT,
+        #     model=MODEL,
+        #     embedding_model=EMBEDDING_MODEL
+        # )
+        #
+        #
+        #
+        # # -------------------------------
+        # # Execute Trino tests
+        # # -------------------------------
+        #
+        # launch_test()
+        #
+        #
+        #
+        # # -------------------------------
+        # # Evaluate results
+        # # -------------------------------
+        #
+        # evaluate_test(
+        #     data_mesh=DATA_MESH,
+        #     users=USER_CREDENTIALS,
+        #     actions=CHECK_FOR_ACTION,
+        #     policy_path=POLICY_PATH,
+        #     examples_path=EVALUATION_EXAMPLES_PATH,
+        #     is_local=IS_LOCAL,
+        #     chat_url=CHAT_URL,
+        #     client=CLIENT,
+        #     model=MODEL
+        # )
