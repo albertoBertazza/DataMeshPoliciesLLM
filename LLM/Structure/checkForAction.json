@@ -33,6 +33,14 @@
     "SelectFromColumns"
   ],
 
+  "SelectFromTable": [
+    "AccessCatalog",
+    "ExecuteQuery",
+    "GetColumnMask",
+    "GetRowFilters",
+    "SelectFromColumns"
+  ],
+
   "CreateViewWithSelectFromColumns": null,
 
   "DeleteFromTable": [

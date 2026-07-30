@@ -5,25 +5,22 @@ from LLM.Interface.embedding_call import embedding_call
 from LLM.Interface.llm_call import llm_call
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # Similarity
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 def cosine_similarity(a, b):
-    denominator = (
-        np.linalg.norm(a) *
-        np.linalg.norm(b)
-    )
+    denominator = np.linalg.norm(a) * np.linalg.norm(b)
 
     if denominator == 0:
         return 0.0
 
-    return np.dot(a, b) / denominator
+    return float(np.dot(a, b) / denominator)
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # Retrieve examples
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 def find_best_examples(
     rule,
@@ -54,9 +51,671 @@ def find_best_examples(
     return ranked[:n]
 
 
-# ---------------------------------------------------------------------------
-# LLM explanation
-# ---------------------------------------------------------------------------
+# ============================================================================
+# Generic JSON LLM call
+# ============================================================================
+
+def _llm_json(
+    system_prompt,
+    user_prompt,
+    is_local,
+    chat_url=None,
+    client=None,
+    model=None,
+):
+    messages = [
+        {
+            "role": "system",
+            "content": system_prompt,
+        },
+        {
+            "role": "user",
+            "content": user_prompt,
+        },
+    ]
+
+    response = llm_call(
+        json.dumps(messages, indent=2),
+        temperature=0.0,
+        response_format={
+            "type": "json_object"
+        },
+        is_local=is_local,
+        chat_url=chat_url,
+        client=client,
+        model=model,
+    )
+
+    response = response.strip()
+
+    try:
+        return json.loads(response)
+
+    except json.JSONDecodeError as e:
+        raise ValueError(
+            f"LLM returned invalid JSON:\n{response}"
+        ) from e
+
+
+# ============================================================================
+# Security group extraction
+# ============================================================================
+
+def _extract_security_group(
+    rule,
+    security_groups,
+    is_local,
+    chat_url=None,
+    client=None,
+    model=None,
+):
+    system_prompt = """
+You extract the security group from a natural language access rule.
+
+You MUST NOT validate the group against any external knowledge.
+
+Return ONLY JSON:
+
+{
+  "security_group": null
+}
+
+If a security group or role is explicitly mentioned, return its exact
+meaning as a string.
+
+Do not invent a group.
+
+If no group can be identified, return null.
+"""
+
+    result = _llm_json(
+        system_prompt,
+        (
+            "Available security groups are:\n"
+            f"{json.dumps(security_groups, indent=2)}\n\n"
+            "Rule:\n"
+            f"{rule}"
+        ),
+        is_local=is_local,
+        chat_url=chat_url,
+        client=client,
+        model=model,
+    )
+
+    group = result.get("security_group")
+
+    if not group:
+        return {
+            "security_group": None,
+            "existSecureGroup": False,
+            "feedback": (
+                "No security group could be identified in the request."
+            ),
+        }
+
+    # Deterministic validation.
+    if group in security_groups:
+        return {
+            "security_group": group,
+            "existSecureGroup": True,
+            "feedback": "",
+        }
+
+    return {
+        "security_group": group,
+        "existSecureGroup": False,
+        "feedback": (
+            f"The security group '{group}' does not exist. "
+            f"Available security groups are: "
+            f"{', '.join(repr(x) for x in security_groups)}."
+        ),
+    }
+
+
+# ============================================================================
+# Resource extraction
+# ============================================================================
+
+def _extract_resource(
+    rule,
+    data_mesh_structure,
+    is_local,
+    chat_url=None,
+    client=None,
+    model=None,
+):
+    system_prompt = """
+You extract the requested data resource from a natural language rule.
+
+The resource may contain:
+
+- catalog
+- schema
+- table
+- column
+
+Return ONLY JSON with exactly this structure:
+
+{
+  "catalog": null,
+  "schema": null,
+  "table": null,
+  "column": null
+}
+
+Rules:
+
+1. Extract only resources explicitly present or clearly implied by the rule.
+2. Do not invent names.
+3. Do not validate whether the resource exists.
+4. Do not replace an invalid name with a valid one.
+5. Preserve the user's requested resource exactly.
+6. A schema-only request may have catalog and schema but no table.
+7. A table request should normally contain catalog, schema and table.
+8. A column request should contain catalog, schema, table and column.
+
+Return null for values that are not present.
+"""
+
+    result = _llm_json(
+        system_prompt,
+        (
+            "Data Mesh Structure:\n"
+            f"{json.dumps(data_mesh_structure, indent=2)}\n\n"
+            "Rule:\n"
+            f"{rule}"
+        ),
+        is_local=is_local,
+        chat_url=chat_url,
+        client=client,
+        model=model,
+    )
+
+    return {
+        "catalog": result.get("catalog"),
+        "schema": result.get("schema"),
+        "table": result.get("table"),
+        "column": result.get("column"),
+    }
+
+
+# ============================================================================
+# Data Mesh traversal
+# ============================================================================
+
+def _find_catalog(data_mesh_structure, catalog_name):
+    """
+    Expected structure:
+
+    {
+        "catalogs": [
+            {
+                "name": "iceberg",
+                "schemas": [...]
+            }
+        ]
+    }
+    """
+
+    if not isinstance(data_mesh_structure, dict):
+        return None
+
+    catalogs = data_mesh_structure.get("catalogs", [])
+
+    if not isinstance(catalogs, list):
+        return None
+
+    for catalog in catalogs:
+        if not isinstance(catalog, dict):
+            continue
+
+        if catalog.get("name") == catalog_name:
+            return catalog
+
+    return None
+
+
+def _find_schema(catalog, schema_name):
+    if not isinstance(catalog, dict):
+        return None
+
+    schemas = catalog.get("schemas", [])
+
+    if not isinstance(schemas, list):
+        return None
+
+    for schema in schemas:
+        if not isinstance(schema, dict):
+            continue
+
+        if schema.get("name") == schema_name:
+            return schema
+
+    return None
+
+
+def _find_table(schema, table_name):
+    if not isinstance(schema, dict):
+        return None
+
+    tables = schema.get("tables", [])
+
+    if not isinstance(tables, list):
+        return None
+
+    for table in tables:
+        if not isinstance(table, dict):
+            continue
+
+        if table.get("name") == table_name:
+            return table
+
+    return None
+
+
+def _validate_resource_path(
+    resource,
+    data_mesh_structure,
+):
+    catalog_name = resource.get("catalog")
+    schema_name = resource.get("schema")
+    table_name = resource.get("table")
+    column_name = resource.get("column")
+
+    # ------------------------------------------------------------
+    # No resource at all
+    # ------------------------------------------------------------
+
+    if not any(
+        [
+            catalog_name,
+            schema_name,
+            table_name,
+            column_name,
+        ]
+    ):
+        return {
+            "valid": True,
+            "feedback": "",
+        }
+
+    # ------------------------------------------------------------
+    # Catalog
+    # ------------------------------------------------------------
+
+    if catalog_name:
+        catalog = _find_catalog(
+            data_mesh_structure,
+            catalog_name,
+        )
+
+        if catalog is None:
+            catalogs = data_mesh_structure.get(
+                "catalogs",
+                [],
+            )
+
+            available = [
+                c.get("name")
+                for c in catalogs
+                if isinstance(c, dict)
+                and c.get("name")
+            ]
+
+            return {
+                "valid": False,
+                "feedback": (
+                    f"The catalog '{catalog_name}' does not exist. "
+                    f"Available catalogs are: "
+                    f"{', '.join(repr(x) for x in available)}."
+                ),
+            }
+
+    else:
+        return {
+            "valid": False,
+            "feedback": (
+                "The request contains a resource but no catalog "
+                "could be identified."
+            ),
+        }
+
+    # ------------------------------------------------------------
+    # Schema
+    # ------------------------------------------------------------
+
+    if schema_name:
+        schema = _find_schema(
+            catalog,
+            schema_name,
+        )
+
+        if schema is None:
+            available = [
+                s.get("name")
+                for s in catalog.get("schemas", [])
+                if isinstance(s, dict)
+                and s.get("name")
+            ]
+
+            return {
+                "valid": False,
+                "feedback": (
+                    f"The schema '{schema_name}' does not exist "
+                    f"in catalog '{catalog_name}'. "
+                    f"Available schemas are: "
+                    f"{', '.join(repr(x) for x in available)}."
+                ),
+            }
+
+    else:
+        # Catalog-only request is valid.
+        return {
+            "valid": True,
+            "feedback": "",
+        }
+
+    # ------------------------------------------------------------
+    # Table
+    # ------------------------------------------------------------
+
+    if table_name:
+        table = _find_table(
+            schema,
+            table_name,
+        )
+
+        if table is None:
+            available = [
+                t.get("name")
+                for t in schema.get("tables", [])
+                if isinstance(t, dict)
+                and t.get("name")
+            ]
+
+            return {
+                "valid": False,
+                "feedback": (
+                    f"The table '{table_name}' does not exist "
+                    f"in catalog '{catalog_name}', "
+                    f"schema '{schema_name}'. "
+                    f"Available tables are: "
+                    f"{', '.join(repr(x) for x in available)}."
+                ),
+            }
+
+    else:
+        # Schema-only request is valid.
+        return {
+            "valid": True,
+            "feedback": "",
+        }
+
+    # ------------------------------------------------------------
+    # Column
+    # ------------------------------------------------------------
+
+    if column_name:
+        columns = table.get(
+            "columns",
+            [],
+        )
+
+        column_names = []
+
+        for column in columns:
+            if isinstance(column, dict):
+                name = column.get("name")
+                if name:
+                    column_names.append(name)
+
+            elif isinstance(column, str):
+                column_names.append(column)
+
+        if column_name not in column_names:
+            return {
+                "valid": False,
+                "feedback": (
+                    f"The column '{column_name}' does not exist "
+                    f"in catalog '{catalog_name}', "
+                    f"schema '{schema_name}', "
+                    f"table '{table_name}'. "
+                    f"Available columns are: "
+                    f"{', '.join(repr(x) for x in column_names)}."
+                ),
+            }
+
+    return {
+        "valid": True,
+        "feedback": "",
+    }
+
+
+# ============================================================================
+# Action extraction
+# ============================================================================
+
+def _extract_actions(
+    rule,
+    available_actions,
+    is_local,
+    chat_url=None,
+    client=None,
+    model=None,
+):
+    system_prompt = """
+You identify the intended operation(s) in a natural language data access
+request.
+
+Available actions are supplied by the caller.
+
+IMPORTANT:
+
+- Do not invent actions.
+- Do not assume any action not present in Available Actions.
+- Do not treat Available Actions as a permission mapping.
+- First understand what the user wants.
+- Then map that intent to the closest action(s) from the supplied list.
+- If no supplied action represents the intent, return null for that intent.
+- A request may contain multiple operations.
+- "access", "read", "consult", "use", "look at" are generic language.
+  Do not invent an action merely because those words appear.
+
+Return ONLY JSON:
+
+{
+  "requested_actions": [
+    {
+      "intent": "<natural language operation>",
+      "action": null
+    }
+  ]
+}
+
+The action value MUST either:
+- be one of the supplied Available Actions
+- or be null if no supplied action represents the intent.
+"""
+
+    result = _llm_json(
+        system_prompt,
+        (
+            "Available Actions:\n"
+            f"{json.dumps(available_actions, indent=2)}\n\n"
+            "Rule:\n"
+            f"{rule}"
+        ),
+        is_local=is_local,
+        chat_url=chat_url,
+        client=client,
+        model=model,
+    )
+
+    requested_actions = result.get(
+        "requested_actions",
+        [],
+    )
+
+    if not isinstance(requested_actions, list):
+        requested_actions = []
+
+    return requested_actions
+
+
+# ============================================================================
+# Validate actions
+# ============================================================================
+
+def _validate_actions(
+    requested_actions,
+    available_actions,
+):
+    if not requested_actions:
+        return {
+            "valid": False,
+            "feedback": (
+                "No actionable operation could be identified "
+                "from the request."
+            ),
+        }
+
+    invalid = []
+    valid = []
+
+    for item in requested_actions:
+        if not isinstance(item, dict):
+            continue
+
+        intent = item.get(
+            "intent",
+            "",
+        )
+
+        action = item.get(
+            "action"
+        )
+
+        if action is None:
+            invalid.append(
+                {
+                    "intent": intent,
+                    "action": None,
+                }
+            )
+
+        elif action not in available_actions:
+            invalid.append(
+                {
+                    "intent": intent,
+                    "action": action,
+                }
+            )
+
+        else:
+            valid.append(action)
+
+    if invalid:
+        messages = []
+
+        for item in invalid:
+            if item["action"] is None:
+                messages.append(
+                    f"The requested operation '{item['intent']}' "
+                    f"could not be mapped to any available action."
+                )
+            else:
+                messages.append(
+                    f"The inferred action '{item['action']}' is not "
+                    f"in the available actions."
+                )
+
+        messages.append(
+            "Available actions are: "
+            + ", ".join(available_actions)
+        )
+
+        return {
+            "valid": False,
+            "feedback": " ".join(messages),
+        }
+
+    return {
+        "valid": True,
+        "feedback": "",
+    }
+
+
+# ============================================================================
+# Final explanation
+# ============================================================================
+
+def _generate_final_explanation(
+    rule,
+    security_group_result,
+    resource,
+    action_result,
+    path_result,
+    is_local,
+    chat_url=None,
+    client=None,
+    model=None,
+):
+    system_prompt = """
+You produce the final explanation for a validated Trino access request.
+
+Return ONLY JSON:
+
+{
+  "text": "",
+  "llm_feedback": ""
+}
+
+Rules:
+
+1. Describe the ORIGINAL request.
+2. Never silently correct the original request.
+3. If everything is valid, llm_feedback must be "".
+4. If something is invalid, explain all invalid parts.
+5. Use the extracted security group, resource and actions.
+6. Do not invent any information.
+7. Keep the explanation concise.
+"""
+
+    context = {
+        "rule": rule,
+        "security_group": security_group_result,
+        "resource": resource,
+        "actions": action_result,
+        "path_validation": path_result,
+    }
+
+    result = _llm_json(
+        system_prompt,
+        json.dumps(
+            context,
+            indent=2,
+        ),
+        is_local=is_local,
+        chat_url=chat_url,
+        client=client,
+        model=model,
+    )
+
+    return {
+        "text": result.get(
+            "text",
+            rule,
+        ),
+        "llm_feedback": result.get(
+            "llm_feedback",
+            "",
+        ),
+    }
+
+
+# ============================================================================
+# Main function
+# ============================================================================
 
 def llm_explain(
     rule,
@@ -72,500 +731,145 @@ def llm_explain(
     model=None,
     embedding_model=None,
 ):
-
-    # -----------------------------------------------------------------------
-    # Retrieve semantically similar examples
-    # -----------------------------------------------------------------------
-
-    examples = find_best_examples(
-        rule,
-        example_index,
-        is_local,
-        n=n,
-        embedding_url=embedding_url,
-        client=client,
-        embedding_model=embedding_model,
-    )
-
-    # -----------------------------------------------------------------------
-    # System prompt
-    # -----------------------------------------------------------------------
-
-    system_prompt = (
-        "You are an expert in Trino access policies.\n\n"
-
-        "Your task is to understand, explain and validate a user's natural "
-        "language Trino access request.\n\n"
-
-        "The user's request may describe an operation using natural language. "
-        "The user does NOT necessarily provide the exact Trino action name. "
-        "You must first understand what the user wants and then determine "
-        "which available Trino action best represents that intent.\n\n"
-
-        "You MUST independently validate three things:\n"
-        "1. Security group / subject\n"
-        "2. Data Mesh resource path\n"
-        "3. Requested / inferred Trino action\n\n"
-
-        "====================================================================\n"
-        "SOURCE OF TRUTH\n"
-        "====================================================================\n\n"
-
-        "The following sources are authoritative:\n\n"
-
-        "1. Existing Security Groups\n"
-        "   Valid subjects MUST exist in this list.\n\n"
-
-        "2. Existing Data Mesh Structure\n"
-        "   Valid catalogs, schemas, tables and columns MUST exist in this "
-        "structure.\n\n"
-
-        "3. Available Actions\n"
-        "   This is ONLY a list of valid Trino action names.\n"
-        "   Every action selected by you MUST exist in this list.\n\n"
-
-        "NEVER invent a catalog, schema, table, column, security group or "
-        "action.\n\n"
-
-        "====================================================================\n"
-        "IMPORTANT: AVAILABLE ACTIONS\n"
-        "====================================================================\n\n"
-
-        "Available Actions contains ONLY action names.\n\n"
-
-        "It is NOT a mapping between actions and permissions.\n"
-        "Do NOT assume that an action has permissions because of its name.\n"
-        "Do NOT invent additional actions.\n\n"
-
-        "For example, if Available Actions contains:\n"
-        "\"ShowSchemas\"\n"
-        "then ShowSchemas is valid.\n\n"
-
-        "If Available Actions does NOT contain:\n"
-        "\"SelectFromColumns\"\n"
-        "then SelectFromColumns is NOT valid, even if an example contains "
-        "that action.\n\n"
-
-        "====================================================================\n"
-        "UNDERSTAND USER INTENT BEFORE VALIDATING ACTION\n"
-        "====================================================================\n\n"
-
-        "The user may describe an action indirectly.\n"
-        "You must understand the intended operation before deciding whether "
-        "the action is valid.\n\n"
-
-        "Examples of natural language intent:\n\n"
-
-        "\"wants to see the schemas\"\n"
-        "-> intent may correspond to ShowSchemas\n\n"
-
-        "\"wants to see the tables\"\n"
-        "-> intent may correspond to ShowTables\n\n"
-
-        "\"wants to see the columns\"\n"
-        "-> intent may correspond to ShowColumns\n\n"
-
-        "\"wants to see how a table is created\"\n"
-        "-> intent may correspond to ShowCreateTable\n\n"
-
-        "\"wants to create a schema\"\n"
-        "-> intent may correspond to CreateSchema\n\n"
-
-        "\"wants to create a table\"\n"
-        "-> intent may correspond to CreateTable\n\n"
-
-        "\"wants to delete a table\"\n"
-        "-> intent may correspond to DropTable\n\n"
-
-        "\"wants to delete rows from a table\"\n"
-        "-> intent may correspond to DeleteFromTable\n\n"
-
-        "\"wants to insert data into a table\"\n"
-        "-> intent may correspond to InsertIntoTable\n\n"
-
-        "\"wants to update columns in a table\"\n"
-        "-> intent may correspond to UpdateTableColumns\n\n"
-
-        "\"wants to add a column\"\n"
-        "-> intent may correspond to AddColumn\n\n"
-
-        "\"wants to remove a column\"\n"
-        "-> intent may correspond to DropColumn\n\n"
-
-        "\"wants to rename a column\"\n"
-        "-> intent may correspond to RenameColumn\n\n"
-
-        "\"wants to truncate a table\"\n"
-        "-> intent may correspond to TruncateTable\n\n"
-
-        "These are examples of semantic interpretation only. "
-        "They are NOT permissions and MUST still be checked against "
-        "Available Actions.\n\n"
-
-        "If the user's wording is ambiguous, do not invent an action. "
-        "Use llm_feedback to explain what information is missing or suggest "
-        "the closest valid interpretation using ONLY Available Actions.\n\n"
-
-        "====================================================================\n"
-        "SPECIAL CASE: 'ACCESS' / 'READ' / 'CONSULT'\n"
-        "====================================================================\n\n"
-
-        "Words such as 'access', 'read', 'consult', 'use' or 'look at' do not "
-        "automatically correspond to a specific action.\n\n"
-
-        "You must inspect the object being accessed and the available actions.\n\n"
-
-        "For example:\n\n"
-
-        "\"The Finance Manager can access the finance schema.\"\n\n"
-
-        "means the user is referring to the schema resource, but the exact "
-        "operation must be inferred from the available actions.\n\n"
-
-        "If ShowSchemas is available, it may represent an intent to inspect "
-        "schemas.\n\n"
-
-        "If ShowCreateSchema is available and the user explicitly asks for "
-        "the schema definition, that action may be appropriate.\n\n"
-
-        "If no available action represents the requested operation, set "
-        "actionExist=false and explain the problem in llm_feedback.\n\n"
-
-        "Do NOT automatically assume that the generic word 'access' means "
-        "a nonexistent action called AccessSchema or AccessCatalog.\n\n"
-
-        "====================================================================\n"
-        "SECURITY GROUP VALIDATION\n"
-        "====================================================================\n\n"
-
-        "If the subject/security group does not exist:\n"
-        "- set existSecureGroup=false\n"
-        "- keep the original subject in text\n"
-        "- explain which security group is invalid\n"
-        "- use llm_feedback to suggest valid security groups\n"
-        "- use ONLY Existing Security Groups for corrections\n\n"
-
-        "If the security group exists:\n"
-        "- set existSecureGroup=true\n\n"
-
-        "====================================================================\n"
-        "RESOURCE VALIDATION\n"
-        "====================================================================\n\n"
-
-        "Validate catalogs, schemas, tables and columns hierarchically.\n\n"
-
-        "A valid path must exist exactly in Data Mesh Structure.\n\n"
-
-        "For example:\n\n"
-
-        "iceberg.hr.employees\n\n"
-
-        "is valid because:\n"
-        "catalog iceberg exists\n"
-        "schema hr exists inside iceberg\n"
-        "table employees exists inside iceberg.hr\n\n"
-
-        "If a column is specified, it must exist inside the specified table.\n\n"
-
-        "If the catalog does not exist:\n"
-        "- set pathExistOnDataMeshStructure=false\n"
-        "- explain the invalid catalog\n"
-        "- suggest valid catalogs\n\n"
-
-        "If the schema does not exist inside the specified catalog:\n"
-        "- set pathExistOnDataMeshStructure=false\n"
-        "- explain the invalid schema\n"
-        "- suggest schemas from that catalog\n\n"
-
-        "If the table does not exist inside the specified catalog/schema:\n"
-        "- set pathExistOnDataMeshStructure=false\n"
-        "- explain the invalid table\n"
-        "- suggest valid tables from that location\n\n"
-
-        "If the column does not exist inside the specified table:\n"
-        "- set pathExistOnDataMeshStructure=false\n"
-        "- explain the invalid column\n"
-        "- suggest valid columns from that table\n\n"
-
-        "Do NOT silently replace invalid resources in text.\n"
-        "The original request must remain represented in text.\n"
-        "Corrections belong in llm_feedback.\n\n"
-
-        "====================================================================\n"
-        "ACTION VALIDATION\n"
-        "====================================================================\n\n"
-
-        "After understanding the user's intent, determine the intended "
-        "Trino action.\n\n"
-
-        "If the intended action exists in Available Actions:\n"
-        "- set actionExist=true\n\n"
-
-        "If the intended action does NOT exist in Available Actions:\n"
-        "- set actionExist=false\n"
-        "- explain which action the request appears to require\n"
-        "- use llm_feedback to suggest the closest valid action(s) from "
-        "Available Actions\n\n"
-
-        "IMPORTANT:\n"
-        "Do not mark an action as valid merely because the user's natural "
-        "language sounds reasonable.\n"
-        "The final action MUST exist literally in Available Actions.\n\n"
-
-        "====================================================================\n"
-        "LLM FEEDBACK\n"
-        "====================================================================\n\n"
-
-        "llm_feedback is the correction channel.\n\n"
-
-        "If everything is valid:\n"
-        "\"llm_feedback\": \"\"\n\n"
-
-        "If something is invalid, llm_feedback must help the client correct "
-        "the request.\n\n"
-
-        "If multiple things are invalid, explain ALL of them.\n\n"
-
-        "For example:\n\n"
-
-        "The Guest wants to query iceberg.finance.asset.\n\n"
-
-        "If Guest is invalid and asset does not exist, feedback should explain "
-        "both problems and suggest valid alternatives.\n\n"
-
-        "====================================================================\n"
-        "OUTPUT FORMAT\n"
-        "====================================================================\n\n"
-
-        "Return ONLY a valid JSON object.\n"
-        "Do not return markdown.\n"
-        "Do not use ```.\n"
-        "Do not return explanations outside JSON.\n\n"
-
-        "The JSON MUST have exactly these fields:\n\n"
-
-        "{\n"
-        '  "text": "<explanation of the original request>",\n'
-        '  "existSecureGroup": true,\n'
-        '  "pathExistOnDataMeshStructure": true,\n'
-        '  "actionExist": true,\n'
-        '  "llm_feedback": ""\n'
-        "}\n\n"
-
-        "The llm_feedback field MUST always exist.\n\n"
-
-        "====================================================================\n"
-        "TEXT FIELD\n"
-        "====================================================================\n\n"
-
-        "The text field describes what you understood from the ORIGINAL "
-        "request.\n\n"
-
-        "Do NOT silently correct the request inside text.\n\n"
-
-        "For example, if the user says:\n"
-        "\"The Finance Manager wants to query iceberg.finance.asset.\"\n\n"
-
-        "and asset does not exist, text should still describe asset as the "
-        "requested table.\n\n"
-
-        "The correction belongs in llm_feedback.\n\n"
-
-        "====================================================================\n"
-        "EXPLANATION STYLE\n"
-        "====================================================================\n\n"
-
-        "When a catalog.schema.table is present, explain it explicitly as:\n"
-        "catalog: <catalog>, schema: <schema>, table: <table>.\n\n"
-
-        "When a column is present, also mention the column.\n\n"
-
-        "====================================================================\n"
-        "EXAMPLE\n"
-        "====================================================================\n\n"
-
-        "Suppose the request is:\n"
-        "\"The Analyst wants to query iceberg.sales.orders.\"\n\n"
-
-        "and iceberg contains only hr and finance.\n\n"
-
-        "A correct response is:\n\n"
-
-        "{\n"
-        '  "text": "The Analyst wants to query catalog iceberg, schema sales, table orders.",\n'
-        '  "existSecureGroup": true,\n'
-        '  "pathExistOnDataMeshStructure": false,\n'
-        '  "actionExist": true,\n'
-        '  "llm_feedback": "The schema \'sales\' does not exist in catalog \'iceberg\'. The available schemas are \'hr\' and \'finance\'. Correct the request by selecting a valid schema."\n'
-        "}\n\n"
-
-        "====================================================================\n"
-        "AUTHORITATIVE DATA\n"
-        "====================================================================\n\n"
-
-        "### Existing Security Groups\n"
-        f"{json.dumps(security_groups, indent=2)}\n\n"
-
-        "### Available Actions\n"
-        "This is ONLY a list of valid action names.\n"
-        "Do NOT interpret it as a mapping of permissions.\n"
-        f"{json.dumps(available_actions, indent=2)}\n\n"
-
-        "### Existing Data Mesh Structure\n"
-        f"{json.dumps(data_mesh_structure, indent=2)}\n"
-    )
-
-    messages = [
-        {
-            "role": "system",
-            "content": system_prompt,
-        }
-    ]
-
-    # -----------------------------------------------------------------------
-    # Retrieved examples
-    # -----------------------------------------------------------------------
-
-    for example in examples:
-
-        messages.append({
-            "role": "system",
-            "content": (
-                "The following is a retrieved example.\n\n"
-                "It is provided ONLY to demonstrate explanation style and "
-                "natural-language interpretation.\n\n"
-                "IMPORTANT:\n"
-                "- Do NOT copy its catalogs.\n"
-                "- Do NOT copy its schemas.\n"
-                "- Do NOT copy its tables.\n"
-                "- Do NOT copy its columns.\n"
-                "- Do NOT copy its security groups unless independently "
-                "present in the current Security Groups list.\n"
-                "- Do NOT copy its actions unless independently present in "
-                "the current Available Actions list.\n"
-                "- The current Data Mesh Structure, Security Groups and "
-                "Available Actions always have priority over this example."
-            ),
-        })
-
-        messages.append({
-            "role": "user",
-            "content": example["input"]["rule"],
-        })
-
-        # ---------------------------------------------------------------
-        # IMPORTANT:
-        # Do not blindly inject old example action vocabulary.
-        # Only provide the example explanation as style reference.
-        # ---------------------------------------------------------------
-
-        messages.append({
-            "role": "assistant",
-            "content": json.dumps(
-                example["explanation"],
-                indent=2,
-            ),
-        })
-
-    # -----------------------------------------------------------------------
-    # Current rule
-    # -----------------------------------------------------------------------
-
-    messages.append({
-        "role": "user",
-        "content": (
-            "Analyze the following NEW client request.\n\n"
-
-            "Rule:\n"
-            f"{rule}\n\n"
-
-            "Follow this order:\n"
-            "1. Understand what the client wants.\n"
-            "2. Identify the security group.\n"
-            "3. Identify catalog/schema/table/column if present.\n"
-            "4. Infer the intended Trino action from the natural language.\n"
-            "5. Check the inferred action against Available Actions.\n"
-            "6. Check the resource path against Data Mesh Structure.\n"
-            "7. Check the security group against Existing Security Groups.\n"
-            "8. Put any corrections in llm_feedback.\n\n"
-
-            "Do not use examples as a source of truth.\n"
-            "Use only the authoritative data supplied in the system prompt.\n\n"
-
-            "If the request is valid, llm_feedback MUST be an empty string.\n\n"
-
-            "If the request is invalid, do not simply reject it. "
-            "Explain the problem and help the client formulate a valid "
-            "request using only valid security groups, resources and actions."
-        ),
-    })
-
-    # -----------------------------------------------------------------------
-    # Call LLM
-    # -----------------------------------------------------------------------
-
-    prompt = json.dumps(
-        messages,
-        indent=2,
-    )
-
-    response = llm_call(
-        prompt,
-        temperature=0.0,
-        response_format={
-            "type": "json_object"
-        },
+    # ------------------------------------------------------------------------
+    # Retrieve examples.
+    #
+    # Examples are used ONLY as semantic/contextual references.
+    # They are NEVER authoritative.
+    # ------------------------------------------------------------------------
+
+    examples = []
+
+    if example_index:
+        examples = find_best_examples(
+            rule,
+            example_index,
+            is_local,
+            n=n,
+            embedding_url=embedding_url,
+            client=client,
+            embedding_model=embedding_model,
+        )
+
+    # ------------------------------------------------------------------------
+    # 1. Security group
+    # ------------------------------------------------------------------------
+
+    security_group_result = _extract_security_group(
+        rule=rule,
+        security_groups=security_groups,
         is_local=is_local,
         chat_url=chat_url,
         client=client,
         model=model,
     )
 
-    response = response.strip()
+    # ------------------------------------------------------------------------
+    # 2. Resource
+    # ------------------------------------------------------------------------
 
-    # -----------------------------------------------------------------------
-    # Parse JSON
-    # -----------------------------------------------------------------------
+    resource = _extract_resource(
+        rule=rule,
+        data_mesh_structure=data_mesh_structure,
+        is_local=is_local,
+        chat_url=chat_url,
+        client=client,
+        model=model,
+    )
 
-    try:
+    # ------------------------------------------------------------------------
+    # 3. Deterministic Data Mesh validation
+    #
+    # IMPORTANT:
+    # The LLM extracts the path.
+    # Python validates the path.
+    # ------------------------------------------------------------------------
 
-        result = json.loads(
-            response
+    path_result = _validate_resource_path(
+        resource,
+        data_mesh_structure,
+    )
+
+    # ------------------------------------------------------------------------
+    # 4. Action interpretation
+    # ------------------------------------------------------------------------
+
+    requested_actions = _extract_actions(
+        rule=rule,
+        available_actions=available_actions,
+        is_local=is_local,
+        chat_url=chat_url,
+        client=client,
+        model=model,
+    )
+
+    # ------------------------------------------------------------------------
+    # 5. Deterministic action validation
+    # ------------------------------------------------------------------------
+
+    action_result = _validate_actions(
+        requested_actions,
+        available_actions,
+    )
+
+    # ------------------------------------------------------------------------
+    # 6. Final explanation
+    # ------------------------------------------------------------------------
+
+    final = _generate_final_explanation(
+        rule=rule,
+        security_group_result=security_group_result,
+        resource=resource,
+        action_result=action_result,
+        path_result=path_result,
+        is_local=is_local,
+        chat_url=chat_url,
+        client=client,
+        model=model,
+    )
+
+    # ------------------------------------------------------------------------
+    # 7. Combine feedback
+    # ------------------------------------------------------------------------
+
+    feedback = []
+
+    if security_group_result["feedback"]:
+        feedback.append(
+            security_group_result["feedback"]
         )
 
-    except json.JSONDecodeError as e:
+    if path_result["feedback"]:
+        feedback.append(
+            path_result["feedback"]
+        )
 
-        raise ValueError(
-            f"LLM returned invalid JSON:\n{response}"
-        ) from e
+    if action_result["feedback"]:
+        feedback.append(
+            action_result["feedback"]
+        )
 
-    # -----------------------------------------------------------------------
-    # Guarantee required fields
-    # -----------------------------------------------------------------------
+    # Final LLM feedback is useful only if there are no deterministic
+    # validation errors.
+    if final["llm_feedback"]:
+        feedback.append(
+            final["llm_feedback"]
+        )
 
-    result.setdefault(
-        "text",
-        rule,
-    )
+    # ------------------------------------------------------------------------
+    # 8. Final result
+    # ------------------------------------------------------------------------
 
-    result.setdefault(
-        "existSecureGroup",
-        False,
-    )
-
-    result.setdefault(
-        "pathExistOnDataMeshStructure",
-        False,
-    )
-
-    result.setdefault(
-        "actionExist",
-        False,
-    )
-
-    result.setdefault(
-        "llm_feedback",
-        "",
-    )
-
-    return result
+    return {
+        "text": final["text"],
+        "existSecureGroup": security_group_result[
+            "existSecureGroup"
+        ],
+        "pathExistOnDataMeshStructure": path_result[
+            "valid"
+        ],
+        "actionExist": action_result[
+            "valid"
+        ],
+        "llm_feedback": " ".join(feedback),
+    }
