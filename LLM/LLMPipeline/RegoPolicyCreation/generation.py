@@ -174,6 +174,17 @@ def remove_duplicate_rego_default(opa_path):
                 ""
             )
 
+
+            content = content.replace(
+                "default batchColumnMasks := []\n",
+                ""
+            )
+
+            content = content.replace(
+                "default rowFilters := []\n",
+                ""
+            )
+
             with open(
                 file_path,
                 "w",
@@ -344,26 +355,15 @@ def process_rule(
         )
 
 
-        if not explanation.get(
-            "existSecureGroup",
-            False
-        ):
-
-            print(
-                "Skipping: invalid security group."
-            )
+        if not explanation.get( "existSecureGroup", False ):
+            print("Skipping: invalid security group.")
 
             return False, None
 
 
-        if not explanation.get(
-            "pathExistOnDataMeshStructure",
-            False
-        ):
+        if not explanation.get("pathExistOnDataMeshStructure", False):
 
-            print(
-                "Skipping: invalid data mesh path."
-            )
+            print("Skipping: invalid data mesh path.")
 
             return False, None
 
@@ -371,10 +371,7 @@ def process_rule(
 
     except Exception as e:
 
-        print(
-            "Explanation failed:",
-            e
-        )
+        print("Explanation failed:",e )
 
         return False, None
 
