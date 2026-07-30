@@ -36,12 +36,63 @@
         "Finance Manager",
         "HR Manager"
       ],
-      "rule": "The Analyst needs to consult the employee demographics dataset."
+      "availableActions": [
+        "AddColumn",
+        "AlterColumn",
+        "CreateMaterializedView",
+        "CreateSchema",
+        "CreateTable",
+        "CreateView",
+        "CreateViewWithSelectFromColumns",
+        "DeleteFromTable",
+        "DropColumn",
+        "DropMaterializedView",
+        "DropSchema",
+        "DropTable",
+        "DropView",
+        "InsertIntoTable",
+        "RefreshMaterializedView",
+        "RenameColumn",
+        "RenameMaterializedView",
+        "RenameSchema",
+        "RenameTable",
+        "RenameView",
+        "SetColumnComment",
+        "SetMaterializedViewProperties",
+        "SetSchemaAuthorization",
+        "SetSystemSessionProperty",
+        "SetTableComment",
+        "SetTableProperties",
+        "SetViewComment",
+        "ShowColumns",
+        "ShowCreateSchema",
+        "ShowCreateTable",
+        "ShowSchemas",
+        "ShowTables",
+        "TruncateTable",
+        "UpdateTableColumns"
+      ],
+      "rule": "The Analyst wants to see the employees table.",
+      "actions": [
+        "ShowTables"
+      ],
+      "resource": {
+        "catalogName": "iceberg",
+        "schemaName": "hr",
+        "tableName": "employees"
+      }
     },
     "explanation": {
-      "text": "The Analyst role should be allowed to execute SELECT statements on catalog: iceberg, schema: hr, table: employees.",
+      "text": "The Analyst wants to inspect table employees in catalog iceberg, schema hr.",
       "existSecureGroup": true,
-      "pathExistOnDataMeshStructure": true
+      "pathExistOnDataMeshStructure": true,
+      "actionExist": [
+        {
+          "action": "ShowTables",
+          "exists": true
+        }
+      ],
+      "llm_feedback": ""
     }
   },
   {
@@ -81,12 +132,68 @@
         "Finance Manager",
         "HR Manager"
       ],
-      "rule": "The Finance Manager wants to update the transactions table."
+      "availableActions": [
+        "AddColumn",
+        "AlterColumn",
+        "CreateMaterializedView",
+        "CreateSchema",
+        "CreateTable",
+        "CreateView",
+        "CreateViewWithSelectFromColumns",
+        "DeleteFromTable",
+        "DropColumn",
+        "DropMaterializedView",
+        "DropSchema",
+        "DropTable",
+        "DropView",
+        "InsertIntoTable",
+        "RefreshMaterializedView",
+        "RenameColumn",
+        "RenameMaterializedView",
+        "RenameSchema",
+        "RenameTable",
+        "RenameView",
+        "SetColumnComment",
+        "SetMaterializedViewProperties",
+        "SetSchemaAuthorization",
+        "SetSystemSessionProperty",
+        "SetTableComment",
+        "SetTableProperties",
+        "SetViewComment",
+        "ShowColumns",
+        "ShowCreateSchema",
+        "ShowCreateTable",
+        "ShowSchemas",
+        "ShowTables",
+        "TruncateTable",
+        "UpdateTableColumns"
+      ],
+      "rule": "The Finance Manager wants to update the transactions table and select data from it.",
+      "actions": [
+        "UpdateTableColumns",
+        "SelectFromColumns"
+      ],
+      "resource": {
+        "catalogName": "iceberg",
+        "schemaName": "finance",
+        "tableName": "transactions"
+      }
     },
     "explanation": {
-      "text": "The Finance Manager role can UPDATE records in catalog: iceberg, schema: finance, table: account.",
+      "text": "The Finance Manager wants to update and read data from table transactions in catalog iceberg, schema finance.",
       "existSecureGroup": true,
-      "pathExistOnDataMeshStructure": true
+      "pathExistOnDataMeshStructure": true,
+      "actionExist": [
+        {
+          "action": "UpdateTableColumns",
+          "exists": true
+        },
+        {
+          "action": "SelectFromColumns",
+          "exists": false
+        }
+      ],
+      "llm_feedback": "The request contains two actions. UpdateTableColumns is available, but SelectFromColumns is not present in availableActions. If the intention is to query the table, use a supported read action such as ShowTables, ShowColumns, or another action explicitly provided by the authorization model."
     }
   },
   {
@@ -126,12 +233,68 @@
         "Finance Manager",
         "HR Manager"
       ],
-      "rule": "The Finance Manager wants to query the asset table."
+      "availableActions": [
+        "AddColumn",
+        "AlterColumn",
+        "CreateMaterializedView",
+        "CreateSchema",
+        "CreateTable",
+        "CreateView",
+        "CreateViewWithSelectFromColumns",
+        "DeleteFromTable",
+        "DropColumn",
+        "DropMaterializedView",
+        "DropSchema",
+        "DropTable",
+        "DropView",
+        "InsertIntoTable",
+        "RefreshMaterializedView",
+        "RenameColumn",
+        "RenameMaterializedView",
+        "RenameSchema",
+        "RenameTable",
+        "RenameView",
+        "SetColumnComment",
+        "SetMaterializedViewProperties",
+        "SetSchemaAuthorization",
+        "SetSystemSessionProperty",
+        "SetTableComment",
+        "SetTableProperties",
+        "SetViewComment",
+        "ShowColumns",
+        "ShowCreateSchema",
+        "ShowCreateTable",
+        "ShowSchemas",
+        "ShowTables",
+        "TruncateTable",
+        "UpdateTableColumns"
+      ],
+      "rule": "The Finance Manager wants to update the transactions table and delete records from it.",
+      "actions": [
+        "UpdateTableColumns",
+        "DeleteFromTable"
+      ],
+      "resource": {
+        "catalogName": "iceberg",
+        "schemaName": "finance",
+        "tableName": "transactions"
+      }
     },
     "explanation": {
-      "text": "Invalid request: table asset does not exist in catalog iceberg, schema finance.",
+      "text": "The Finance Manager wants to update table transactions and delete records from the same table in catalog iceberg, schema finance.",
       "existSecureGroup": true,
-      "pathExistOnDataMeshStructure": false
+      "pathExistOnDataMeshStructure": true,
+      "actionExist": [
+        {
+          "action": "UpdateTableColumns",
+          "exists": true
+        },
+        {
+          "action": "DeleteFromTable",
+          "exists": true
+        }
+      ],
+      "llm_feedback": ""
     }
   },
   {
@@ -171,12 +334,73 @@
         "Finance Manager",
         "HR Manager"
       ],
-      "rule": "The Analyst wants to query iceberg.sales.orders."
+      "availableActions": [
+        "AddColumn",
+        "AlterColumn",
+        "CreateMaterializedView",
+        "CreateSchema",
+        "CreateTable",
+        "CreateView",
+        "CreateViewWithSelectFromColumns",
+        "DeleteFromTable",
+        "DropColumn",
+        "DropMaterializedView",
+        "DropSchema",
+        "DropTable",
+        "DropView",
+        "InsertIntoTable",
+        "RefreshMaterializedView",
+        "RenameColumn",
+        "RenameMaterializedView",
+        "RenameSchema",
+        "RenameTable",
+        "RenameView",
+        "SetColumnComment",
+        "SetMaterializedViewProperties",
+        "SetSchemaAuthorization",
+        "SetSystemSessionProperty",
+        "SetTableComment",
+        "SetTableProperties",
+        "SetViewComment",
+        "ShowColumns",
+        "ShowCreateSchema",
+        "ShowCreateTable",
+        "ShowSchemas",
+        "ShowTables",
+        "TruncateTable",
+        "UpdateTableColumns"
+      ],
+      "rule": "The Finance Manager wants to update the transactions table, delete records from it, and inspect its columns.",
+      "actions": [
+        "UpdateTableColumns",
+        "DeleteFromTable",
+        "ShowColumns"
+      ],
+      "resource": {
+        "catalogName": "iceberg",
+        "schemaName": "finance",
+        "tableName": "transactions"
+      }
     },
     "explanation": {
-      "text": "Invalid request: schema sales does not exist in catalog iceberg.",
+      "text": "The Finance Manager wants to update transactions, delete records from transactions, and inspect its columns.",
       "existSecureGroup": true,
-      "pathExistOnDataMeshStructure": false
+      "pathExistOnDataMeshStructure": true,
+      "actionExist": [
+        {
+          "action": "UpdateTableColumns",
+          "exists": true
+        },
+        {
+          "action": "DeleteFromTable",
+          "exists": true
+        },
+        {
+          "action": "ShowColumns",
+          "exists": true
+        }
+      ],
+      "llm_feedback": ""
     }
   },
   {
@@ -216,12 +440,68 @@
         "Finance Manager",
         "HR Manager"
       ],
-      "rule": "The Analyst wants to query mysql.hr.employees."
+      "availableActions": [
+        "AddColumn",
+        "AlterColumn",
+        "CreateMaterializedView",
+        "CreateSchema",
+        "CreateTable",
+        "CreateView",
+        "CreateViewWithSelectFromColumns",
+        "DeleteFromTable",
+        "DropColumn",
+        "DropMaterializedView",
+        "DropSchema",
+        "DropTable",
+        "DropView",
+        "InsertIntoTable",
+        "RefreshMaterializedView",
+        "RenameColumn",
+        "RenameMaterializedView",
+        "RenameSchema",
+        "RenameTable",
+        "RenameView",
+        "SetColumnComment",
+        "SetMaterializedViewProperties",
+        "SetSchemaAuthorization",
+        "SetSystemSessionProperty",
+        "SetTableComment",
+        "SetTableProperties",
+        "SetViewComment",
+        "ShowColumns",
+        "ShowCreateSchema",
+        "ShowCreateTable",
+        "ShowSchemas",
+        "ShowTables",
+        "TruncateTable",
+        "UpdateTableColumns"
+      ],
+      "rule": "The Finance Manager wants to query the transactions table and update it.",
+      "actions": [
+        "ShowColumns",
+        "UpdateTableColumns"
+      ],
+      "resource": {
+        "catalogName": "iceberg",
+        "schemaName": "finance",
+        "tableName": "transactions"
+      }
     },
     "explanation": {
-      "text": "Invalid request: catalog mysql does not exist.",
+      "text": "The Finance Manager wants to inspect and update table transactions in catalog iceberg, schema finance.",
       "existSecureGroup": true,
-      "pathExistOnDataMeshStructure": false
+      "pathExistOnDataMeshStructure": true,
+      "actionExist": [
+        {
+          "action": "ShowColumns",
+          "exists": true
+        },
+        {
+          "action": "UpdateTableColumns",
+          "exists": true
+        }
+      ],
+      "llm_feedback": ""
     }
   },
   {
@@ -261,12 +541,68 @@
         "Finance Manager",
         "HR Manager"
       ],
-      "rule": "The HR Manager wants to read the address column from iceberg.hr.employees."
+      "availableActions": [
+        "AddColumn",
+        "AlterColumn",
+        "CreateMaterializedView",
+        "CreateSchema",
+        "CreateTable",
+        "CreateView",
+        "CreateViewWithSelectFromColumns",
+        "DeleteFromTable",
+        "DropColumn",
+        "DropMaterializedView",
+        "DropSchema",
+        "DropTable",
+        "DropView",
+        "InsertIntoTable",
+        "RefreshMaterializedView",
+        "RenameColumn",
+        "RenameMaterializedView",
+        "RenameSchema",
+        "RenameTable",
+        "RenameView",
+        "SetColumnComment",
+        "SetMaterializedViewProperties",
+        "SetSchemaAuthorization",
+        "SetSystemSessionProperty",
+        "SetTableComment",
+        "SetTableProperties",
+        "SetViewComment",
+        "ShowColumns",
+        "ShowCreateSchema",
+        "ShowCreateTable",
+        "ShowSchemas",
+        "ShowTables",
+        "TruncateTable",
+        "UpdateTableColumns"
+      ],
+      "rule": "The Analyst wants to inspect employees and delete records from it.",
+      "actions": [
+        "ShowColumns",
+        "DeleteFromTable"
+      ],
+      "resource": {
+        "catalogName": "iceberg",
+        "schemaName": "hr",
+        "tableName": "employees"
+      }
     },
     "explanation": {
-      "text": "Invalid request: column address does not exist in catalog iceberg, schema hr, table employees.",
+      "text": "The Analyst wants to inspect the columns of employees and delete records from the same table.",
       "existSecureGroup": true,
-      "pathExistOnDataMeshStructure": false
+      "pathExistOnDataMeshStructure": true,
+      "actionExist": [
+        {
+          "action": "ShowColumns",
+          "exists": true
+        },
+        {
+          "action": "DeleteFromTable",
+          "exists": true
+        }
+      ],
+      "llm_feedback": ""
     }
   },
   {
@@ -306,12 +642,371 @@
         "Finance Manager",
         "HR Manager"
       ],
-      "rule": "The Intern wants to query iceberg.hr.employees."
+      "availableActions": [
+        "AddColumn",
+        "AlterColumn",
+        "CreateMaterializedView",
+        "CreateSchema",
+        "CreateTable",
+        "CreateView",
+        "CreateViewWithSelectFromColumns",
+        "DeleteFromTable",
+        "DropColumn",
+        "DropMaterializedView",
+        "DropSchema",
+        "DropTable",
+        "DropView",
+        "InsertIntoTable",
+        "RefreshMaterializedView",
+        "RenameColumn",
+        "RenameMaterializedView",
+        "RenameSchema",
+        "RenameTable",
+        "RenameView",
+        "SetColumnComment",
+        "SetMaterializedViewProperties",
+        "SetSchemaAuthorization",
+        "SetSystemSessionProperty",
+        "SetTableComment",
+        "SetTableProperties",
+        "SetViewComment",
+        "ShowColumns",
+        "ShowCreateSchema",
+        "ShowCreateTable",
+        "ShowSchemas",
+        "ShowTables",
+        "TruncateTable",
+        "UpdateTableColumns"
+      ],
+      "rule": "The Analyst wants to drop employees and inspect its columns.",
+      "actions": [
+        "DropTable",
+        "ShowColumns"
+      ],
+      "resource": {
+        "catalogName": "iceberg",
+        "schemaName": "hr",
+        "tableName": "employees"
+      }
     },
     "explanation": {
-      "text": "Invalid request: security group Intern does not exist.",
+      "text": "The Analyst wants to drop table employees and inspect its columns.",
+      "existSecureGroup": true,
+      "pathExistOnDataMeshStructure": true,
+      "actionExist": [
+        {
+          "action": "DropTable",
+          "exists": true
+        },
+        {
+          "action": "ShowColumns",
+          "exists": true
+        }
+      ],
+      "llm_feedback": ""
+    }
+  },
+  {
+    "input": {
+      "dataMeshStructure": {
+        "iceberg": {
+          "hr": {
+            "employees": [
+              "employee_id",
+              "name",
+              "department",
+              "salary"
+            ]
+          },
+          "finance": {
+            "transactions": [
+              "transaction_id",
+              "amount",
+              "currency"
+            ]
+          }
+        },
+        "hive": {
+          "sales": {
+            "orders": [
+              "order_id",
+              "customer_id",
+              "total"
+            ]
+          }
+        }
+      },
+      "securityGroups": [
+        "Admin",
+        "Analyst",
+        "Data Engineer",
+        "Finance Manager",
+        "HR Manager"
+      ],
+      "availableActions": [
+        "AddColumn",
+        "AlterColumn",
+        "CreateMaterializedView",
+        "CreateSchema",
+        "CreateTable",
+        "CreateView",
+        "CreateViewWithSelectFromColumns",
+        "DeleteFromTable",
+        "DropColumn",
+        "DropMaterializedView",
+        "DropSchema",
+        "DropTable",
+        "DropView",
+        "InsertIntoTable",
+        "RefreshMaterializedView",
+        "RenameColumn",
+        "RenameMaterializedView",
+        "RenameSchema",
+        "RenameTable",
+        "RenameView",
+        "SetColumnComment",
+        "SetMaterializedViewProperties",
+        "SetSchemaAuthorization",
+        "SetSystemSessionProperty",
+        "SetTableComment",
+        "SetTableProperties",
+        "SetViewComment",
+        "ShowColumns",
+        "ShowCreateSchema",
+        "ShowCreateTable",
+        "ShowSchemas",
+        "ShowTables",
+        "TruncateTable",
+        "UpdateTableColumns"
+      ],
+      "rule": "The Finance Manager wants to update transactions and perform an unsupported operation on it.",
+      "actions": [
+        "UpdateTableColumns",
+        "UnsupportedAction"
+      ],
+      "resource": {
+        "catalogName": "iceberg",
+        "schemaName": "finance",
+        "tableName": "transactions"
+      }
+    },
+    "explanation": {
+      "text": "The Finance Manager wants to update transactions and perform an unsupported operation on the same table.",
+      "existSecureGroup": true,
+      "pathExistOnDataMeshStructure": true,
+      "actionExist": [
+        {
+          "action": "UpdateTableColumns",
+          "exists": true
+        },
+        {
+          "action": "UnsupportedAction",
+          "exists": false
+        }
+      ],
+      "llm_feedback": "The request contains an unsupported action. UpdateTableColumns is valid, but UnsupportedAction is not present in availableActions."
+    }
+  },
+  {
+    "input": {
+      "dataMeshStructure": {
+        "iceberg": {
+          "hr": {
+            "employees": [
+              "employee_id",
+              "name",
+              "department",
+              "salary"
+            ]
+          },
+          "finance": {
+            "transactions": [
+              "transaction_id",
+              "amount",
+              "currency"
+            ]
+          }
+        },
+        "hive": {
+          "sales": {
+            "orders": [
+              "order_id",
+              "customer_id",
+              "total"
+            ]
+          }
+        }
+      },
+      "securityGroups": [
+        "Admin",
+        "Analyst",
+        "Data Engineer",
+        "Finance Manager",
+        "HR Manager"
+      ],
+      "availableActions": [
+        "AddColumn",
+        "AlterColumn",
+        "CreateMaterializedView",
+        "CreateSchema",
+        "CreateTable",
+        "CreateView",
+        "CreateViewWithSelectFromColumns",
+        "DeleteFromTable",
+        "DropColumn",
+        "DropMaterializedView",
+        "DropSchema",
+        "DropTable",
+        "DropView",
+        "InsertIntoTable",
+        "RefreshMaterializedView",
+        "RenameColumn",
+        "RenameMaterializedView",
+        "RenameSchema",
+        "RenameTable",
+        "RenameView",
+        "SetColumnComment",
+        "SetMaterializedViewProperties",
+        "SetSchemaAuthorization",
+        "SetSystemSessionProperty",
+        "SetTableComment",
+        "SetTableProperties",
+        "SetViewComment",
+        "ShowColumns",
+        "ShowCreateSchema",
+        "ShowCreateTable",
+        "ShowSchemas",
+        "ShowTables",
+        "TruncateTable",
+        "UpdateTableColumns"
+      ],
+      "rule": "The Finance Manager wants to query the asset table and update it.",
+      "actions": [
+        "ShowColumns",
+        "UpdateTableColumns"
+      ],
+      "resource": {
+        "catalogName": "iceberg",
+        "schemaName": "finance",
+        "tableName": "asset"
+      }
+    },
+    "explanation": {
+      "text": "The Finance Manager wants to inspect and update table asset in catalog iceberg, schema finance.",
+      "existSecureGroup": true,
+      "pathExistOnDataMeshStructure": false,
+      "actionExist": [
+        {
+          "action": "ShowColumns",
+          "exists": true
+        },
+        {
+          "action": "UpdateTableColumns",
+          "exists": true
+        }
+      ],
+      "llm_feedback": "The table asset does not exist in catalog iceberg, schema finance. The available table is transactions. The resource must be corrected before the requested actions can be authorized."
+    }
+  },
+  {
+    "input": {
+      "dataMeshStructure": {
+        "iceberg": {
+          "hr": {
+            "employees": [
+              "employee_id",
+              "name",
+              "department",
+              "salary"
+            ]
+          },
+          "finance": {
+            "transactions": [
+              "transaction_id",
+              "amount",
+              "currency"
+            ]
+          }
+        },
+        "hive": {
+          "sales": {
+            "orders": [
+              "order_id",
+              "customer_id",
+              "total"
+            ]
+          }
+        }
+      },
+      "securityGroups": [
+        "Admin",
+        "Analyst",
+        "Data Engineer",
+        "Finance Manager",
+        "HR Manager"
+      ],
+      "availableActions": [
+        "AddColumn",
+        "AlterColumn",
+        "CreateMaterializedView",
+        "CreateSchema",
+        "CreateTable",
+        "CreateView",
+        "CreateViewWithSelectFromColumns",
+        "DeleteFromTable",
+        "DropColumn",
+        "DropMaterializedView",
+        "DropSchema",
+        "DropTable",
+        "DropView",
+        "InsertIntoTable",
+        "RefreshMaterializedView",
+        "RenameColumn",
+        "RenameMaterializedView",
+        "RenameSchema",
+        "RenameTable",
+        "RenameView",
+        "SetColumnComment",
+        "SetMaterializedViewProperties",
+        "SetSchemaAuthorization",
+        "SetSystemSessionProperty",
+        "SetTableComment",
+        "SetTableProperties",
+        "SetViewComment",
+        "ShowColumns",
+        "ShowCreateSchema",
+        "ShowCreateTable",
+        "ShowSchemas",
+        "ShowTables",
+        "TruncateTable",
+        "UpdateTableColumns"
+      ],
+      "rule": "The Intern wants to query employees and delete records from it.",
+      "actions": [
+        "ShowColumns",
+        "DeleteFromTable"
+      ],
+      "resource": {
+        "catalogName": "iceberg",
+        "schemaName": "hr",
+        "tableName": "employees"
+      }
+    },
+    "explanation": {
+      "text": "The Intern wants to inspect and delete records from employees.",
       "existSecureGroup": false,
-      "pathExistOnDataMeshStructure": true
+      "pathExistOnDataMeshStructure": true,
+      "actionExist": [
+        {
+          "action": "ShowColumns",
+          "exists": true
+        },
+        {
+          "action": "DeleteFromTable",
+          "exists": true
+        }
+      ],
+      "llm_feedback": "The security group Intern does not exist. The available groups are Admin, Analyst, Data Engineer, Finance Manager, and HR Manager."
     }
   },
   {
@@ -351,12 +1046,169 @@
         "Finance Manager",
         "HR Manager"
       ],
-      "rule": "The Guest wants to query iceberg.finance.asset."
+      "availableActions": [
+        "AddColumn",
+        "AlterColumn",
+        "CreateMaterializedView",
+        "CreateSchema",
+        "CreateTable",
+        "CreateView",
+        "CreateViewWithSelectFromColumns",
+        "DeleteFromTable",
+        "DropColumn",
+        "DropMaterializedView",
+        "DropSchema",
+        "DropTable",
+        "DropView",
+        "InsertIntoTable",
+        "RefreshMaterializedView",
+        "RenameColumn",
+        "RenameMaterializedView",
+        "RenameSchema",
+        "RenameTable",
+        "RenameView",
+        "SetColumnComment",
+        "SetMaterializedViewProperties",
+        "SetSchemaAuthorization",
+        "SetSystemSessionProperty",
+        "SetTableComment",
+        "SetTableProperties",
+        "SetViewComment",
+        "ShowColumns",
+        "ShowCreateSchema",
+        "ShowCreateTable",
+        "ShowSchemas",
+        "ShowTables",
+        "TruncateTable",
+        "UpdateTableColumns"
+      ],
+      "rule": "The Analyst wants to inspect employees and truncate the table.",
+      "actions": [
+        "ShowColumns",
+        "TruncateTable"
+      ],
+      "resource": {
+        "catalogName": "iceberg",
+        "schemaName": "hr",
+        "tableName": "employees"
+      }
     },
     "explanation": {
-      "text": "Invalid request: security group Guest does not exist and table asset does not exist in catalog iceberg, schema finance.",
-      "existSecureGroup": false,
-      "pathExistOnDataMeshStructure": false
+      "text": "The Analyst wants to inspect the columns of employees and truncate the table.",
+      "existSecureGroup": true,
+      "pathExistOnDataMeshStructure": true,
+      "actionExist": [
+        {
+          "action": "ShowColumns",
+          "exists": true
+        },
+        {
+          "action": "TruncateTable",
+          "exists": true
+        }
+      ],
+      "llm_feedback": ""
+    }
+  },
+  {
+    "input": {
+      "dataMeshStructure": {
+        "iceberg": {
+          "hr": {
+            "employees": [
+              "employee_id",
+              "name",
+              "department",
+              "salary"
+            ]
+          },
+          "finance": {
+            "transactions": [
+              "transaction_id",
+              "amount",
+              "currency"
+            ]
+          }
+        },
+        "hive": {
+          "sales": {
+            "orders": [
+              "order_id",
+              "customer_id",
+              "total"
+            ]
+          }
+        }
+      },
+      "securityGroups": [
+        "Admin",
+        "Analyst",
+        "Data Engineer",
+        "Finance Manager",
+        "HR Manager"
+      ],
+      "availableActions": [
+        "AddColumn",
+        "AlterColumn",
+        "CreateMaterializedView",
+        "CreateSchema",
+        "CreateTable",
+        "CreateView",
+        "CreateViewWithSelectFromColumns",
+        "DeleteFromTable",
+        "DropColumn",
+        "DropMaterializedView",
+        "DropSchema",
+        "DropTable",
+        "DropView",
+        "InsertIntoTable",
+        "RefreshMaterializedView",
+        "RenameColumn",
+        "RenameMaterializedView",
+        "RenameSchema",
+        "RenameTable",
+        "RenameView",
+        "SetColumnComment",
+        "SetMaterializedViewProperties",
+        "SetSchemaAuthorization",
+        "SetSystemSessionProperty",
+        "SetTableComment",
+        "SetTableProperties",
+        "SetViewComment",
+        "ShowColumns",
+        "ShowCreateSchema",
+        "ShowCreateTable",
+        "ShowSchemas",
+        "ShowTables",
+        "TruncateTable",
+        "UpdateTableColumns"
+      ],
+      "rule": "The Analyst wants to perform an unsupported action on employees and inspect its columns.",
+      "actions": [
+        "UnsupportedAction",
+        "ShowColumns"
+      ],
+      "resource": {
+        "catalogName": "iceberg",
+        "schemaName": "hr",
+        "tableName": "employees"
+      }
+    },
+    "explanation": {
+      "text": "The Analyst wants to perform an unsupported operation on employees and inspect its columns.",
+      "existSecureGroup": true,
+      "pathExistOnDataMeshStructure": true,
+      "actionExist": [
+        {
+          "action": "UnsupportedAction",
+          "exists": false
+        },
+        {
+          "action": "ShowColumns",
+          "exists": true
+        }
+      ],
+      "llm_feedback": "The request contains one unsupported action. UnsupportedAction is not present in availableActions, while ShowColumns is valid."
     }
   }
 ]

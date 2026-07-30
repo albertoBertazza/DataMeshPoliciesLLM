@@ -341,6 +341,7 @@ def process_rule(
             index_rewrite_rule,
             data_mesh,
             security_group,
+            list(CHECK_FOR_ACTION.keys()),
             is_local=is_local,
             chat_url=chat_url,
             embedding_url=embedding_url,
@@ -350,23 +351,11 @@ def process_rule(
         )
 
 
-        print(
-            explanation["text"]
-        )
-
-
-        if not explanation.get( "existSecureGroup", False ):
-            print("Skipping: invalid security group.")
-
+        if  not explanation.get( "existSecureGroup", False ) or  not explanation.get("pathExistOnDataMeshStructure", False) or not explanation.get("actionExist", False):
+            print("llm_feedback: ",explanation["llm_feedback"])
             return False, None
-
-
-        if not explanation.get("pathExistOnDataMeshStructure", False):
-
-            print("Skipping: invalid data mesh path.")
-
-            return False, None
-
+        else:
+            print(explanation["text"])
 
 
     except Exception as e:
