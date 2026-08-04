@@ -1210,5 +1210,167 @@
             ],
             "llm_feedback": "The request contains one unsupported action. UnsupportedAction is not present in availableActions, while ShowColumns is valid."
         }
+    },
+    {
+        "input": {
+            "dataMeshStructure": {
+                "iceberg": {
+                    "hr": {
+                        "employees": [
+                            "employee_id",
+                            "name",
+                            "department",
+                            "salary"
+                        ]
+                    },
+                    "finance": {
+                        "transactions": [
+                            "transaction_id",
+                            "amount",
+                            "currency"
+                        ],
+                        "employee_finance": [
+                            "employee_id",
+                            "salary",
+                            "bonus"
+                        ],
+                        "assets": [
+                            "asset_id",
+                            "asset_name",
+                            "asset_value"
+                        ]
+                    }
+                },
+                "hive": {
+                    "sales": {
+                        "orders": [
+                            "order_id",
+                            "customer_id",
+                            "total"
+                        ]
+                    }
+                }
+            },
+            "securityGroups": [
+                "Admin",
+                "Analyst",
+                "Data Engineer",
+                "Finance Manager",
+                "HR Manager"
+            ],
+            "availableActions": [
+                "AddColumn",
+                "AlterColumn",
+                "CreateMaterializedView",
+                "CreateSchema",
+                "CreateTable",
+                "CreateView",
+                "CreateViewWithSelectFromColumns",
+                "DeleteFromTable",
+                "DropColumn",
+                "DropMaterializedView",
+                "DropSchema",
+                "DropTable",
+                "DropView",
+                "InsertIntoTable",
+                "RefreshMaterializedView",
+                "RenameColumn",
+                "RenameMaterializedView",
+                "RenameSchema",
+                "RenameTable",
+                "RenameView",
+                "SetColumnComment",
+                "SetMaterializedViewProperties",
+                "SetSchemaAuthorization",
+                "SetSystemSessionProperty",
+                "SetTableComment",
+                "SetTableProperties",
+                "SetViewComment",
+                "ShowColumns",
+                "ShowCreateSchema",
+                "ShowCreateTable",
+                "ShowSchemas",
+                "ShowTables",
+                "TruncateTable",
+                "UpdateTableColumns"
+            ],
+            "rule": "The Finance Manager can update all tables inside schema finance.",
+            "actions": [
+                "UpdateTableColumns"
+            ],
+            "resource": {
+                "catalogName": "iceberg",
+                "schemaName": "finance",
+                "tableName": null
+            }
+        },
+        "explanation": {
+            "text": "The Finance Manager can update all tables in schema finance in catalog iceberg. The request applies to tables transactions, employee_finance, and assets.",
+            "existSecureGroup": true,
+            "pathExistOnDataMeshStructure": true,
+            "actionExist": [
+                {
+                    "action": "UpdateTableColumns",
+                    "exists": true
+                }
+            ],
+            "llm_feedback": ""
+        }
+    },
+    {
+        "input": {
+            "dataMeshStructure": {
+                "iceberg": {
+                    "finance": {
+                        "transactions": [
+                            "transaction_id",
+                            "amount",
+                            "currency"
+                        ],
+                        "employee_finance": [
+                            "employee_id",
+                            "salary",
+                            "bonus"
+                        ],
+                        "assets": [
+                            "asset_id",
+                            "asset_name",
+                            "asset_value"
+                        ]
+                    }
+                }
+            },
+            "securityGroups": [
+                "Finance Manager"
+            ],
+            "availableActions": [
+                "UpdateTableColumns"
+            ],
+            "rule": "The Finance Manager can update tables inside schema finance.",
+            "actions": [
+                "UpdateTableColumns"
+            ],
+            "resource": {
+                "catalogName": "iceberg",
+                "schemaName": "finance",
+                "tableName": null
+            }
+        },
+        "explanation": {
+            "text": "The Finance Manager can update all tables in catalog iceberg, schema finance. The request applies to transactions, employee_finance, and assets.",
+            "existSecureGroup": true,
+            "pathExistOnDataMeshStructure": true,
+            "actionExist": [
+                {
+                    "action": "UpdateTableColumns",
+                    "exists": true
+                }
+            ],
+            "llm_feedback": ""
+        }
     }
+
+
+
+
 ]

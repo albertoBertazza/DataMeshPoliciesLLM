@@ -33,7 +33,7 @@ def delete_files_generated():
             rego_file.unlink()
             print(f"Deleted: {rego_file}")
 
-    tree = Path("LLM/LLMPipeline/RegoPolicyCreation/output/tree_permission/output")
+    tree = Path("LLM/LLMPipeline/RegoPolicyCreation/output/tree_permission")
     if tree.exists():
         for rego_file in tree.glob("*.json"):
             rego_file.unlink()

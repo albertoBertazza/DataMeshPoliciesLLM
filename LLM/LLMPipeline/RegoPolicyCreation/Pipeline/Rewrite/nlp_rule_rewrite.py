@@ -1538,6 +1538,12 @@ def _extract_resource(
     """
     Extract only resources explicitly mentioned in the rule.
 
+    The LLM performs the initial extraction.
+
+    Python then performs a deterministic recovery step for table names:
+    if the rule explicitly contains the name of an existing table but
+    the LLM returned table=None, Python restores that table name.
+
     The LLM does NOT perform expansion.
     The LLM does NOT perform validation.
     """
@@ -1568,7 +1574,8 @@ Rules:
 
 2. Do not invent resource names.
 
-3. Do not replace an invalid resource with another resource.
+3. Do not replace an explicitly requested resource with another
+   resource.
 
 4. Do not validate whether a resource exists.
 
@@ -1592,13 +1599,12 @@ Rules:
 13. If a catalog is specified but no schema is specified,
     schema MUST be null.
 
-14. Do not expand a schema into tables.
+14. If the rule explicitly names a table, NEVER return null
+    for table.
 
-15. Do not expand a catalog into schemas.
+15. Expansion is performed deterministically by Python.
 
-16. Expansion is performed deterministically by Python.
-
-17. Return no fields other than:
+16. Return no fields other than:
     catalog, schema, table, column.
 
 Examples:
@@ -1611,6 +1617,18 @@ Return:
   "catalog": "iceberg",
   "schema": "finance",
   "table": null,
+  "column": null
+}
+
+Rule:
+"The Finance Manager can update the asset table in
+catalog iceberg, schema finance."
+
+Return:
+{
+  "catalog": "iceberg",
+  "schema": "finance",
+  "table": "asset",
   "column": null
 }
 
@@ -1676,11 +1694,7 @@ Return:
 
     for field, value in resource.items():
 
-        if value is not None and not isinstance(
-            value,
-            str,
-        ):
-
+        if value is not None and not isinstance(value, str):
             raise ValueError(
                 f"Resource field '{field}' must be "
                 "a string or null."
@@ -1696,8 +1710,128 @@ Return:
                 else None
             )
 
-    return resource
+    # ========================================================================
+    # DETERMINISTIC TABLE RECOVERY
+    # ========================================================================
+    #
+    # The LLM sometimes returns:
+    #
+    #   catalog = iceberg
+    #   schema  = finance
+    #   table   = null
+    #
+    # even though the rule explicitly says:
+    #
+    #   "... asset table ..."
+    #
+    # We must not expand the whole schema in this situation.
+    #
+    # If the rule contains exactly one existing table name from the
+    # authoritative Data Mesh, recover that table deterministically.
+    #
+    # This never invents a table.
+    # ========================================================================
 
+    if (
+        resource["table"] is None
+        and resource["schema"] is not None
+    ):
+
+        candidate_tables = []
+
+        catalog_name = resource["catalog"]
+        schema_name = resource["schema"]
+
+        # --------------------------------------------------------------------
+        # Use the authoritative normalized Data Mesh structure.
+        # --------------------------------------------------------------------
+
+        if catalog_name and schema_name:
+
+            catalog = _find_catalog(
+                data_mesh_structure,
+                catalog_name,
+            )
+
+            schema = _find_schema(
+                catalog,
+                schema_name,
+            )
+
+            if schema is not None:
+
+                table_names = _get_table_names(
+                    schema
+                )
+
+                rule_lower = rule.lower()
+
+                for table_name in table_names:
+
+                    if not isinstance(
+                        table_name,
+                        str,
+                    ):
+                        continue
+
+                    # Exact word occurrence.
+                    #
+                    # This avoids matching:
+                    #
+                    #   asset
+                    #
+                    # inside:
+                    #
+                    #   asset_history
+                    #
+                    # or:
+                    #
+                    #   assets
+                    #
+                    import re
+
+                    pattern = (
+                        r"\b"
+                        + re.escape(
+                            table_name.lower()
+                        )
+                        + r"\b"
+                    )
+
+                    if re.search(
+                        pattern,
+                        rule_lower,
+                    ):
+                        candidate_tables.append(
+                            table_name
+                        )
+
+        # --------------------------------------------------------------------
+        # Recover only when exactly one table is explicitly identifiable.
+        # --------------------------------------------------------------------
+
+        if len(candidate_tables) == 1:
+
+            resource["table"] = candidate_tables[0]
+
+        # --------------------------------------------------------------------
+        # If multiple existing table names occur in the rule, do not guess.
+        # --------------------------------------------------------------------
+
+        elif len(candidate_tables) > 1:
+
+            raise ValueError(
+                "Multiple table names were explicitly identified "
+                "in the rule and the resource extractor did not "
+                "return a table. "
+                "Identified tables: "
+                + ", ".join(
+                    repr(x)
+                    for x in candidate_tables
+                )
+            )
+
+    return resource
 
 # ============================================================================
 # Action extraction
@@ -1887,6 +2021,146 @@ Rules:
     return normalized
 
 
+##############################################################
+# Normalize
+################################################################
+def _normalize_data_mesh_structure(data_mesh_structure):
+    """
+    Normalize the compact Data Mesh representation:
+
+    {
+        "iceberg": {
+            "hr": {
+                "employees": [
+                    "employee_id",
+                    "name"
+                ]
+            }
+        }
+    }
+
+    into the canonical representation expected by the
+    deterministic traversal functions:
+
+    {
+        "catalogs": [
+            {
+                "name": "iceberg",
+                "schemas": [
+                    {
+                        "name": "hr",
+                        "tables": [
+                            {
+                                "name": "employees",
+                                "columns": [
+                                    "employee_id",
+                                    "name"
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    """
+
+    if not isinstance(
+        data_mesh_structure,
+        dict,
+    ):
+        return {
+            "catalogs": []
+        }
+
+    # Already normalized.
+    if isinstance(
+        data_mesh_structure.get("catalogs"),
+        list,
+    ):
+        return data_mesh_structure
+
+    catalogs = []
+
+    for catalog_name, schemas_data in data_mesh_structure.items():
+
+        if not isinstance(
+            schemas_data,
+            dict,
+        ):
+            continue
+
+        schemas = []
+
+        for schema_name, tables_data in schemas_data.items():
+
+            if not isinstance(
+                tables_data,
+                dict,
+            ):
+                continue
+
+            tables = []
+
+            for table_name, columns_data in tables_data.items():
+
+                columns = []
+
+                if isinstance(
+                    columns_data,
+                    list,
+                ):
+
+                    for column in columns_data:
+
+                        if isinstance(
+                            column,
+                            str,
+                        ):
+                            columns.append(
+                                column
+                            )
+
+                        elif isinstance(
+                            column,
+                            dict,
+                        ):
+
+                            column_name = column.get(
+                                "name"
+                            )
+
+                            if column_name:
+                                columns.append(
+                                    column_name
+                                )
+
+                tables.append(
+                    {
+                        "name": table_name,
+                        "columns": columns,
+                    }
+                )
+
+            schemas.append(
+                {
+                    "name": schema_name,
+                    "tables": tables,
+                }
+            )
+
+        catalogs.append(
+            {
+                "name": catalog_name,
+                "schemas": schemas,
+            }
+        )
+
+    return {
+        "catalogs": catalogs
+    }
+
+
 # ============================================================================
 # Final explanation
 # ============================================================================
@@ -2060,6 +2334,11 @@ def llm_explain(
         )
 
     rule = rule.strip()
+
+    # Normalize Data Mesh once.
+    data_mesh_structure = _normalize_data_mesh_structure(
+        data_mesh_structure
+    )
 
     # =========================================================================
     # 0. Normalize authoritative inputs
