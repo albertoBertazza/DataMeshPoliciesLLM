@@ -5,12 +5,16 @@ import subprocess
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from Function.LoadJson import load_json
+
 from LLM.Interface.activate_local_llm import activate_llm
 from LLM.LLMPipeline.RegoPolicyCreation.IndexCreation.index_creator import reload_indexes
 from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.Extraction.extraction import extract_entities
 from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.RegoRuleGeneration.build_rego import generate_rego_policy
+from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.RegoRuleGeneration.tree_helper.tree_helper import \
+    get_new_permission_tree, build_complete_permission_tree, get_permission_difference
 from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
-
+from TreePermission.TreeBuilder import build_permission_tree
 
 # ---------------------------------------------------------------------------
 # Config
@@ -95,6 +99,17 @@ OUTPUT_REGO_DIR = os.path.join(
     "rego_policies"
 )
 
+
+TREE_PERMISSION_DIR = os.path.join(
+    REGO_POLICY_CREATION_DIR,
+    "output",
+    "tree_permission"
+)
+
+TREE_STRUCTURE_PATH = os.path.join(
+    TREE_PERMISSION_DIR,
+    "tree_structure.json"
+)
 
 EXAMPLE_DIR = os.path.join(
     REGO_POLICY_CREATION_DIR,
@@ -196,15 +211,6 @@ def remove_duplicate_rego_default(opa_path):
                 "Removed duplicated default from:",
                 file_path
             )
-
-def load_json(path):
-
-    with open(
-        path,
-        "r",
-        encoding="utf-8"
-    ) as f:
-        return json.load(f)
 
 
 
@@ -308,7 +314,6 @@ VALID_ACTIONS = list(
 # ---------------------------------------------------------------------------
 # Pipeline
 # ---------------------------------------------------------------------------
-
 def process_rule(
     rule_passed,
     index_rewrite_rule,
@@ -326,13 +331,11 @@ def process_rule(
     embedding_model=None
 ):
 
-
-    # --------------------------------------------------
+    # =========================================================
     # 1) Explanation
-    # --------------------------------------------------
+    # =========================================================
 
     print("\n[Interpretation]")
-
 
     try:
 
@@ -350,30 +353,50 @@ def process_rule(
             embedding_model=embedding_model
         )
 
+        if (
+            not explanation.get(
+                "existSecureGroup",
+                False
+            )
+            or
+            not explanation.get(
+                "pathExistOnDataMeshStructure",
+                False
+            )
+            or
+            not explanation.get(
+                "actionExist",
+                False
+            )
+        ):
 
-        if  not explanation.get( "existSecureGroup", False ) or  not explanation.get("pathExistOnDataMeshStructure", False) or not explanation.get("actionExist", False):
-            print("llm_feedback: ",explanation["llm_feedback"])
+            print(
+                "llm_feedback:",
+                explanation["llm_feedback"]
+            )
+
             return False, None
-        else:
-            print(explanation["text"])
 
+        print(
+            explanation["text"]
+        )
 
     except Exception as e:
 
-        print("Explanation failed:",e )
+        print(
+            "Explanation failed:",
+            e
+        )
 
         return False, None
 
-
-
-    # --------------------------------------------------
+    # =========================================================
     # 2) Extraction
-    # --------------------------------------------------
+    # =========================================================
 
     print(
         "\n[Extracting entities...]"
     )
-
 
     try:
 
@@ -389,7 +412,6 @@ def process_rule(
             embedding_model=embedding_model
         )
 
-
     except Exception as e:
 
         print(
@@ -399,16 +421,13 @@ def process_rule(
 
         return False, None
 
-
-
-    # --------------------------------------------------
+    # =========================================================
     # 3) Generate Rego
-    # --------------------------------------------------
+    # =========================================================
 
     print(
         "\n[Generating OPA policy...]"
     )
-
 
     try:
 
@@ -424,8 +443,6 @@ def process_rule(
             embedding_model=embedding_model
         )
 
-        print(policy)
-
     except Exception as e:
 
         print(
@@ -435,13 +452,28 @@ def process_rule(
 
         return False, None
 
-
+    # =========================================================
+    # 4) Prepare directories
+    # =========================================================
 
     os.makedirs(
         OUTPUT_REGO_DIR,
         exist_ok=True
     )
 
+    os.makedirs(
+        TREE_PERMISSION_DIR,
+        exist_ok=True
+    )
+
+    os.makedirs(
+        OPA_FILE_PATH,
+        exist_ok=True
+    )
+
+    # =========================================================
+    # 5) Complete Rego
+    # =========================================================
 
     REGO_HEADER = """
 package trino.authz
@@ -457,13 +489,16 @@ default rowFilters := []
 
 """
 
-
     full_policy = (
         REGO_HEADER
         +
         policy
     )
 
+
+    # =========================================================
+    # 6) Generate filename
+    # =========================================================
 
     filename = (
         "policy_"
@@ -474,12 +509,25 @@ default rowFilters := []
         ".rego"
     )
 
-
     output_file = os.path.join(
         OUTPUT_REGO_DIR,
         filename
     )
 
+    output_opa_file = os.path.join(
+        OPA_FILE_PATH,
+        filename
+    )
+
+    # Candidate tree
+    candidate_tree_file = os.path.join(
+        TREE_PERMISSION_DIR,
+        "_candidate_tree.json"
+    )
+
+    # =========================================================
+    # 7) Write candidate Rego
+    # =========================================================
 
     with open(
         output_file,
@@ -487,14 +535,162 @@ default rowFilters := []
         encoding="utf-8"
     ) as f:
 
-        f.write(full_policy)
+        f.write(
+            full_policy
+        )
 
-
-    output_opa_file = os.path.join(
-        OPA_FILE_PATH,
-        filename
+    print(
+        "\nGenerated candidate policy:",
+        output_file
     )
 
+    # =========================================================
+    # 8) Build candidate permission tree
+    # =========================================================
+
+    print(
+        "\n[Building candidate permission tree...]"
+    )
+
+    try:
+
+        tree= build_permission_tree(
+            opa_file=output_file,
+            action_permissions_file=CHECK_FOR_ACTION_PATH,
+            security_groups_file=SECURITY_GROUPS_PATH,
+            output_file=candidate_tree_file
+        )
+
+        print("candidate tree: ", json.dumps(
+            tree,
+            indent=2,
+            ensure_ascii=False
+        ))
+
+    except Exception as e:
+
+        print(
+            "Failed to build permission tree:",
+            e
+        )
+
+        if os.path.exists(
+            output_file
+        ):
+            os.remove(
+                output_file
+            )
+
+        return False, None
+
+    # =========================================================
+    # 9) Compare candidate against cumulative tree
+    # =========================================================
+
+    print(
+        "\n[Checking existing permissions...]"
+    )
+
+    try:
+
+        difference_tree = get_permission_difference(candidate_tree_file,TREE_PERMISSION_DIR,TREE_STRUCTURE_PATH)
+
+    except Exception as e:
+
+        print(
+            "Failed to compare permission trees:",
+            e
+        )
+
+        if os.path.exists(
+            output_file
+        ):
+            os.remove(
+                output_file
+            )
+
+        if os.path.exists(
+            candidate_tree_file
+        ):
+            os.remove(
+                candidate_tree_file
+            )
+
+        return False, None
+
+    print(
+        "\n[Permission difference]"
+    )
+
+    print(
+        json.dumps(
+            difference_tree,
+            indent=2,
+            ensure_ascii=False
+        )
+    )
+
+    # =========================================================
+    # 10) No new permissions
+    # =========================================================
+
+    if not difference_tree:
+
+        print(
+            "\nNo new permissions found."
+        )
+
+        print(
+            "Generated policy is already represented "
+            "by existing policies."
+        )
+
+        if os.path.exists(
+            output_file
+        ):
+            os.remove(
+                output_file
+            )
+
+        if os.path.exists(
+            candidate_tree_file
+        ):
+            os.remove(
+                candidate_tree_file
+            )
+
+        return True, explanation
+
+    # =========================================================
+    # 11) New permissions found
+    # =========================================================
+
+    print(
+        "\nNew permissions detected."
+    )
+
+    # =========================================================
+    # 12) Keep the Rego policy
+    # =========================================================
+
+    with open(
+        output_file,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        f.write(
+            full_policy
+        )
+
+    print(
+        "Saved generated policy:",
+        output_file
+    )
+
+    # =========================================================
+    # 13) Copy the SAME policy to OPA
+    # =========================================================
 
     with open(
         output_opa_file,
@@ -502,26 +698,77 @@ default rowFilters := []
         encoding="utf-8"
     ) as f:
 
-        f.write(full_policy)
-
-
-
-    print(
-        "Saved policy:",
-        output_file
-    )
-
+        f.write(
+            full_policy
+        )
 
     print(
         "Updated OPA:",
         output_opa_file
     )
 
-    # Remove old duplicated OPA defaults before adding new policy
-    remove_duplicate_rego_default(OPA_FILE_PATH)
+    # =========================================================
+    # 14) Rebuild cumulative tree
+    # =========================================================
+
+    print(
+        "\n[Updating cumulative permission tree...]"
+    )
+
+    try:
+
+        complete_tree = build_complete_permission_tree(TREE_PERMISSION_DIR,TREE_STRUCTURE_PATH,OUTPUT_REGO_DIR,CHECK_FOR_ACTION_PATH, SECURITY_GROUPS_PATH)
+
+    except Exception as e:
+
+        print(
+            "Failed to rebuild cumulative permission tree:",
+            e
+        )
+
+        return False, None
+
+    print(
+        "\n[Cumulative permission tree]"
+    )
+
+    print(
+        json.dumps(
+            complete_tree,
+            indent=2,
+            ensure_ascii=False
+        )
+    )
+
+    print(
+        "\nSaved cumulative tree:",
+        TREE_STRUCTURE_PATH
+    )
+
+    # =========================================================
+    # 15) Remove candidate tree
+    # =========================================================
+
+    if os.path.exists(
+        candidate_tree_file
+    ):
+        os.remove(
+            candidate_tree_file
+        )
+
+    # =========================================================
+    # 16) Remove duplicated defaults
+    # =========================================================
+
+    remove_duplicate_rego_default(
+        OPA_FILE_PATH
+    )
+
+    # =========================================================
+    # 17) Restart OPA
+    # =========================================================
 
     restart_opa()
-
 
     return True, explanation
 

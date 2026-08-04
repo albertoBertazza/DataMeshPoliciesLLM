@@ -52,7 +52,6 @@ def build_permission_tree(
         opa_text
     )
 
-    # Validate only real security-group references.
     _validate_rule_groups(
         rules,
         security_groups
@@ -66,21 +65,6 @@ def build_permission_tree(
 
         if group not in groups:
             groups[group] = _create_group()
-
-        # ----------------------------------------------------
-        # Unconditional group allow
-        #
-        # Example:
-        #
-        # is_admin_2 if {
-        #     "admin" in input.context.identity.groups
-        # }
-        #
-        # allow if is_admin_2
-        #
-        # This means the group has access to every available
-        # action globally.
-        # ----------------------------------------------------
 
         if rule.get("global_allow_all", False):
             groups[group]["global_allow_all"] = True
@@ -108,11 +92,11 @@ def build_permission_tree(
         operation = rule["operation"]
         resource = rule["resource"]
 
-        # Standalone:
+        # A rule such as:
         #
-        # allow if is_admin_2
+        # allow if is_admin
         #
-        # has no concrete operation to add as a permission.
+        # has no concrete permission.
         if operation is None:
             continue
 
@@ -208,9 +192,7 @@ def build_permission_tree(
                     rule
                 )
 
-                expanded_rule["group"] = (
-                    security_group
-                )
+                expanded_rule["group"] = security_group
 
                 _apply_filter_rule(
                     groups,
@@ -225,9 +207,7 @@ def build_permission_tree(
                     rule
                 )
 
-                expanded_rule["group"] = (
-                    security_group
-                )
+                expanded_rule["group"] = security_group
 
                 _apply_filter_rule(
                     groups,
@@ -252,7 +232,7 @@ def build_permission_tree(
             groups[security_group] = _create_group()
 
     # ========================================================
-    # Remove anything which is not authoritative
+    # Remove non-authoritative groups
     # ========================================================
 
     groups = {
@@ -273,17 +253,12 @@ def build_permission_tree(
         )
 
     # ========================================================
-    # Remove internal implementation fields
+    # Remove internal fields
     # ========================================================
 
-    for group_data in groups.values():
-
-        group_data.pop(
-            "global_allow_all",
-            None
-        )
-
-    result = groups
+    _remove_internal_fields(
+        groups
+    )
 
     # ========================================================
     # Save
@@ -306,13 +281,29 @@ def build_permission_tree(
         ) as f:
 
             json.dump(
-                result,
+                groups,
                 f,
                 indent=2,
                 ensure_ascii=False
             )
 
-    return result
+    return groups
+
+
+# ============================================================
+# INTERNAL FIELD CLEANUP
+# ============================================================
+
+def _remove_internal_fields(
+    groups: Dict[str, Dict[str, Any]],
+) -> None:
+
+    for group_data in groups.values():
+
+        group_data.pop(
+            "global_allow_all",
+            None
+        )
 
 
 # ============================================================
@@ -429,7 +420,8 @@ def _validate_filter_groups(
         rule["group"]
         for rule in rules
         if (
-            not rule["group"].startswith("__not_")
+            rule.get("group") is not None
+            and not rule["group"].startswith("__not_")
             and rule["group"] != "__global__"
             and rule["group"] not in allowed
         )
@@ -453,7 +445,6 @@ def _resolve_excluded_group(
 ) -> str:
 
     if synthetic_group == "__not_is_admin":
-
         return "admin"
 
     return synthetic_group[
@@ -510,12 +501,7 @@ def _extract_allow_rules(
     rules: List[Dict[str, Any]] = []
 
     # ========================================================
-    # 1. Normal block rules
-    #
-    # allow if {
-    #     is_hr
-    #     input.action.operation == "ExecuteQuery"
-    # }
+    # Normal block rules
     # ========================================================
 
     for body in _extract_rule_bodies(
@@ -528,18 +514,6 @@ def _extract_allow_rules(
             helper_to_group
         )
 
-        # IMPORTANT:
-        #
-        # If the helper is based on the user identity:
-        #
-        # is_admin if {
-        #     input.context.identity.user == "trino"
-        # }
-        #
-        # it is NOT a security group.
-        #
-        # _extract_group_helpers() does not add it to the
-        # helper mapping, therefore group == None.
         if group is None:
             continue
 
@@ -597,17 +571,13 @@ def _extract_allow_rules(
 
             continue
 
-        # ----------------------------------------------------
-        # A group helper is present but no operation exists.
-        #
-        # This means:
+        # Group helper with no operation:
         #
         # allow if {
-        #     is_admin_2
+        #     is_admin
         # }
         #
-        # => global unrestricted access for that group.
-        # ----------------------------------------------------
+        # This means unrestricted access for that group.
 
         rules.append({
             "group": group,
@@ -619,17 +589,7 @@ def _extract_allow_rules(
         })
 
     # ========================================================
-    # 2. One-line rules
-    #
-    # allow if is_admin_2
-    #
-    # IMPORTANT:
-    #
-    # This must only be converted if is_admin_2 resolves to
-    # an actual security group.
-    #
-    # is_admin and is_test are ignored because they are
-    # identity-based helpers, not groups.
+    # One-line rules
     # ========================================================
 
     one_line_pattern = re.compile(
@@ -647,14 +607,6 @@ def _extract_allow_rules(
             helper
         )
 
-        # Not a security-group helper.
-        #
-        # Examples:
-        #
-        # is_admin  -> user == "trino"
-        # is_test   -> user == "test_access"
-        #
-        # These must NOT become groups.
         if group is None:
             continue
 
@@ -720,7 +672,6 @@ def _extract_balanced_block(
         char = text[i]
 
         if char == "{":
-
             depth += 1
 
         elif char == "}":
@@ -766,12 +717,6 @@ def _extract_group_helpers(
 
         if body is None:
             continue
-
-        # ----------------------------------------------------
-        # ONLY helpers which explicitly check membership in
-        # input.context.identity.groups are security-group
-        # helpers.
-        # ----------------------------------------------------
 
         group_match = re.search(
             r'"([^"]+)"\s+in\s+'
@@ -936,12 +881,31 @@ def _extract_filter_rules(
 
     # ========================================================
     # ROW FILTERS
+    #
+    # Supports:
+    #
+    # rowFilters contains row if {
+    #     is_finance_manager
+    #     ...
+    # }
     # ========================================================
 
-    for body in _extract_rule_bodies(
-        opa_text,
-        "rowFilters contains"
+    row_pattern = re.compile(
+        r'rowFilters\s+contains\s+'
+        r'[A-Za-z_][A-Za-z0-9_]*\s+if\s*\{'
+    )
+
+    for match in row_pattern.finditer(
+        opa_text
     ):
+
+        body = _extract_balanced_block(
+            opa_text,
+            match.end() - 1
+        )
+
+        if body is None:
+            continue
 
         group = _resolve_group_from_body(
             body,
@@ -962,13 +926,16 @@ def _extract_filter_rules(
             body
         )
 
+        if expression is None:
+            continue
+
         rules.append({
             "group": group,
             "permission": "GetRowFilters",
             "resource": resource,
             "value": {
                 "expression": expression
-            } if expression else {},
+            },
             "type": "row",
         })
 
@@ -1003,6 +970,9 @@ def _extract_filter_rules(
             body
         )
 
+        if expression is None:
+            continue
+
         rules.append({
             "group": group,
             "permission": "GetColumnMask",
@@ -1017,11 +987,22 @@ def _extract_filter_rules(
 
     # ========================================================
     # SINGLE COLUMN MASKS
+    #
+    # Supports:
+    #
+    # columnMask := {
+    #     "expression": "..."
+    # }
+    #
+    # and:
+    #
+    # columnMask := value if {
+    #     ...
+    # }
     # ========================================================
 
-    for body in _extract_rule_bodies(
-        opa_text,
-        "columnMask :="
+    for body in _extract_column_mask_bodies(
+        opa_text
     ):
 
         group = _resolve_group_from_body(
@@ -1043,6 +1024,9 @@ def _extract_filter_rules(
             body
         )
 
+        if expression is None:
+            continue
+
         rules.append({
             "group": group,
             "permission": "GetColumnMask",
@@ -1052,44 +1036,6 @@ def _extract_filter_rules(
                 "expression": expression,
             },
             "type": "column",
-        })
-
-    # ========================================================
-    # DEFAULT FILTERS
-    # ========================================================
-
-    if re.search(
-        r'default\s+batchColumnMasks\s*:=',
-        opa_text
-    ):
-
-        rules.append({
-            "group": _resolve_default_filter_group(
-                opa_text
-            ),
-            "permission": "GetColumnMask",
-            "resource": {
-                "type": "global"
-            },
-            "value": [],
-            "type": "default",
-        })
-
-    if re.search(
-        r'default\s+rowFilters\s*:=',
-        opa_text
-    ):
-
-        rules.append({
-            "group": _resolve_default_filter_group(
-                opa_text
-            ),
-            "permission": "GetRowFilters",
-            "resource": {
-                "type": "global"
-            },
-            "value": [],
-            "type": "default",
         })
 
     return rules
@@ -1106,8 +1052,70 @@ def _extract_batch_mask_bodies(
     results = []
 
     pattern = re.compile(
-        r'batchColumnMasks\s+contains\s+[A-Za-z_][A-Za-z0-9_]*'
-        r'\s+if\s*\{'
+        r'batchColumnMasks\s+contains\s+'
+        r'[A-Za-z_][A-Za-z0-9_]*\s+if\s*\{'
+    )
+
+    for match in pattern.finditer(
+        opa_text
+    ):
+
+        body = _extract_balanced_block(
+            opa_text,
+            match.end() - 1
+        )
+
+        if body is not None:
+
+            results.append(
+                body
+            )
+
+    return results
+
+
+# ============================================================
+# COLUMN MASK BODY EXTRACTION
+# ============================================================
+
+def _extract_column_mask_bodies(
+    opa_text: str,
+) -> List[str]:
+
+    results = []
+
+    # --------------------------------------------------------
+    # columnMask := value if {
+    # --------------------------------------------------------
+
+    pattern = re.compile(
+        r'columnMask\s*:=\s*'
+        r'[A-Za-z_][A-Za-z0-9_]*\s+if\s*\{'
+    )
+
+    for match in pattern.finditer(
+        opa_text
+    ):
+
+        body = _extract_balanced_block(
+            opa_text,
+            match.end() - 1
+        )
+
+        if body is not None:
+
+            results.append(
+                body
+            )
+
+    # --------------------------------------------------------
+    # columnMask := {
+    #
+    # Do not treat the default empty value as a filter.
+    # --------------------------------------------------------
+
+    pattern = re.compile(
+        r'(?m)^\s*columnMask\s*:=\s*\{'
     )
 
     for match in pattern.finditer(
@@ -1279,20 +1287,13 @@ def _resolve_filter_group(
 ) -> str:
 
     negative_helpers = re.findall(
-        r'not\s+([A-Za-z_][A-Za-z0-9_]*)',
+        r'\bnot\s+([A-Za-z_][A-Za-z0-9_]*)',
         body
     )
 
     if negative_helpers:
 
         return "__not_" + negative_helpers[0]
-
-    return "__global__"
-
-
-def _resolve_default_filter_group(
-    opa_text: str,
-) -> str:
 
     return "__global__"
 
@@ -1404,7 +1405,6 @@ def _apply_filter_rule(
     )
 
     if table_name is None:
-
         table_name = "*"
 
     table = _get_or_create_table(
@@ -1430,7 +1430,6 @@ def _apply_filter_rule(
     )
 
     if column_name is None:
-
         column_name = "*"
 
     column = _get_or_create_column(
@@ -1470,12 +1469,6 @@ def _calculate_allowed_actions(
 
     # ========================================================
     # GLOBAL UNRESTRICTED GROUP
-    #
-    # Example:
-    #
-    # allow if is_admin_2
-    #
-    # All actions are available globally.
     # ========================================================
 
     if group_data.get(
@@ -1610,37 +1603,6 @@ def _calculate_all_actions_globally(
     group_data: Dict[str, Any],
     action_dependencies: Dict[str, Any],
 ) -> None:
-    """
-    An unconditional allow for a SECURITY GROUP means that
-    every action defined in checkForAction.json is available
-    globally.
-
-    Example:
-
-        allow if is_admin_2
-
-    where:
-
-        is_admin_2 if {
-            "admin" in input.context.identity.groups
-        }
-
-    produces:
-
-        "admin": {
-            "permission": null,
-            "filters": null,
-            "catalogs": [],
-            "action_allowed": {
-                <EVERY ACTION>: {
-                    "requires": [...]
-                }
-            }
-        }
-
-    The action requirements are preserved exactly from the
-    action dependency file.
-    """
 
     actions = {}
 
@@ -1732,10 +1694,6 @@ def _filter_permissions_as_set(
         filters.keys()
     )
 
-
-# ============================================================
-# REQUIREMENT CHECK
-# ============================================================
 
 def _requirements_satisfied(
     requirements: List[str],
@@ -1966,16 +1924,24 @@ def build_permission_tree_from_directory(
     )
 
     if not opa_dir.exists():
-
         raise FileNotFoundError(
             f"OPA directory not found: {opa_directory}"
         )
 
-    result: Dict[str, Any] = {}
+    if not opa_dir.is_dir():
+        raise NotADirectoryError(
+            f"OPA path is not a directory: {opa_directory}"
+        )
 
     security_groups = _load_security_groups(
         security_groups_file
     )
+
+    result: Dict[str, Any] = {}
+
+    # ========================================================
+    # Parse every Rego file independently
+    # ========================================================
 
     for opa_file in sorted(
         opa_dir.glob("*.rego")
@@ -1983,12 +1949,8 @@ def build_permission_tree_from_directory(
 
         tree = build_permission_tree(
             opa_file=str(opa_file),
-            action_permissions_file=(
-                action_permissions_file
-            ),
-            security_groups_file=(
-                security_groups_file
-            ),
+            action_permissions_file=action_permissions_file,
+            security_groups_file=security_groups_file,
         )
 
         _merge_permission_trees(
@@ -2017,12 +1979,30 @@ def build_permission_tree_from_directory(
     }
 
     # ========================================================
-    # Recalculate actions after all files are merged
+    # Load dependencies ONCE
     # ========================================================
 
     dependencies = _load_action_dependencies(
         action_permissions_file
     )
+
+    # ========================================================
+    # Recalculate all derived actions AFTER merging
+    #
+    # This is important:
+    #
+    # policy A:
+    #     AccessCatalog
+    #
+    # policy B:
+    #     SelectFromColumns
+    #
+    # must become:
+    #
+    # AccessCatalog + SelectFromColumns
+    #
+    # before calculating action_allowed.
+    # ========================================================
 
     for group_data in result.values():
 
@@ -2036,15 +2016,12 @@ def build_permission_tree_from_directory(
         )
 
     # ========================================================
-    # Remove internal fields
+    # Remove internal implementation fields
     # ========================================================
 
-    for group_data in result.values():
-
-        group_data.pop(
-            "global_allow_all",
-            None
-        )
+    _remove_internal_fields(
+        result
+    )
 
     # ========================================================
     # Save
@@ -2152,13 +2129,7 @@ def _merge_permission_trees(
         target_group = target[group]
 
         # ----------------------------------------------------
-        # Preserve global unrestricted access.
-        #
-        # If ANY policy says:
-        #
-        # allow if is_admin_2
-        #
-        # the merged group must remain unrestricted.
+        # Preserve unrestricted access.
         # ----------------------------------------------------
 
         if source_group.get(
@@ -2285,7 +2256,6 @@ def _merge_permission_value(
     )
 
     if source_value is None:
-
         return
 
     if target_value is None:
@@ -2318,7 +2288,6 @@ def _merge_filter_value(
     )
 
     if source_filters is None:
-
         return
 
     target_filters = target.get(
@@ -2423,4 +2392,3 @@ if __name__ == "__main__":
             ensure_ascii=False
         )
     )
-

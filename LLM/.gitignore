@@ -1,1 +1,3 @@
 LLMPipeline/RegoPolicyCreation/output/rego_policies/*.rego
+
+LLMPipeline/RegoPolicyCreation/output/tree_permission/*.json

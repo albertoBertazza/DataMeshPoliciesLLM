@@ -6,9 +6,21 @@
         "subject_value": "analyst",
         "resource_type": "table",
         "resource_values": {
-          "catalogName": "iceberg",
-          "schemaName": "demographics",
-          "tableName": "employees"
+          "catalogs": [
+            {
+              "catalogName": "iceberg",
+              "schemas": [
+                {
+                  "schemaName": "demographics",
+                  "tables": [
+                    {
+                      "tableName": "employees"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         "trino_action": [
           "AccessCatalog",
@@ -51,15 +63,295 @@
     "input": {
       "extraction": {
         "subject_attribute": "groups",
+        "subject_value": "data_engineer",
+        "resource_type": "table",
+        "resource_values": {
+          "catalogs": [
+            {
+              "catalogName": "hive",
+              "schemas": [
+                {
+                  "schemaName": "sales",
+                  "tables": [
+                    {
+                      "tableName": "orders"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "trino_action": [
+          "AccessCatalog",
+          "ExecuteQuery",
+          "InsertIntoTable"
+        ],
+        "column_mask": false,
+        "row_filter": false,
+        "column_mask_policy": {
+          "expression": ""
+        },
+        "row_filter_policy": {
+          "expression": ""
+        }
+      },
+      "trino_input": {
+        "context": {
+          "identity": {
+            "user": "data_engineer",
+            "groups": [
+              "data_engineer"
+            ]
+          }
+        },
+        "action": {
+          "operation": "InsertIntoTable",
+          "resource": {
+            "table": {
+              "catalogName": "hive",
+              "schemaName": "sales",
+              "tableName": "orders"
+            }
+          }
+        }
+      }
+    },
+    "output": "is_data_engineer if {\n    \"data_engineer\" in input.context.identity.groups\n}\n\nallow if {\n    is_data_engineer\n    input.action.operation == \"ExecuteQuery\"\n}\n\nallow if {\n    is_data_engineer\n    input.action.operation == \"AccessCatalog\"\n    input.action.resource.catalog.name == \"hive\"\n}\n\nallow if {\n    is_data_engineer\n    input.action.operation == \"InsertIntoTable\"\n    input.action.resource.table.catalogName == \"hive\"\n    input.action.resource.table.schemaName == \"sales\"\n    input.action.resource.table.tableName == \"orders\"\n}\n"
+  },
+  {
+    "input": {
+      "extraction": {
+        "subject_attribute": "groups",
+        "subject_value": "hr_manager",
+        "resource_type": "schema",
+        "resource_values": {
+          "catalogs": [
+            {
+              "catalogName": "iceberg",
+              "schemas": [
+                {
+                  "schemaName": "hr",
+                  "tables": [
+                    {
+                      "tableName": "employees"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "trino_action": [
+          "AccessCatalog",
+          "ExecuteQuery",
+          "UpdateTableColumns"
+        ],
+        "column_mask": false,
+        "row_filter": false,
+        "column_mask_policy": {
+          "expression": ""
+        },
+        "row_filter_policy": {
+          "expression": ""
+        }
+      },
+      "trino_input": {
+        "context": {
+          "identity": {
+            "user": "hr_manager",
+            "groups": [
+              "hr_manager"
+            ]
+          }
+        },
+        "action": {
+          "operation": "UpdateTableColumns",
+          "resource": {
+            "table": {
+              "catalogName": "iceberg",
+              "schemaName": "hr",
+              "tableName": "employees"
+            }
+          }
+        }
+      }
+    },
+    "output": "is_hr_manager if {\n    \"hr_manager\" in input.context.identity.groups\n}\n\nallow if {\n    is_hr_manager\n    input.action.operation == \"ExecuteQuery\"\n}\n\nallow if {\n    is_hr_manager\n    input.action.operation == \"AccessCatalog\"\n    input.action.resource.catalog.name == \"iceberg\"\n}\n\nallow if {\n    is_hr_manager\n    input.action.operation == \"UpdateTableColumns\"\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"hr\"\n    input.action.resource.table.tableName == \"employees\"\n}\n"
+  },
+  {
+    "input": {
+      "extraction": {
+        "subject_attribute": "groups",
+        "subject_value": "finance_manager",
+        "resource_type": "schema",
+        "resource_values": {
+          "catalogs": [
+            {
+              "catalogName": "iceberg",
+              "schemas": [
+                {
+                  "schemaName": "finance",
+                  "tables": [
+                    {
+                      "tableName": "transactions"
+                    },
+                    {
+                      "tableName": "employee_finance"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "trino_action": [
+          "AccessCatalog",
+          "ExecuteQuery",
+          "SelectFromColumns",
+          "UpdateTableColumns"
+        ],
+        "column_mask": false,
+        "row_filter": false,
+        "column_mask_policy": {
+          "expression": ""
+        },
+        "row_filter_policy": {
+          "expression": ""
+        }
+      },
+      "trino_input": {
+        "context": {
+          "identity": {
+            "user": "finance",
+            "groups": [
+              "finance_manager"
+            ]
+          }
+        },
+        "action": {
+          "operation": "SelectFromColumns",
+          "resource": {
+            "table": {
+              "catalogName": "iceberg",
+              "schemaName": "finance",
+              "tableName": "transactions"
+            }
+          }
+        }
+      }
+    },
+    "output": "is_finance_manager if {\n    \"finance_manager\" in input.context.identity.groups\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"ExecuteQuery\"\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"AccessCatalog\"\n    input.action.resource.catalog.name == \"iceberg\"\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"SelectFromColumns\"\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"finance\"\n    input.action.resource.table.tableName == \"transactions\"\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"SelectFromColumns\"\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"finance\"\n    input.action.resource.table.tableName == \"employee_finance\"\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"UpdateTableColumns\"\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"finance\"\n    input.action.resource.table.tableName == \"transactions\"\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"UpdateTableColumns\"\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"finance\"\n    input.action.resource.table.tableName == \"employee_finance\"\n}\n"
+  },
+  {
+    "input": {
+      "extraction": {
+        "subject_attribute": "groups",
+        "subject_value": "analyst",
+        "resource_type": "",
+        "resource_values": {
+          "catalogs": []
+        },
+        "trino_action": [
+          "AccessCatalog",
+          "ExecuteQuery",
+          "SelectFromColumns"
+        ],
+        "column_mask": false,
+        "row_filter": false,
+        "column_mask_policy": {
+          "expression": ""
+        },
+        "row_filter_policy": {
+          "expression": ""
+        }
+      },
+      "trino_input": {
+        "context": {
+          "identity": {
+            "user": "alice",
+            "groups": [
+              "analyst"
+            ]
+          }
+        },
+        "action": {
+          "operation": "SelectFromColumns",
+          "resource": {}
+        }
+      }
+    },
+    "output": "is_analyst if {\n    \"analyst\" in input.context.identity.groups\n}\n\nallow if {\n    is_analyst\n    input.action.operation == \"ExecuteQuery\"\n}\n\nallow if {\n    is_analyst\n    input.action.operation == \"AccessCatalog\"\n}\n\nallow if {\n    is_analyst\n    input.action.operation == \"SelectFromColumns\"\n}\n"
+  },
+  {
+    "input": {
+      "extraction": {
+        "subject_attribute": "groups",
+        "subject_value": "data_scientist",
+        "resource_type": "",
+        "resource_values": {
+          "catalogs": []
+        },
+        "trino_action": [
+          "AccessCatalog",
+          "CreateView",
+          "ExecuteQuery",
+          "SelectFromColumns"
+        ],
+        "column_mask": false,
+        "row_filter": false,
+        "column_mask_policy": {
+          "expression": ""
+        },
+        "row_filter_policy": {
+          "expression": ""
+        }
+      },
+      "trino_input": {
+        "context": {
+          "identity": {
+            "user": "scientist",
+            "groups": [
+              "data_scientist"
+            ]
+          }
+        },
+        "action": {
+          "operation": "CreateView",
+          "resource": {}
+        }
+      }
+    },
+    "output": "is_data_scientist if {\n    \"data_scientist\" in input.context.identity.groups\n}\n\nallow if {\n    is_data_scientist\n    input.action.operation == \"ExecuteQuery\"\n}\n\nallow if {\n    is_data_scientist\n    input.action.operation == \"AccessCatalog\"\n}\n\nallow if {\n    is_data_scientist\n    input.action.operation == \"CreateView\"\n}\n\nallow if {\n    is_data_scientist\n    input.action.operation == \"SelectFromColumns\"\n}\n"
+  },
+  {
+    "input": {
+      "extraction": {
+        "subject_attribute": "groups",
         "subject_value": "finance_manager",
         "resource_type": "column",
         "resource_values": {
-          "catalogName": "iceberg",
-          "schemaName": "finance",
-          "tableName": "transactions",
-          "columnName": "amount"
+          "catalogs": [
+            {
+              "catalogName": "iceberg",
+              "schemas": [
+                {
+                  "schemaName": "finance",
+                  "tables": [
+                    {
+                      "tableName": "employee_finance",
+                      "columns": [
+                        "amount"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         "trino_action": [
+          "AccessCatalog",
           "ExecuteQuery",
           "SelectFromColumns"
         ],
@@ -87,14 +379,14 @@
             "column": {
               "catalogName": "iceberg",
               "schemaName": "finance",
-              "tableName": "transactions",
+              "tableName": "employee_finance",
               "columnName": "amount"
             }
           }
         }
       }
     },
-    "output": "is_finance_manager if {\n    \"finance_manager\" in input.context.identity.groups\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"ExecuteQuery\"\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"SelectFromColumns\"\n    input.action.resource.column.catalogName == \"iceberg\"\n    input.action.resource.column.schemaName == \"finance\"\n    input.action.resource.column.tableName == \"transactions\"\n    input.action.resource.column.columnName == \"amount\"\n}\n"
+    "output": "is_finance_manager if {\n    \"finance_manager\" in input.context.identity.groups\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"ExecuteQuery\"\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"AccessCatalog\"\n    input.action.resource.catalog.name == \"iceberg\"\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"SelectFromColumns\"\n    input.action.resource.column.catalogName == \"iceberg\"\n    input.action.resource.column.schemaName == \"finance\"\n    input.action.resource.column.tableName == \"employee_finance\"\n    input.action.resource.column.columnName == \"amount\"\n}\n"
   },
   {
     "input": {
@@ -103,10 +395,24 @@
         "subject_value": "finance_manager",
         "resource_type": "column",
         "resource_values": {
-          "catalogName": "iceberg",
-          "schemaName": "finance",
-          "tableName": "transactions",
-          "columnName": "salary"
+          "catalogs": [
+            {
+              "catalogName": "iceberg",
+              "schemas": [
+                {
+                  "schemaName": "finance",
+                  "tables": [
+                    {
+                      "tableName": "transactions",
+                      "columns": [
+                        "salary"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         "trino_action": [
           "GetColumnMask"
@@ -154,11 +460,26 @@
         "subject_value": "regional_manager",
         "resource_type": "table",
         "resource_values": {
-          "catalogName": "iceberg",
-          "schemaName": "sales",
-          "tableName": "orders"
+          "catalogs": [
+            {
+              "catalogName": "iceberg",
+              "schemas": [
+                {
+                  "schemaName": "sales",
+                  "tables": [
+                    {
+                      "tableName": "orders"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         "trino_action": [
+          "AccessCatalog",
+          "ExecuteQuery",
+          "SelectFromColumns",
           "GetRowFilters"
         ],
         "column_mask": false,
@@ -191,7 +512,7 @@
         }
       }
     },
-    "output": "is_regional_manager if {\n    \"regional_manager\" in input.context.identity.groups\n}\n\nrowFilters contains filter if {\n    is_regional_manager\n    input.action.operation == \"GetRowFilters\"\n\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"sales\"\n    input.action.resource.table.tableName == \"orders\"\n\n    filter := {\n        \"expression\": \"region = 'EU'\"\n    }\n}\n"
+    "output": "is_regional_manager if {\n    \"regional_manager\" in input.context.identity.groups\n}\n\nallow if {\n    is_regional_manager\n    input.action.operation == \"ExecuteQuery\"\n}\n\nallow if {\n    is_regional_manager\n    input.action.operation == \"AccessCatalog\"\n    input.action.resource.catalog.name == \"iceberg\"\n}\n\nallow if {\n    is_regional_manager\n    input.action.operation == \"SelectFromColumns\"\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"sales\"\n    input.action.resource.table.tableName == \"orders\"\n}\n\nrowFilters contains filter if {\n    is_regional_manager\n    input.action.operation == \"GetRowFilters\"\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"sales\"\n    input.action.resource.table.tableName == \"orders\"\n\n    filter := {\n        \"expression\": \"region = 'EU'\"\n    }\n}\n"
   },
   {
     "input": {
@@ -200,9 +521,21 @@
         "subject_value": "finance_manager",
         "resource_type": "table",
         "resource_values": {
-          "catalogName": "iceberg",
-          "schemaName": "finance",
-          "tableName": "employee_finance"
+          "catalogs": [
+            {
+              "catalogName": "iceberg",
+              "schemas": [
+                {
+                  "schemaName": "finance",
+                  "tables": [
+                    {
+                      "tableName": "employee_finance"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         "trino_action": [
           "AccessCatalog",
@@ -240,57 +573,6 @@
         }
       }
     },
-    "output": "is_finance_manager if {\n    \"finance_manager\" in input.context.identity.groups\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"ExecuteQuery\"\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"AccessCatalog\"\n    input.action.resource.catalog.name == \"iceberg\"\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"SelectFromColumns\"\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"finance\"\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"UpdateTableColumns\"\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"finance\"\n}\n"
-  },
-  {
-    "input": {
-      "extraction": {
-        "subject_attribute": "groups",
-        "subject_value": "finance_manager",
-        "resource_type": "table",
-        "resource_values": {
-          "catalogName": "iceberg",
-          "schemaName": "finance",
-          "tableName": "employee_finance"
-        },
-        "trino_action": [
-          "GetColumnMask",
-          "GetRowFilters"
-        ],
-        "column_mask": false,
-        "row_filter": false,
-        "column_mask_policy": {
-          "expression": ""
-        },
-        "row_filter_policy": {
-          "expression": ""
-        }
-      },
-      "trino_input": {
-        "context": {
-          "identity": {
-            "user": "finance",
-            "groups": [
-              "finance_manager"
-            ]
-          }
-        },
-        "action": {
-          "operation": "GetColumnMask",
-          "filterResources": [
-            {
-              "column": {
-                "catalogName": "iceberg",
-                "schemaName": "finance",
-                "tableName": "employee_finance",
-                "columnName": "salary",
-                "columnType": "integer"
-              }
-            }
-          ]
-        }
-      }
-    },
-    "output": "is_finance_manager if {\n    \"finance_manager\" in input.context.identity.groups\n}\n"
+    "output": "is_finance_manager if {\n    \"finance_manager\" in input.context.identity.groups\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"ExecuteQuery\"\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"AccessCatalog\"\n    input.action.resource.catalog.name == \"iceberg\"\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"SelectFromColumns\"\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"finance\"\n    input.action.resource.table.tableName == \"employee_finance\"\n}\n\nallow if {\n    is_finance_manager\n    input.action.operation == \"UpdateTableColumns\"\n    input.action.resource.table.catalogName == \"iceberg\"\n    input.action.resource.table.schemaName == \"finance\"\n    input.action.resource.table.tableName == \"employee_finance\"\n}\n"
   }
 ]

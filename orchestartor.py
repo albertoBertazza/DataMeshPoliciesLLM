@@ -314,46 +314,46 @@ if __name__ == "__main__":
             continue
 
 
-
-        # -------------------------------
-        # Generate Trino tests
-        # -------------------------------
-
-        generate_test(
-            explanation,
-            data_mesh=DATA_MESH,
-            user_credentials=USER_CREDENTIALS,
-            test_creation_example_indexes=INDEX_TEST_CREATION,
-            is_local=IS_LOCAL,
-            chat_url=CHAT_URL,
-            embedding_url=EMBEDDING_URL,
-            client=CLIENT,
-            model=MODEL,
-            embedding_model=EMBEDDING_MODEL
-        )
-
-
-
-        # -------------------------------
-        # Execute Trino tests
-        # -------------------------------
-
-        launch_test()
-
-
-
-        # -------------------------------
-        # Evaluate results
-        # -------------------------------
-
-        evaluate_test(
-            data_mesh=DATA_MESH,
-            users=USER_CREDENTIALS,
-            actions=CHECK_FOR_ACTION,
-            policy_path=POLICY_PATH,
-            examples_path=EVALUATION_EXAMPLES_PATH,
-            is_local=IS_LOCAL,
-            chat_url=CHAT_URL,
-            client=CLIENT,
-            model=MODEL
-        )
+        #
+        # # -------------------------------
+        # # Generate Trino tests
+        # # -------------------------------
+        #
+        # generate_test(
+        #     explanation,
+        #     data_mesh=DATA_MESH,
+        #     user_credentials=USER_CREDENTIALS,
+        #     test_creation_example_indexes=INDEX_TEST_CREATION,
+        #     is_local=IS_LOCAL,
+        #     chat_url=CHAT_URL,
+        #     embedding_url=EMBEDDING_URL,
+        #     client=CLIENT,
+        #     model=MODEL,
+        #     embedding_model=EMBEDDING_MODEL
+        # )
+        #
+        #
+        #
+        # # -------------------------------
+        # # Execute Trino tests
+        # # -------------------------------
+        #
+        # launch_test()
+        #
+        #
+        #
+        # # -------------------------------
+        # # Evaluate results
+        # # -------------------------------
+        #
+        # evaluate_test(
+        #     data_mesh=DATA_MESH,
+        #     users=USER_CREDENTIALS,
+        #     actions=CHECK_FOR_ACTION,
+        #     policy_path=POLICY_PATH,
+        #     examples_path=EVALUATION_EXAMPLES_PATH,
+        #     is_local=IS_LOCAL,
+        #     chat_url=CHAT_URL,
+        #     client=CLIENT,
+        #     model=MODEL
+        # )

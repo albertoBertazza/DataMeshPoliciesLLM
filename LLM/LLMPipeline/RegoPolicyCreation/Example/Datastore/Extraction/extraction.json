@@ -3,51 +3,12 @@
     "input": {
       "extraction": "The Analyst role is a read-only role. It should be allowed to execute SELECT statements on catalog: iceberg, schema: demographics, table: employees.",
       "checkForAction": {
-        "AddColumn": [
-          "AccessCatalog",
-          "AddColumn",
-          "ExecuteQuery"
-        ],
-        "AlterColumn": [],
-        "CreateMaterializedView": [
-          "AccessCatalog",
-          "CreateMaterializedView",
-          "ExecuteQuery",
-          "GetColumnMask",
-          "GetRowFilters",
-          "SelectFromColumns"
-        ],
-        "CreateSchema": [
-          "AccessCatalog",
-          "CreateSchema",
-          "ExecuteQuery"
-        ],
-        "CreateTable": [
-          "AccessCatalog",
-          "CreateTable",
-          "ExecuteQuery"
-        ],
-        "Insert": [
-          "AccessCatalog",
-          "ExecuteQuery",
-          "InsertIntoTable"
-        ],
         "Select": [
           "AccessCatalog",
           "ExecuteQuery",
           "GetColumnMask",
           "GetRowFilters",
           "SelectFromColumns"
-        ],
-        "Update": [
-          "AccessCatalog",
-          "ExecuteQuery",
-          "UpdateTableColumns"
-        ],
-        "Delete": [
-          "AccessCatalog",
-          "ExecuteQuery",
-          "DeleteFromTable"
         ]
       }
     },
@@ -56,9 +17,21 @@
       "subject_value": "analyst",
       "resource_type": "table",
       "resource_values": {
-        "catalogName": "iceberg",
-        "schemaName": "demographics",
-        "tableName": "employees"
+        "catalogs": [
+          {
+            "catalogName": "iceberg",
+            "schemas": [
+              {
+                "schemaName": "demographics",
+                "tables": [
+                  {
+                    "tableName": "employees"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "trino_action": [
         "AccessCatalog",
@@ -85,53 +58,26 @@
       "subject_value": "data_engineer",
       "resource_type": "table",
       "resource_values": {
-        "catalogName": "hive",
-        "schemaName": "sales",
-        "tableName": "orders"
+        "catalogs": [
+          {
+            "catalogName": "hive",
+            "schemas": [
+              {
+                "schemaName": "sales",
+                "tables": [
+                  {
+                    "tableName": "orders"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "trino_action": [
         "AccessCatalog",
         "ExecuteQuery",
         "InsertIntoTable"
-      ],
-      "column_mask": false,
-      "row_filter": false
-    }
-  },
-  {
-    "input": {
-      "extraction": "The Admin role has unrestricted access to every catalog, schema, table and database object.",
-      "checkForAction": {
-        "*": [
-          "AccessCatalog",
-          "ExecuteQuery",
-          "CreateSchema",
-          "CreateTable",
-          "DropTable",
-          "InsertIntoTable",
-          "DeleteFromTable",
-          "UpdateTableColumns"
-        ]
-      }
-    },
-    "output": {
-      "subject_attribute": "groups",
-      "subject_value": "admin",
-      "resource_type": "catalog",
-      "resource_values": {
-        "catalogName": "*",
-        "schemaName": "*",
-        "tableName": "*"
-      },
-      "trino_action": [
-        "AccessCatalog",
-        "ExecuteQuery",
-        "CreateSchema",
-        "CreateTable",
-        "DropTable",
-        "InsertIntoTable",
-        "DeleteFromTable",
-        "UpdateTableColumns"
       ],
       "column_mask": false,
       "row_filter": false
@@ -153,9 +99,21 @@
       "subject_value": "hr_manager",
       "resource_type": "schema",
       "resource_values": {
-        "catalogName": "iceberg",
-        "schemaName": "hr",
-        "tableName": "*"
+        "catalogs": [
+          {
+            "catalogName": "iceberg",
+            "schemas": [
+              {
+                "schemaName": "hr",
+                "tables": [
+                  {
+                    "tableName": "employees"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "trino_action": [
         "AccessCatalog",
@@ -189,9 +147,21 @@
       "subject_value": "finance_manager",
       "resource_type": "schema",
       "resource_values": {
-        "catalogName": "iceberg",
-        "schemaName": "finance",
-        "tableName": "*"
+        "catalogs": [
+          {
+            "catalogName": "iceberg",
+            "schemas": [
+              {
+                "schemaName": "finance",
+                "tables": [
+                  {
+                    "tableName": "transactions"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "trino_action": [
         "AccessCatalog",
@@ -221,9 +191,7 @@
       "subject_value": "analyst",
       "resource_type": "",
       "resource_values": {
-        "catalogName": "*",
-        "schemaName": "*",
-        "tableName": "*"
+        "catalogs": []
       },
       "trino_action": [
         "AccessCatalog",
@@ -253,9 +221,7 @@
       "subject_value": "data_scientist",
       "resource_type": "",
       "resource_values": {
-        "catalogName": "*",
-        "schemaName": "*",
-        "tableName": "*"
+        "catalogs": []
       },
       "trino_action": [
         "AccessCatalog",
@@ -285,10 +251,25 @@
       "subject_value": "finance_manager",
       "resource_type": "column",
       "resource_values": {
-        "catalogName": "iceberg",
-        "schemaName": "finance",
-        "tableName": "employee_finance",
-        "columnName": "salary"
+        "catalogs": [
+          {
+            "catalogName": "iceberg",
+            "schemas": [
+              {
+                "schemaName": "finance",
+                "tables": [
+                  {
+                    "tableName": "employee_finance",
+                    "columns": [
+                      "salary",
+                      "bonus"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "trino_action": [
         "AccessCatalog",
@@ -321,9 +302,21 @@
       "subject_value": "regional_manager",
       "resource_type": "table",
       "resource_values": {
-        "catalogName": "iceberg",
-        "schemaName": "sales",
-        "tableName": "orders"
+        "catalogs": [
+          {
+            "catalogName": "iceberg",
+            "schemas": [
+              {
+                "schemaName": "sales",
+                "tables": [
+                  {
+                    "tableName": "orders"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "trino_action": [
         "AccessCatalog",
@@ -356,9 +349,24 @@
       "subject_value": "external_auditor",
       "resource_type": "table",
       "resource_values": {
-        "catalogName": "iceberg",
-        "schemaName": "finance",
-        "tableName": "transactions"
+        "catalogs": [
+          {
+            "catalogName": "iceberg",
+            "schemas": [
+              {
+                "schemaName": "finance",
+                "tables": [
+                  {
+                    "tableName": "transactions",
+                    "columns": [
+                      "salary"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "trino_action": [
         "AccessCatalog",
