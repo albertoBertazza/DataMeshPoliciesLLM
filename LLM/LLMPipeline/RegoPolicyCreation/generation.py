@@ -923,7 +923,7 @@ def process_rule(
             explanation["text"]
         )
 
-        print("FULL: ", explanation)
+        #print("FULL: ", explanation)
 
     except Exception as e:
 

@@ -22,7 +22,7 @@
             }
           ]
         },
-        "trino_action": [
+        "trino_permission": [
           "AccessCatalog",
           "ExecuteQuery",
           "SelectFromColumns"
@@ -46,7 +46,7 @@
           }
         },
         "action": {
-          "operation": "SelectFromColumns",
+          "operation": "SelectFromColumnsAction",
           "resource": {
             "table": {
               "catalogName": "iceberg",
@@ -82,7 +82,7 @@
             }
           ]
         },
-        "trino_action": [
+        "trino_permission": [
           "AccessCatalog",
           "ExecuteQuery",
           "InsertIntoTable"
@@ -106,7 +106,7 @@
           }
         },
         "action": {
-          "operation": "InsertIntoTable",
+          "operation": "InsertIntoTableAction",
           "resource": {
             "table": {
               "catalogName": "hive",
@@ -142,7 +142,7 @@
             }
           ]
         },
-        "trino_action": [
+        "trino_permission": [
           "AccessCatalog",
           "ExecuteQuery",
           "UpdateTableColumns"
@@ -166,7 +166,7 @@
           }
         },
         "action": {
-          "operation": "UpdateTableColumns",
+          "operation": "UpdateTableColumnsAction",
           "resource": {
             "table": {
               "catalogName": "iceberg",
@@ -205,7 +205,7 @@
             }
           ]
         },
-        "trino_action": [
+        "trino_permission": [
           "AccessCatalog",
           "ExecuteQuery",
           "SelectFromColumns",
@@ -230,7 +230,7 @@
           }
         },
         "action": {
-          "operation": "SelectFromColumns",
+          "operation": "SelectFromColumnsAction",
           "resource": {
             "table": {
               "catalogName": "iceberg",
@@ -252,7 +252,7 @@
         "resource_values": {
           "catalogs": []
         },
-        "trino_action": [
+        "trino_permission": [
           "AccessCatalog",
           "ExecuteQuery",
           "SelectFromColumns"
@@ -276,7 +276,7 @@
           }
         },
         "action": {
-          "operation": "SelectFromColumns",
+          "operation": "SelectFromColumnsAction",
           "resource": {}
         }
       }
@@ -292,7 +292,7 @@
         "resource_values": {
           "catalogs": []
         },
-        "trino_action": [
+        "trino_permission": [
           "AccessCatalog",
           "CreateView",
           "ExecuteQuery",
@@ -317,7 +317,7 @@
           }
         },
         "action": {
-          "operation": "CreateView",
+          "operation": "CreateViewAction",
           "resource": {}
         }
       }
@@ -350,7 +350,7 @@
             }
           ]
         },
-        "trino_action": [
+        "trino_permission": [
           "AccessCatalog",
           "ExecuteQuery",
           "SelectFromColumns"
@@ -374,7 +374,7 @@
           }
         },
         "action": {
-          "operation": "SelectFromColumns",
+          "operation": "SelectFromColumnsAction",
           "resource": {
             "column": {
               "catalogName": "iceberg",
@@ -414,7 +414,7 @@
             }
           ]
         },
-        "trino_action": [
+        "trino_permission": [
           "GetColumnMask"
         ],
         "column_mask": true,
@@ -436,7 +436,7 @@
           }
         },
         "action": {
-          "operation": "GetColumnMask",
+          "operation": "GetColumnMaskAction",
           "filterResources": [
             {
               "column": {
@@ -476,7 +476,7 @@
             }
           ]
         },
-        "trino_action": [
+        "trino_permission": [
           "AccessCatalog",
           "ExecuteQuery",
           "SelectFromColumns",
@@ -501,7 +501,7 @@
           }
         },
         "action": {
-          "operation": "GetRowFilters",
+          "operation": "GetRowFiltersAction",
           "resource": {
             "table": {
               "catalogName": "iceberg",
@@ -537,7 +537,7 @@
             }
           ]
         },
-        "trino_action": [
+        "trino_permission": [
           "AccessCatalog",
           "ExecuteQuery",
           "SelectFromColumns",
@@ -562,7 +562,7 @@
           }
         },
         "action": {
-          "operation": "SelectFromColumns",
+          "operation": "SelectFromColumnsAction",
           "resource": {
             "table": {
               "catalogName": "iceberg",

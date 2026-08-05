@@ -3,7 +3,7 @@
     "input": {
       "extraction": "The Analyst role is a read-only role. It should be allowed to execute SELECT statements on catalog: iceberg, schema: demographics, table: employees.",
       "checkForAction": {
-        "Select": [
+        "SelectAction": [
           "AccessCatalog",
           "ExecuteQuery",
           "GetColumnMask",
@@ -33,7 +33,7 @@
           }
         ]
       },
-      "trino_action": [
+      "trino_permission": [
         "AccessCatalog",
         "ExecuteQuery",
         "SelectFromColumns"
@@ -46,7 +46,7 @@
     "input": {
       "extraction": "The Data Engineer role is responsible for data ingestion and maintenance. It should be allowed to INSERT into catalog: hive, schema: sales, table: orders.",
       "checkForAction": {
-        "Insert": [
+        "InsertAction": [
           "AccessCatalog",
           "ExecuteQuery",
           "InsertIntoTable"
@@ -74,7 +74,7 @@
           }
         ]
       },
-      "trino_action": [
+      "trino_permission": [
         "AccessCatalog",
         "ExecuteQuery",
         "InsertIntoTable"
@@ -87,7 +87,7 @@
     "input": {
       "extraction": "The HR Manager role can UPDATE records only inside catalog: iceberg, schema: hr.",
       "checkForAction": {
-        "Update": [
+        "UpdateAction": [
           "AccessCatalog",
           "ExecuteQuery",
           "UpdateTableColumns"
@@ -115,7 +115,7 @@
           }
         ]
       },
-      "trino_action": [
+      "trino_permission": [
         "AccessCatalog",
         "ExecuteQuery",
         "UpdateTableColumns"
@@ -128,14 +128,14 @@
     "input": {
       "extraction": "The Finance Manager role can SELECT and UPDATE data only inside catalog: iceberg, schema: finance.",
       "checkForAction": {
-        "Select": [
+        "SelectAction": [
           "AccessCatalog",
           "ExecuteQuery",
           "GetColumnMask",
           "GetRowFilters",
           "SelectFromColumns"
         ],
-        "Update": [
+        "UpdateAction": [
           "AccessCatalog",
           "ExecuteQuery",
           "UpdateTableColumns"
@@ -163,7 +163,7 @@
           }
         ]
       },
-      "trino_action": [
+      "trino_permission": [
         "AccessCatalog",
         "ExecuteQuery",
         "SelectFromColumns",
@@ -177,7 +177,7 @@
     "input": {
       "extraction": "The Analyst role only has read permissions and cannot modify data.",
       "checkForAction": {
-        "Select": [
+        "SelectAction": [
           "AccessCatalog",
           "ExecuteQuery",
           "GetColumnMask",
@@ -193,7 +193,7 @@
       "resource_values": {
         "catalogs": []
       },
-      "trino_action": [
+      "trino_permission": [
         "AccessCatalog",
         "ExecuteQuery",
         "SelectFromColumns"
@@ -206,7 +206,7 @@
     "input": {
       "extraction": "The Data Scientist role can CREATE VIEW objects and SELECT the required source data.",
       "checkForAction": {
-        "CreateView": [
+        "CreateViewAction": [
           "AccessCatalog",
           "CreateView",
           "ExecuteQuery",
@@ -223,7 +223,7 @@
       "resource_values": {
         "catalogs": []
       },
-      "trino_action": [
+      "trino_permission": [
         "AccessCatalog",
         "CreateView",
         "ExecuteQuery",
@@ -237,7 +237,7 @@
     "input": {
       "extraction": "The Finance Manager role can SELECT from catalog: iceberg, schema: finance, table: employee_finance, but salary and bonus columns must be masked.",
       "checkForAction": {
-        "Select": [
+        "SelectAction": [
           "AccessCatalog",
           "ExecuteQuery",
           "GetColumnMask",
@@ -271,7 +271,7 @@
           }
         ]
       },
-      "trino_action": [
+      "trino_permission": [
         "AccessCatalog",
         "ExecuteQuery",
         "SelectFromColumns",
@@ -288,7 +288,7 @@
     "input": {
       "extraction": "The Regional Manager role can SELECT from catalog: iceberg, schema: sales, table: orders, but only rows where region equals EU are visible.",
       "checkForAction": {
-        "Select": [
+        "SelectAction": [
           "AccessCatalog",
           "ExecuteQuery",
           "GetColumnMask",
@@ -318,7 +318,7 @@
           }
         ]
       },
-      "trino_action": [
+      "trino_permission": [
         "AccessCatalog",
         "ExecuteQuery",
         "SelectFromColumns",
@@ -335,7 +335,7 @@
     "input": {
       "extraction": "The External Auditor role can SELECT from catalog: iceberg, schema: finance, table: transactions. The salary column must be masked and only EU transactions can be viewed.",
       "checkForAction": {
-        "Select": [
+        "SelectAction": [
           "AccessCatalog",
           "ExecuteQuery",
           "GetColumnMask",
@@ -368,7 +368,7 @@
           }
         ]
       },
-      "trino_action": [
+      "trino_permission": [
         "AccessCatalog",
         "ExecuteQuery",
         "SelectFromColumns",

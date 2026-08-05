@@ -172,7 +172,7 @@ Do not invent resource names.
 
 ACTION RULES:
 
-- "trino_action" MUST contain only Trino authorization actions.
+- "trino_permission" MUST contain only Trino authorization actions.
 - Do not return SQL operations such as SELECT, INSERT, UPDATE, DELETE.
 - Convert SQL operations using the supplied action mapping.
 - If an operation requires multiple Trino permissions, return all required
@@ -240,7 +240,7 @@ OUTPUT FORMAT:
     "tableName": "",
     "columnName": ""
   },
-  "trino_action": [],
+  "trino_permission": [],
   "column_mask": false,
   "row_filter": false
 }
@@ -562,7 +562,7 @@ def _normalize_extraction(
     )
 
     result.setdefault(
-        "trino_action",
+        "trino_permission",
         []
     )
 
@@ -639,7 +639,7 @@ def _normalize_extraction(
     # ------------------------------------------------------------------------
 
     actions = result.get(
-        "trino_action"
+        "trino_permission"
     )
 
     if not isinstance(
@@ -656,7 +656,7 @@ def _normalize_extraction(
     ]
 
     result[
-        "trino_action"
+        "trino_permission"
     ] = actions
 
     # ------------------------------------------------------------------------
@@ -665,17 +665,17 @@ def _normalize_extraction(
 
     if not result["column_mask"]:
 
-        result["trino_action"] = [
+        result["trino_permission"] = [
             action
-            for action in result["trino_action"]
+            for action in result["trino_permission"]
             if action != "GetColumnMask"
         ]
 
     if not result["row_filter"]:
 
-        result["trino_action"] = [
+        result["trino_permission"] = [
             action
-            for action in result["trino_action"]
+            for action in result["trino_permission"]
             if action != "GetRowFilters"
         ]
 
@@ -792,15 +792,15 @@ def _normalize_extraction(
     # Validate actions
     # ------------------------------------------------------------------------
 
-    valid_trino_actions = {
+    valid_trino_permissions = {
         permission
         for permissions in check_for_action.values()
         for permission in permissions
     }
 
-    for action in result["trino_action"]:
+    for action in result["trino_permission"]:
 
-        if action not in valid_trino_actions:
+        if action not in valid_trino_permissions:
             raise ValueError(
                 f"Invalid Trino authorization action: "
                 f"{action!r}"

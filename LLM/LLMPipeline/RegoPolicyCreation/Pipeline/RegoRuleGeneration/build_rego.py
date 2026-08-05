@@ -236,13 +236,13 @@ def build_input_examples(
         )
 
     actions = extracted_entity.get(
-        "trino_action",
+        "trino_permission",
         []
     )
 
     if not isinstance(actions, list):
         raise ValueError(
-            "extracted_entity['trino_action'] must be a list"
+            "extracted_entity['trino_permission'] must be a list"
         )
 
     values = extracted_entity.get(
@@ -535,7 +535,7 @@ def get_generate_rego_system_prompt(
             "tableName": "",
             "columnName": ""
         },
-        "trino_action": [],
+        "trino_permission": [],
         "column_mask": False,
         "row_filter": False,
         "column_mask_policy": {
@@ -637,7 +637,7 @@ def find_best_rego_examples(
 
     requested_operations = set(
         extracted_entity.get(
-            "trino_action",
+            "trino_permission",
             []
         )
     )
@@ -692,7 +692,7 @@ def find_best_rego_examples(
 
         example_operations = set(
             extraction.get(
-                "trino_action",
+                "trino_permission",
                 []
             )
         )
