@@ -1,3 +1,0 @@
-trino-performance/generated/*.json
-trino-performance/results/*.json
-trino-performance/tree_permission/*.json

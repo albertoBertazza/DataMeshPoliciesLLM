@@ -226,3 +226,5 @@ __marimo__/
 *.gguf
 
 /LocalLLMIntelIpex/llama-cpp-ipex-llm-2.3.0b20250424-win
+
+benchmark_comparison

@@ -7,38 +7,36 @@ import future.keywords.contains
 default allow := false
 
 
-user_info := resp.body if {
-    print("input user:", input.context.identity.user)
-    resp := http.send({
-        "method": "GET",
-        "url": sprintf("http://keycloak-microservice:5000/users/%s", [input.context.identity.user]),
-        "raise_error": false
-    })
-
-    print("HTTP RESPONSE:", resp)
-
-    resp.status_code == 200
-}
-user_hr if {
-    user_info
-    groups := object.get(user_info, "groups", [])
-    "hr_manager" in groups
-}
-
-allow if {
-    print("Before HTTP")
-
-    x := user_info
-
-    print("After HTTP:", x)
-
-    false
-}
+#user_info := resp.body if {
+#    print("input user:", input.context.identity.user)
+#    resp := http.send({
+#        "method": "GET",
+#        "url": sprintf("http://keycloak-microservice:5000/users/%s", [input.context.identity.user]),
+#        "raise_error": false
+#    })
+#
+#    resp.status_code == 200
+#}
+#user_hr if {
+#    user_info
+#    groups := object.get(user_info, "groups", [])
+#    "hr_manager" in groups
+#}
+#
+#allow if {
+#    print("Before HTTP")
+#
+#    x := user_info
+#
+#    print("After HTTP:", x)
+#
+#    false
+#}
 
 ############ ROLES ############
 
 is_admin if {
-    input.context.identity.user == "trino"
+    "admin" in input.context.identity.groups
 }
 
 is_test if {
@@ -67,6 +65,8 @@ is_hr if {
     "hr_manager" in input.context.identity.groups
 }
 
+
+
 # ============================================================
 # 1. QUERY EXECUTION
 # ============================================================
@@ -77,7 +77,6 @@ is_hr if {
 allow if {
     is_hr
     input.action.operation == "ExecuteQuery"
-    print("USER INFO: ", user_info)
 }
 
 # ============================================================

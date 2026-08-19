@@ -1,3 +1,0 @@
-opa-performance/generated/*.json
-opa-performance/results/*.json
-docker-opa-stateless/opa/*.rego

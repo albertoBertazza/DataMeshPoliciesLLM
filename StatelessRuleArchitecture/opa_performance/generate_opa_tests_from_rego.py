@@ -64,7 +64,7 @@ while PROJECT_DIR.name != "DataMeshPoliciesLLM":
 
 OPA_DIR = (
     PROJECT_DIR
-    / "StatelessRuleArchitetcture"
+    / "StatelessRuleArchitecture"
     / "docker-opa-stateless"
     / "opa"
 )
@@ -72,8 +72,8 @@ OPA_DIR = (
 
 OUTPUT_DIR = (
     PROJECT_DIR
-    / "StatelessRuleArchitetcture"
-    / "opa-performance"
+    / "StatelessRuleArchitecture"
+    / "opa_performance"
     / "generated"
 )
 

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from generate_opa_tests import generate_opa_tests
-from run_opa_tests import run_benchmark
+from StatelessRuleArchitecture.opa_performance.generate_opa_tests_from_trino_test import generate_opa_tests
+from StatelessRuleArchitecture.opa_performance.run_opa_tests import run_benchmark
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +38,7 @@ REPETITIONS = 2
 # Benchmark
 # ---------------------------------------------------------------------------
 
-def benchmark():
+def benchmark_stateless_architecture(repetition):
 
     print()
     print("=" * 70)
@@ -52,13 +52,11 @@ def benchmark():
     print()
     print("[1/2] Generating OPA tests...")
 
-    generated = generate_opa_tests(
-        number_of_tests=NUMBER_OF_TESTS
-    )
+    generated = generate_opa_tests()
 
     test_file = (
         GENERATED_DIR
-        / f"opa_tests_{NUMBER_OF_TESTS}.json"
+        / f"opa_tests.json"
     )
 
     if not test_file.exists():
@@ -78,7 +76,7 @@ def benchmark():
     result = run_benchmark(
         test_file=test_file,
         results_directory=RESULTS_DIR,
-        repetitions=REPETITIONS
+        repetitions=repetition,
     )
 
     print()
@@ -105,4 +103,4 @@ def benchmark():
 
 if __name__ == "__main__":
 
-    benchmark()
+    benchmark_stateless_architecture(REPETITIONS)

@@ -1,18 +1,22 @@
-version: '3.7'
 services:
   opa:
     image: openpolicyagent/opa:latest
+
     container_name: opa-stateless
+
     command:
       - run
       - --server
       - --addr=0.0.0.0:8182
       - --log-level=debug
       - /policy
+
     volumes:
       - ./opa:/policy
+
     ports:
       - "8182:8182"
+
     networks:
       - opa-network
 

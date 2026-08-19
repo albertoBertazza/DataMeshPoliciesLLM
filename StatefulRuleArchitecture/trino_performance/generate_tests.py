@@ -32,8 +32,8 @@ PROJECT_DIR = STATEFULL_RULE_ARCHITECTURE_DIR.parent
 
 TREE_PATH = (
     STATEFULL_RULE_ARCHITECTURE_DIR
-    / "TreeExtraction"
-    / "output"
+    / "trino_performance"
+    / "tree_permission"
     / "tree.json"
 )
 
@@ -572,21 +572,27 @@ def resolve_action(
     """
     Resolve whether an action is allowed for a concrete physical resource.
 
-    Permission lookup order:
+    Permission precedence:
 
-        1. exact table
-        2. wildcard table
+        1. global_allow_all
+        2. exact/wildcard table
         3. schema
         4. catalog
         5. security-group
 
-    More specific nodes take precedence.
+    New tree structure supports:
+
+        "global_allow_all": true
+
+    When global_allow_all is true, every executable action is allowed
+    for every physical resource, unless a more specific restriction is
+    explicitly represented in the tree.
 
     Returns:
 
         {
             "allowed": True/False,
-            "source": "table" / "schema" / "catalog" / "group" / None,
+            "source": "...",
             "action_data": {...} / None
         }
     """
@@ -604,6 +610,39 @@ def resolve_action(
             "source": None,
             "action_data": None
         }
+
+    # ========================================================================
+    # GLOBAL ALLOW ALL
+    # ========================================================================
+
+    if group_node.get(
+        "global_allow_all",
+        False
+    ) is True:
+
+        group_actions = get_action_allowed(
+            group_node
+        )
+
+        if action in group_actions:
+
+            return {
+                "allowed": True,
+                "source": "global",
+                "action_data": group_actions[action]
+            }
+
+        # If global_allow_all is true but this action is not present in
+        # action_allowed, do not invent permission information.
+        return {
+            "allowed": False,
+            "source": "global",
+            "action_data": None
+        }
+
+    # ========================================================================
+    # NORMAL RESOURCE-BASED RESOLUTION
+    # ========================================================================
 
     catalog_node = find_catalog_node(
         group_node,
@@ -718,16 +757,6 @@ def resolve_action(
                 "action_data": table_actions[action]
             }
 
-        # ------------------------------------------------------------
-        # IMPORTANT:
-        #
-        # If the table node explicitly has action_allowed but the
-        # action is absent, do NOT automatically inherit from schema.
-        #
-        # However, if action_allowed is missing/null, the parent
-        # permission remains applicable.
-        # ------------------------------------------------------------
-
         table_action_allowed = table_node.get(
             "action_allowed"
         )
@@ -755,8 +784,6 @@ def resolve_action(
             dict
         ):
 
-            # Explicit table permission exists.
-            # Missing action means denied at this level.
             return {
                 "allowed": False,
                 "source": "table",
@@ -764,7 +791,7 @@ def resolve_action(
             }
 
     # ------------------------------------------------------------------------
-    # No usable table permission
+    # Schema fallback
     # ------------------------------------------------------------------------
 
     if schema_match:
@@ -775,6 +802,10 @@ def resolve_action(
             "action_data": schema_actions[action]
         }
 
+    # ------------------------------------------------------------------------
+    # Catalog fallback
+    # ------------------------------------------------------------------------
+
     if catalog_match:
 
         return {
@@ -784,7 +815,7 @@ def resolve_action(
         }
 
     # ------------------------------------------------------------------------
-    # Security group level
+    # Group fallback
     # ------------------------------------------------------------------------
 
     group_actions = get_action_allowed(
@@ -1113,32 +1144,18 @@ def generate_allowed_tests(
 
     tests = []
 
-    security_groups = (
-        collect_security_groups(
-            tree
-        )
-    )
+    security_groups = collect_security_groups(tree)
 
-    known_actions = (
-        collect_executable_actions(
-            tree,
-            resources
-        )
+    known_actions = collect_executable_actions(
+        tree,
+        resources
     )
 
     for mesh_resource in data_mesh_resources:
 
-        catalog = mesh_resource[
-            "catalog"
-        ]
-
-        schema = mesh_resource[
-            "schema"
-        ]
-
-        table = mesh_resource[
-            "table"
-        ]
+        catalog = mesh_resource["catalog"]
+        schema = mesh_resource["schema"]
+        table = mesh_resource["table"]
 
         for security_group in security_groups:
 
@@ -1156,10 +1173,6 @@ def generate_allowed_tests(
                 if not result["allowed"]:
                     continue
 
-                action_data = result[
-                    "action_data"
-                ]
-
                 sql = build_sql(
                     action=action,
                     catalog=catalog,
@@ -1172,39 +1185,18 @@ def generate_allowed_tests(
 
                 tests.append(
                     {
-                        "security_group":
-                            security_group,
-
-                        "action":
-                            action,
-
-                        "catalog":
-                            catalog,
-
-                        "schema":
-                            schema,
-
-                        "table":
-                            table,
-
-                        "sql":
-                            sql,
-
-                        "expected_allowed":
-                            True,
-
-                        "required_permissions":
-                            get_required_permissions(
-                                action_data
-                            ),
-
-                        "permission_source":
-                            result[
-                                "source"
-                            ],
-
-                        "test_type":
-                            "allowed"
+                        "security_group": security_group,
+                        "action": action,
+                        "catalog": catalog,
+                        "schema": schema,
+                        "table": table,
+                        "sql": sql,
+                        "expected_allowed": True,
+                        "required_permissions": get_required_permissions(
+                            result["action_data"]
+                        ),
+                        "permission_source": result["source"],
+                        "test_type": "allowed"
                     }
                 )
 
@@ -1223,32 +1215,18 @@ def generate_denied_tests(
 
     tests = []
 
-    security_groups = (
-        collect_security_groups(
-            tree
-        )
-    )
+    security_groups = collect_security_groups(tree)
 
-    known_actions = (
-        collect_executable_actions(
-            tree,
-            resources
-        )
+    known_actions = collect_executable_actions(
+        tree,
+        resources
     )
 
     for mesh_resource in data_mesh_resources:
 
-        catalog = mesh_resource[
-            "catalog"
-        ]
-
-        schema = mesh_resource[
-            "schema"
-        ]
-
-        table = mesh_resource[
-            "table"
-        ]
+        catalog = mesh_resource["catalog"]
+        schema = mesh_resource["schema"]
+        table = mesh_resource["table"]
 
         for security_group in security_groups:
 
@@ -1278,44 +1256,22 @@ def generate_denied_tests(
 
                 tests.append(
                     {
-                        "security_group":
-                            security_group,
-
-                        "action":
-                            action,
-
-                        "catalog":
-                            catalog,
-
-                        "schema":
-                            schema,
-
-                        "table":
-                            table,
-
-                        "sql":
-                            sql,
-
-                        "expected_allowed":
-                            False,
-
-                        "required_permissions":
-                            action_info[
-                                "required_permissions"
-                            ],
-
-                        "permission_source":
-                            result[
-                                "source"
-                            ],
-
-                        "test_type":
-                            "denied"
+                        "security_group": security_group,
+                        "action": action,
+                        "catalog": catalog,
+                        "schema": schema,
+                        "table": table,
+                        "sql": sql,
+                        "expected_allowed": False,
+                        "required_permissions": action_info[
+                            "required_permissions"
+                        ],
+                        "permission_source": result["source"],
+                        "test_type": "denied"
                     }
                 )
 
     return tests
-
 
 # ============================================================================
 # Deduplication
@@ -2138,7 +2094,67 @@ def inspect_tree(
 # Standalone
 # ============================================================================
 
+import os
+from dotenv import load_dotenv
+from openai import OpenAI
+
+from TreePermission.tree_builder import build_permission_tree_from_directory
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+from pathlib import Path
+
+DATA_MESH_DIR = Path(
+    __file__
+).resolve().parent.parent.parent
+
+print(DATA_MESH_DIR)
+
+LLM_DIR = os.path.join(
+    DATA_MESH_DIR,
+    "LLM"
+)
+
+STRUCTURE_DIR = os.path.join(
+    LLM_DIR,
+    "Structure"
+)
+
+CHECK_FOR_ACTION_PATH = os.path.join(
+    STRUCTURE_DIR,
+    "checkForAction.json"
+)
+
+SECURITY_GROUPS_PATH = os.path.join(
+    STRUCTURE_DIR,
+    "security_groups.json"
+)
+
+DATA_MESH_STRUCTURE_PATH = os.path.join(
+    STRUCTURE_DIR,
+    "data_mesh.json"
+)
+
+
+DOCKER_COMPOSE_PATH = os.path.join(
+    DATA_MESH_DIR,
+    "docker-compose"
+)
+
+OPA_FILE_PATH = os.path.join(
+    DOCKER_COMPOSE_PATH,
+    "opa"
+)
+
+OUTPUT_PATH = os.path.join(os.path.join(os.path.join(os.path.join(DATA_MESH_DIR,"StatefulRuleArchitecture" ), "trino_permission"), "tree_permission"), "tree.json")
+
+
+
+
+
 if __name__ == "__main__":
+    build_permission_tree_from_directory(OPA_FILE_PATH, CHECK_FOR_ACTION_PATH, SECURITY_GROUPS_PATH, OUTPUT_PATH)
 
     generate_tests(
         max_tests=MAX_TESTS
