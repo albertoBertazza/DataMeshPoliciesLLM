@@ -64,7 +64,7 @@ analyst_operation := {
 }
 # define the hr groups
 is_hr if {
-    "hr_managers" in input.context.identity.groups
+    "hr_manager" in input.context.identity.groups
 }
 
 # ============================================================

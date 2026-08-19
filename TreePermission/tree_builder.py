@@ -1,3 +1,4 @@
+import tempfile
 import json
 import re
 from pathlib import Path
@@ -188,6 +189,16 @@ def build_permission_tree(
                 if security_group == excluded_group:
                     continue
 
+                # Admin/unrestricted groups should not receive filters.
+                if groups.get(
+                        security_group,
+                        {}
+                ).get(
+                    "global_allow_all",
+                    False
+                ):
+                    continue
+
                 expanded_rule = _deep_copy_json(
                     rule
                 )
@@ -203,6 +214,16 @@ def build_permission_tree(
 
             for security_group in security_groups:
 
+                # Unrestricted groups bypass filters.
+                if groups.get(
+                        security_group,
+                        {}
+                ).get(
+                    "global_allow_all",
+                    False
+                ):
+                    continue
+
                 expanded_rule = _deep_copy_json(
                     rule
                 )
@@ -215,6 +236,17 @@ def build_permission_tree(
                 )
 
         else:
+
+            # Explicit filters for an unrestricted group
+            # are ignored because global access bypasses filters.
+            if groups.get(
+                    group,
+                    {}
+            ).get(
+                "global_allow_all",
+                False
+            ):
+                continue
 
             _apply_filter_rule(
                 groups,
@@ -297,13 +329,15 @@ def build_permission_tree(
 def _remove_internal_fields(
     groups: Dict[str, Dict[str, Any]],
 ) -> None:
+    """
+    Remove only fields that are genuinely internal.
 
-    for group_data in groups.values():
+    global_allow_all is intentionally preserved because it is
+    required when permission trees are merged.
+    """
 
-        group_data.pop(
-            "global_allow_all",
-            None
-        )
+    # Currently there are no additional internal fields to remove.
+    pass
 
 
 # ============================================================
@@ -489,7 +523,6 @@ def _load_action_dependencies(
 # ============================================================
 # REGO ALLOW PARSER
 # ============================================================
-
 def _extract_allow_rules(
     opa_text: str,
 ) -> List[Dict[str, Any]]:
@@ -501,7 +534,24 @@ def _extract_allow_rules(
     rules: List[Dict[str, Any]] = []
 
     # ========================================================
-    # Normal block rules
+    # DEBUG
+    # ========================================================
+
+    print("\n[DEBUG] Group helpers:")
+    for helper, group in helper_to_group.items():
+        print(f"    {helper} -> {group}")
+
+    # ========================================================
+    # BLOCK RULES
+    #
+    # allow if {
+    #     is_admin
+    # }
+    #
+    # allow if {
+    #     is_finance_manager
+    #     input.action.operation == "SelectFromColumns"
+    # }
     # ========================================================
 
     for body in _extract_rule_bodies(
@@ -517,12 +567,16 @@ def _extract_allow_rules(
         if group is None:
             continue
 
+        # ----------------------------------------------------
+        # Explicit operation
+        # ----------------------------------------------------
+
         operation_match = re.search(
             r'input\.action\.operation\s*==\s*"([^"]+)"',
             body
         )
 
-        if operation_match is not None:
+        if operation_match:
 
             operation = operation_match.group(1)
 
@@ -538,6 +592,10 @@ def _extract_allow_rules(
             })
 
             continue
+
+        # ----------------------------------------------------
+        # Operation set
+        # ----------------------------------------------------
 
         operation_set_match = re.search(
             r'input\.action\.operation\s+in\s+'
@@ -571,13 +629,19 @@ def _extract_allow_rules(
 
             continue
 
-        # Group helper with no operation:
+        # ----------------------------------------------------
+        # NO OPERATION
         #
         # allow if {
         #     is_admin
         # }
         #
-        # This means unrestricted access for that group.
+        # This means unrestricted global access.
+        # ----------------------------------------------------
+
+        print(
+            f"[DEBUG] Global allow detected for group: {group}"
+        )
 
         rules.append({
             "group": group,
@@ -589,12 +653,15 @@ def _extract_allow_rules(
         })
 
     # ========================================================
-    # One-line rules
+    # ONE-LINE RULES
+    #
+    # allow if is_admin
     # ========================================================
 
     one_line_pattern = re.compile(
         r'(?m)^\s*allow\s+if\s+'
-        r'([A-Za-z_][A-Za-z0-9_]*)\s*$'
+        r'([A-Za-z_][A-Za-z0-9_]*)'
+        r'\s*$'
     )
 
     for match in one_line_pattern.finditer(
@@ -610,6 +677,11 @@ def _extract_allow_rules(
         if group is None:
             continue
 
+        print(
+            f"[DEBUG] One-line global allow detected: "
+            f"{helper} -> {group}"
+        )
+
         rules.append({
             "group": group,
             "operation": None,
@@ -619,7 +691,26 @@ def _extract_allow_rules(
             "global_allow_all": True,
         })
 
-    return rules
+    # ========================================================
+    # REMOVE DUPLICATES
+    # ========================================================
+
+    unique_rules = []
+    seen = set()
+
+    for rule in rules:
+
+        key = json.dumps(
+            rule,
+            sort_keys=True
+        )
+
+        if key not in seen:
+
+            seen.add(key)
+            unique_rules.append(rule)
+
+    return unique_rules
 
 
 # ============================================================
@@ -698,6 +789,7 @@ def _extract_group_helpers(
     result: Dict[str, str] = {}
 
     pattern = re.compile(
+        r'(?m)^\s*'
         r'(?P<helper>[A-Za-z_][A-Za-z0-9_]*)'
         r'\s+if\s*\{'
     )
@@ -726,11 +818,12 @@ def _extract_group_helpers(
 
         if group_match:
 
-            result[helper] = (
-                group_match.group(1)
-            )
+            group = group_match.group(1)
+
+            result[helper] = group
 
     return result
+
 
 
 def _resolve_group_from_body(
@@ -1908,149 +2001,6 @@ def _add_unique(
         )
 
 
-# ============================================================
-# DIRECTORY VERSION
-# ============================================================
-
-def build_permission_tree_from_directory(
-    opa_directory: str,
-    action_permissions_file: str,
-    security_groups_file: str,
-    output_file: Optional[str] = None,
-) -> Dict[str, Any]:
-
-    opa_dir = Path(
-        opa_directory
-    )
-
-    if not opa_dir.exists():
-        raise FileNotFoundError(
-            f"OPA directory not found: {opa_directory}"
-        )
-
-    if not opa_dir.is_dir():
-        raise NotADirectoryError(
-            f"OPA path is not a directory: {opa_directory}"
-        )
-
-    security_groups = _load_security_groups(
-        security_groups_file
-    )
-
-    result: Dict[str, Any] = {}
-
-    # ========================================================
-    # Parse every Rego file independently
-    # ========================================================
-
-    for opa_file in sorted(
-        opa_dir.glob("*.rego")
-    ):
-
-        tree = build_permission_tree(
-            opa_file=str(opa_file),
-            action_permissions_file=action_permissions_file,
-            security_groups_file=security_groups_file,
-        )
-
-        _merge_permission_trees(
-            result,
-            tree
-        )
-
-    # ========================================================
-    # Ensure every configured group exists
-    # ========================================================
-
-    for security_group in security_groups:
-
-        if security_group not in result:
-
-            result[security_group] = _create_group()
-
-    # ========================================================
-    # Remove synthetic / unknown groups
-    # ========================================================
-
-    result = {
-        group: data
-        for group, data in result.items()
-        if group in security_groups
-    }
-
-    # ========================================================
-    # Load dependencies ONCE
-    # ========================================================
-
-    dependencies = _load_action_dependencies(
-        action_permissions_file
-    )
-
-    # ========================================================
-    # Recalculate all derived actions AFTER merging
-    #
-    # This is important:
-    #
-    # policy A:
-    #     AccessCatalog
-    #
-    # policy B:
-    #     SelectFromColumns
-    #
-    # must become:
-    #
-    # AccessCatalog + SelectFromColumns
-    #
-    # before calculating action_allowed.
-    # ========================================================
-
-    for group_data in result.values():
-
-        _clear_derived_actions(
-            group_data
-        )
-
-        _calculate_allowed_actions(
-            group_data,
-            dependencies
-        )
-
-    # ========================================================
-    # Remove internal implementation fields
-    # ========================================================
-
-    _remove_internal_fields(
-        result
-    )
-
-    # ========================================================
-    # Save
-    # ========================================================
-
-    if output_file is not None:
-
-        output_path = Path(
-            output_file
-        )
-
-        output_path.parent.mkdir(
-            parents=True,
-            exist_ok=True
-        )
-
-        with output_path.open(
-            "w",
-            encoding="utf-8"
-        ) as f:
-
-            json.dump(
-                result,
-                f,
-                indent=2,
-                ensure_ascii=False
-            )
-
-    return result
 
 
 # ============================================================
@@ -2128,6 +2078,12 @@ def _merge_permission_trees(
 
         target_group = target[group]
 
+        # Ensure required structure exists.
+        target_group.setdefault(
+            "catalogs",
+            []
+        )
+
         # ----------------------------------------------------
         # Preserve unrestricted access.
         # ----------------------------------------------------
@@ -2141,16 +2097,28 @@ def _merge_permission_trees(
                 "global_allow_all"
             ] = True
 
+        # ----------------------------------------------------
+        # Permissions
+        # ----------------------------------------------------
+
         _merge_permission_value(
             target_group,
             source_group,
             "permission"
         )
 
+        # ----------------------------------------------------
+        # Filters
+        # ----------------------------------------------------
+
         _merge_filter_value(
             target_group,
             source_group
         )
+
+        # ----------------------------------------------------
+        # Catalogs
+        # ----------------------------------------------------
 
         for source_catalog in source_group.get(
             "catalogs",
@@ -2173,6 +2141,10 @@ def _merge_permission_trees(
                 source_catalog
             )
 
+            # ------------------------------------------------
+            # Schemas
+            # ------------------------------------------------
+
             for source_schema in source_catalog.get(
                 "schemas",
                 []
@@ -2194,6 +2166,10 @@ def _merge_permission_trees(
                     source_schema
                 )
 
+                # --------------------------------------------
+                # Tables
+                # --------------------------------------------
+
                 for source_table in source_schema.get(
                     "tables",
                     []
@@ -2214,6 +2190,10 @@ def _merge_permission_trees(
                         target_table,
                         source_table
                     )
+
+                    # ----------------------------------------
+                    # Columns
+                    # ----------------------------------------
 
                     for source_column in source_table.get(
                         "columns",
@@ -2362,28 +2342,243 @@ def _deep_copy_json(
     )
 
 
+def _combine_rego_files(
+    opa_directory: str,
+) -> Path:
+    """
+    Combine all .rego files in a directory into one temporary file.
+
+    The temporary file is created explicitly and must be deleted by
+    the caller.
+    """
+
+    opa_dir = Path(opa_directory)
+
+    if not opa_dir.exists():
+        raise FileNotFoundError(
+            f"OPA directory not found: {opa_directory}"
+        )
+
+    if not opa_dir.is_dir():
+        raise NotADirectoryError(
+            f"OPA path is not a directory: {opa_directory}"
+        )
+
+    opa_files = sorted(
+        opa_dir.glob("*.rego")
+    )
+
+    if not opa_files:
+        raise FileNotFoundError(
+            f"No .rego files found in: {opa_directory}"
+        )
+
+    # --------------------------------------------------------
+    # Create temporary file
+    # --------------------------------------------------------
+
+    temporary_file = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        suffix=".rego",
+        prefix="combined_opa_",
+        delete=False,
+    )
+
+    temporary_path = Path(
+        temporary_file.name
+    )
+
+    try:
+
+        for opa_file in opa_files:
+
+            print(
+                f"[COMBINE] Adding: {opa_file.name}"
+            )
+
+            content = opa_file.read_text(
+                encoding="utf-8"
+            )
+
+            temporary_file.write(
+                f"\n\n# ============================================================\n"
+            )
+
+            temporary_file.write(
+                f"# FILE: {opa_file.name}\n"
+            )
+
+            temporary_file.write(
+                f"# ============================================================\n\n"
+            )
+
+            temporary_file.write(
+                content
+            )
+
+            temporary_file.write(
+                "\n\n"
+            )
+
+    except Exception:
+
+        temporary_file.close()
+
+        temporary_path.unlink(
+            missing_ok=True
+        )
+
+        raise
+
+    finally:
+
+        if not temporary_file.closed:
+            temporary_file.close()
+
+    print(
+        f"[COMBINE] Created temporary Rego file: "
+        f"{temporary_path}"
+    )
+
+    return temporary_path
+
+
+# ============================================================
+# DIRECTORY VERSION
+# ============================================================
+
+
+def build_permission_tree_from_directory(
+    opa_directory: str,
+    action_permissions_file: str,
+    security_groups_file: str,
+    output_file: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Build a permission tree from all .rego files in a directory.
+
+    All .rego files are combined into a temporary Rego file and
+    processed together.
+
+    The temporary file is always deleted.
+    """
+
+    temporary_rego: Optional[Path] = None
+
+    try:
+
+        temporary_rego = _combine_rego_files(
+            opa_directory
+        )
+
+        print(
+            f"[BUILD] Parsing combined policy: "
+            f"{temporary_rego}"
+        )
+
+        actual_tree = build_permission_tree(
+            opa_file=str(
+                temporary_rego
+            ),
+            action_permissions_file=action_permissions_file,
+            security_groups_file=security_groups_file,
+            output_file=output_file,
+        )
+
+        return actual_tree
+
+    finally:
+
+        if temporary_rego is not None:
+
+            temporary_rego.unlink(
+                missing_ok=True
+            )
+
+            print(
+                f"[CLEANUP] Removed temporary file: "
+                f"{temporary_rego}"
+            )
+
+
+
 # ============================================================
 # EXAMPLE
 # ============================================================
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+OPA_DIRECTORY = (
+    PROJECT_ROOT
+    / "docker-compose"
+    / "opa"
+)
+
+ACTION_PERMISSIONS_FILE = (
+    PROJECT_ROOT
+    / "LLM"
+    / "Structure"
+    / "checkForAction.json"
+)
+
+SECURITY_GROUPS_FILE = (
+    PROJECT_ROOT
+    / "LLM"
+    / "Structure"
+    / "security_groups.json"
+)
+
+OUTPUT_FILE = (
+    PROJECT_ROOT
+    / "TreePermission"
+    / "output"
+    / "permission_tree.json"
+)
+
+
 if __name__ == "__main__":
 
-    tree = build_permission_tree(
-        opa_file=(
-            "docker-compose/opa/"
-            "policy_The_original_request_is_for_a_finance_ma.rego"
+    print("=" * 70)
+    print("BUILDING PERMISSION TREE")
+    print("=" * 70)
+
+    print(
+        f"Project root:       {PROJECT_ROOT}"
+    )
+
+    print(
+        f"OPA directory:      {OPA_DIRECTORY}"
+    )
+
+    print(
+        f"Action permissions: {ACTION_PERMISSIONS_FILE}"
+    )
+
+    print(
+        f"Security groups:    {SECURITY_GROUPS_FILE}"
+    )
+
+    print(
+        f"Output:             {OUTPUT_FILE}"
+    )
+
+    tree = build_permission_tree_from_directory(
+        opa_directory=str(
+            OPA_DIRECTORY
         ),
-        action_permissions_file=(
-            "LLM/Structure/checkForAction.json"
+        action_permissions_file=str(
+            ACTION_PERMISSIONS_FILE
         ),
-        security_groups_file=(
-            "LLM/Structure/security_groups.json"
+        security_groups_file=str(
+            SECURITY_GROUPS_FILE
         ),
-        output_file=(
-            "TreePermission/output/"
-            "permission_tree.json"
+        output_file=str(
+            OUTPUT_FILE
         ),
     )
+
+    print("\nPermission tree:")
 
     print(
         json.dumps(

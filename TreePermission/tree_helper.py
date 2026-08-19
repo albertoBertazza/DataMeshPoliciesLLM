@@ -1,98 +1,183 @@
 import json
 import os
 import copy
-import tempfile
 
-from TreePermission.TreeBuilder import build_permission_tree
+from TreePermission.tree_builder import build_permission_tree_from_directory
 
 from Function.LoadJson import load_json
 
 
-def _find_node(nodes, key, value):
+# ============================================================================
+# Basic helpers
+# ============================================================================
+
+def _find_node(
+    nodes,
+    key,
+    value
+):
     """
     Find a node in a list by its identifying key.
     """
+
     if not nodes:
         return None
 
     for node in nodes:
+
         if node.get(key) == value:
             return node
 
     return None
 
-def get_new_permission_tree(
-    new_tree_file,
-    tree_directory
+
+def _normalize(
+    value
 ):
     """
-    Compare a newly generated permission tree against all
-    previously generated/installed permission trees.
-
-    Returns only permissions introduced by the new policy.
+    Normalize JSON values so they can be compared reliably.
     """
 
-    with open(
-        new_tree_file,
-        "r",
-        encoding="utf-8"
-    ) as f:
+    if isinstance(value, dict):
 
-        new_tree = json.load(f)
+        return {
+            key: _normalize(value[key])
+            for key in sorted(value)
+        }
 
-    existing_tree = load_existing_permission_trees(
-        tree_directory,
-        exclude_file=new_tree_file
+    if isinstance(value, list):
+
+        normalized = [
+            _normalize(v)
+            for v in value
+        ]
+
+        # Lists in permission trees are generally unordered.
+        return sorted(
+            normalized,
+            key=lambda x: json.dumps(
+                x,
+                sort_keys=True,
+                ensure_ascii=False
+            )
+        )
+
+    return value
+
+
+def _json_equal(
+    a,
+    b
+):
+    return _normalize(a) == _normalize(b)
+
+
+# ============================================================================
+# Merge helpers
+# ============================================================================
+
+def _merge_list(
+    a,
+    b
+):
+    """
+    Merge two lists while removing duplicates.
+    """
+
+    result = copy.deepcopy(
+        a or []
     )
 
-    difference = subtract_permission_tree(
-        new_tree,
-        existing_tree
-    )
+    existing = {
+        json.dumps(
+            _normalize(item),
+            sort_keys=True,
+            ensure_ascii=False
+        )
+        for item in result
+    }
 
-    return difference
+    for item in b or []:
+
+        key = json.dumps(
+            _normalize(item),
+            sort_keys=True,
+            ensure_ascii=False
+        )
+
+        if key not in existing:
+
+            result.append(
+                copy.deepcopy(item)
+            )
+
+            existing.add(key)
+
+    return result
+
 
 def merge_filters(
     target,
     source
 ):
+    """
+    Merge filter definitions.
+    """
+
     if not target:
         return copy.deepcopy(source)
 
     if not source:
-        return target
+        return copy.deepcopy(target)
 
-    result = copy.deepcopy(target)
+    result = copy.deepcopy(
+        target
+    )
 
     for filter_name, values in source.items():
 
         result[filter_name] = _merge_list(
-            result.get(filter_name, []),
+            result.get(
+                filter_name,
+                []
+            ),
             values or []
         )
 
     return result
 
+
 def merge_actions(
     target,
     source
 ):
+    """
+    Merge action_allowed definitions.
+
+    Existing actions are preserved.
+    New actions are added.
+    """
+
     if not target:
         return copy.deepcopy(source)
 
     if not source:
-        return target
+        return copy.deepcopy(target)
 
-    result = copy.deepcopy(target)
+    result = copy.deepcopy(
+        target
+    )
 
     for action_name, action_value in source.items():
 
         if action_name not in result:
+
             result[action_name] = copy.deepcopy(
                 action_value
             )
 
     return result
+
 
 def merge_nodes(
     target_nodes,
@@ -100,7 +185,11 @@ def merge_nodes(
     node_key,
     children_key
 ):
-    for source_node in source_nodes:
+    """
+    Recursively merge hierarchical permission nodes.
+    """
+
+    for source_node in source_nodes or []:
 
         source_value = source_node.get(
             node_key
@@ -112,32 +201,49 @@ def merge_nodes(
             source_value
         )
 
+        # ---------------------------------------------------------
         # Completely new node
+        # ---------------------------------------------------------
+
         if target_node is None:
+
             target_nodes.append(
                 copy.deepcopy(source_node)
             )
+
             continue
 
+        # ---------------------------------------------------------
         # Permissions
+        # ---------------------------------------------------------
+
         target_node["permission"] = _merge_list(
             target_node.get("permission") or [],
             source_node.get("permission") or []
         )
 
+        # ---------------------------------------------------------
         # Filters
+        # ---------------------------------------------------------
+
         target_node["filters"] = merge_filters(
             target_node.get("filters"),
             source_node.get("filters")
         )
 
+        # ---------------------------------------------------------
         # Actions
+        # ---------------------------------------------------------
+
         target_node["action_allowed"] = merge_actions(
             target_node.get("action_allowed"),
             source_node.get("action_allowed")
         )
 
+        # ---------------------------------------------------------
         # Children
+        # ---------------------------------------------------------
+
         source_children = source_node.get(
             children_key,
             []
@@ -147,18 +253,22 @@ def merge_nodes(
             continue
 
         if children_key == "schemas":
+
             next_key = "schema"
             next_children = "tables"
 
         elif children_key == "tables":
+
             next_key = "table"
             next_children = "columns"
 
         elif children_key == "columns":
+
             next_key = "column"
             next_children = None
 
         else:
+
             next_key = None
             next_children = None
 
@@ -174,34 +284,6 @@ def merge_nodes(
                 next_children
             )
 
-def _merge_list(a, b):
-    result = copy.deepcopy(a)
-
-    existing = {
-        json.dumps(
-            _normalize(item),
-            sort_keys=True,
-            ensure_ascii=False
-        )
-        for item in result
-    }
-
-    for item in b:
-
-        key = json.dumps(
-            _normalize(item),
-            sort_keys=True,
-            ensure_ascii=False
-        )
-
-        if key not in existing:
-            result.append(
-                copy.deepcopy(item)
-            )
-            existing.add(key)
-
-    return result
-
 
 def merge_permission_tree(
     target,
@@ -210,22 +292,29 @@ def merge_permission_tree(
     """
     Merge source permission tree into target.
 
-    This is used to build the representation of all permissions
-    already installed in OPA.
+    This represents all permissions already installed in OPA.
     """
 
     for group_name, source_group in source.items():
 
+        # ---------------------------------------------------------
+        # Completely new group
+        # ---------------------------------------------------------
+
         if group_name not in target:
+
             target[group_name] = copy.deepcopy(
                 source_group
             )
+
             continue
 
-        target_group = target[group_name]
+        target_group = target[
+            group_name
+        ]
 
         # ---------------------------------------------------------
-        # PERMISSIONS
+        # Permissions
         # ---------------------------------------------------------
 
         target_group["permission"] = _merge_list(
@@ -234,7 +323,7 @@ def merge_permission_tree(
         )
 
         # ---------------------------------------------------------
-        # FILTERS
+        # Filters
         # ---------------------------------------------------------
 
         target_group["filters"] = merge_filters(
@@ -243,7 +332,7 @@ def merge_permission_tree(
         )
 
         # ---------------------------------------------------------
-        # ACTIONS
+        # Actions
         # ---------------------------------------------------------
 
         target_group["action_allowed"] = merge_actions(
@@ -252,7 +341,7 @@ def merge_permission_tree(
         )
 
         # ---------------------------------------------------------
-        # CATALOGS
+        # Catalogs
         # ---------------------------------------------------------
 
         merge_nodes(
@@ -268,6 +357,11 @@ def merge_permission_tree(
             "schemas"
         )
 
+
+# ============================================================================
+# Loading existing permission trees
+# ============================================================================
+
 def load_existing_permission_trees(
     tree_directory,
     exclude_file=None
@@ -278,10 +372,14 @@ def load_existing_permission_trees(
 
     merged = {}
 
-    if not os.path.exists(tree_directory):
+    if not os.path.exists(
+        tree_directory
+    ):
         return merged
 
-    for filename in os.listdir(tree_directory):
+    for filename in os.listdir(
+        tree_directory
+    ):
 
         if not filename.endswith(".json"):
             continue
@@ -292,7 +390,12 @@ def load_existing_permission_trees(
         )
 
         if exclude_file is not None:
-            if os.path.abspath(filepath) == os.path.abspath(exclude_file):
+
+            if (
+                os.path.abspath(filepath)
+                ==
+                os.path.abspath(exclude_file)
+            ):
                 continue
 
         try:
@@ -321,40 +424,55 @@ def load_existing_permission_trees(
 
     return merged
 
-def _normalize(value):
-    """
-    Normalize JSON values so they can be compared reliably.
-    """
-    if isinstance(value, dict):
-        return {
-            key: _normalize(value[key])
-            for key in sorted(value)
-        }
 
-    if isinstance(value, list):
-        normalized = [_normalize(v) for v in value]
+# ============================================================================
+# Get new permission tree
+# ============================================================================
 
-        # Lists in permission trees are generally unordered.
-        return sorted(
-            normalized,
-            key=lambda x: json.dumps(
-                x,
-                sort_keys=True,
-                ensure_ascii=False
-            )
+def get_new_permission_tree(
+    new_tree_file,
+    tree_directory
+):
+    """
+    Compare a newly generated permission tree against all
+    previously generated/installed permission trees.
+
+    Returns only permissions introduced by the new policy.
+    """
+
+    with open(
+        new_tree_file,
+        "r",
+        encoding="utf-8"
+    ) as f:
+
+        new_tree = json.load(
+            f
         )
 
-    return value
+    existing_tree = load_existing_permission_trees(
+        tree_directory,
+        exclude_file=new_tree_file
+    )
+
+    return subtract_permission_tree(
+        new_tree,
+        existing_tree
+    )
 
 
-def _json_equal(a, b):
-    return _normalize(a) == _normalize(b)
+# ============================================================================
+# Subtraction helpers
+# ============================================================================
 
-
-def _subtract_list(new_list, old_list):
+def _subtract_list(
+    new_list,
+    old_list
+):
     """
     Return elements present in new_list but not in old_list.
     """
+
     if not new_list:
         return []
 
@@ -364,12 +482,15 @@ def _subtract_list(new_list, old_list):
             sort_keys=True,
             ensure_ascii=False
         )
-        for item in old_list
+        for item in (
+            old_list or []
+        )
     }
 
     result = []
 
     for item in new_list:
+
         key = json.dumps(
             _normalize(item),
             sort_keys=True,
@@ -377,9 +498,13 @@ def _subtract_list(new_list, old_list):
         )
 
         if key not in old_normalized:
-            result.append(copy.deepcopy(item))
+
+            result.append(
+                copy.deepcopy(item)
+            )
 
     return result
+
 
 def subtract_filters(
     new_filters,
@@ -387,32 +512,15 @@ def subtract_filters(
 ):
     """
     Return only filters that are not already present.
-
-    Example:
-
-    new:
-    {
-        "GetColumnMask": [
-            {"expression": "'REDACTED'"}
-        ]
-    }
-
-    old:
-    {
-        "GetColumnMask": [
-            {"expression": "'REDACTED'"}
-        ]
-    }
-
-    result:
-    None
     """
 
     if not new_filters:
         return None
 
     if not old_filters:
-        return copy.deepcopy(new_filters)
+        return copy.deepcopy(
+            new_filters
+        )
 
     result = {}
 
@@ -429,9 +537,16 @@ def subtract_filters(
         )
 
         if difference:
-            result[filter_name] = difference
 
-    return result if result else None
+            result[filter_name] = (
+                difference
+            )
+
+    return (
+        result
+        if result
+        else None
+    )
 
 
 def subtract_action_allowed(
@@ -439,38 +554,57 @@ def subtract_action_allowed(
     old_actions
 ):
     """
-    Return only actions that are not already present.
+    Return only actions that are not already represented.
 
-    If an action exists in the old tree, it is considered already
-    represented and is therefore removed from the new tree.
+    If an action exists in the old tree with a different definition,
+    the new definition is retained.
     """
 
     if not new_actions:
         return None
 
     if not old_actions:
-        return copy.deepcopy(new_actions)
+        return copy.deepcopy(
+            new_actions
+        )
 
     result = {}
 
     for action_name, action_value in new_actions.items():
 
-        old_action = old_actions.get(action_name)
+        old_action = old_actions.get(
+            action_name
+        )
 
+        # Completely new action
         if old_action is None:
-            result[action_name] = copy.deepcopy(action_value)
+
+            result[action_name] = copy.deepcopy(
+                action_value
+            )
+
             continue
 
-        # Same action already exists.
-        # Do not duplicate it.
+        # Existing action with a changed definition
         if not _json_equal(
             action_value,
             old_action
         ):
-            # If the definition changed, keep the new one.
-            result[action_name] = copy.deepcopy(action_value)
 
-    return result if result else None
+            result[action_name] = copy.deepcopy(
+                action_value
+            )
+
+    return (
+        result
+        if result
+        else None
+    )
+
+
+# ============================================================================
+# Recursive node subtraction
+# ============================================================================
 
 def subtract_nodes(
     new_nodes,
@@ -481,7 +615,7 @@ def subtract_nodes(
     """
     Recursively subtract hierarchical permission nodes.
 
-    Example:
+    Hierarchy:
 
         catalogs
             catalog
@@ -496,11 +630,15 @@ def subtract_nodes(
     if not new_nodes:
         return []
 
+    old_nodes = old_nodes or []
+
     result = []
 
     for new_node in new_nodes:
 
-        node_value = new_node.get(node_key)
+        node_value = new_node.get(
+            node_key
+        )
 
         old_node = _find_node(
             old_nodes,
@@ -508,37 +646,37 @@ def subtract_nodes(
             node_value
         )
 
+        # ---------------------------------------------------------
         # Entirely new node
+        # ---------------------------------------------------------
+
         if old_node is None:
+
             result.append(
                 copy.deepcopy(new_node)
             )
+
             continue
 
         diff_node = {}
 
         # ---------------------------------------------------------
-        # NODE PERMISSIONS
+        # Permissions
         # ---------------------------------------------------------
 
-        new_permissions = (
-            new_node.get("permission") or []
-        )
-
-        old_permissions = (
+        permission_diff = _subtract_list(
+            new_node.get("permission") or [],
             old_node.get("permission") or []
         )
 
-        permission_diff = _subtract_list(
-            new_permissions,
-            old_permissions
-        )
-
         if permission_diff:
-            diff_node["permission"] = permission_diff
+
+            diff_node["permission"] = (
+                permission_diff
+            )
 
         # ---------------------------------------------------------
-        # NODE FILTERS
+        # Filters
         # ---------------------------------------------------------
 
         filter_diff = subtract_filters(
@@ -547,10 +685,13 @@ def subtract_nodes(
         )
 
         if filter_diff is not None:
-            diff_node["filters"] = filter_diff
+
+            diff_node["filters"] = (
+                filter_diff
+            )
 
         # ---------------------------------------------------------
-        # ACTIONS
+        # Actions
         # ---------------------------------------------------------
 
         action_diff = subtract_action_allowed(
@@ -559,10 +700,13 @@ def subtract_nodes(
         )
 
         if action_diff:
-            diff_node["action_allowed"] = action_diff
+
+            diff_node["action_allowed"] = (
+                action_diff
+            )
 
         # ---------------------------------------------------------
-        # CHILDREN
+        # Children
         # ---------------------------------------------------------
 
         children = new_node.get(
@@ -572,40 +716,54 @@ def subtract_nodes(
 
         if children:
 
-            if children_key == "catalogs":
-                child_key = "catalog"
-                next_children_key = "schemas"
+            if children_key == "schemas":
 
-            elif children_key == "schemas":
                 child_key = "schema"
                 next_children_key = "tables"
 
             elif children_key == "tables":
+
                 child_key = "table"
                 next_children_key = "columns"
 
             elif children_key == "columns":
+
                 child_key = "column"
                 next_children_key = None
 
             else:
+
                 child_key = None
                 next_children_key = None
+
+            # -----------------------------------------------------
+            # Normal recursive hierarchy
+            # -----------------------------------------------------
 
             if next_children_key is not None:
 
                 child_diff = subtract_nodes(
                     children,
-                    old_node.get(children_key, []),
+                    old_node.get(
+                        children_key,
+                        []
+                    ),
                     child_key,
                     next_children_key
                 )
 
                 if child_diff:
-                    diff_node[children_key] = child_diff
+
+                    diff_node[
+                        children_key
+                    ] = child_diff
+
+            # -----------------------------------------------------
+            # Columns have no children
+            # -----------------------------------------------------
 
             else:
-                # columns have no further children
+
                 old_children = old_node.get(
                     children_key,
                     []
@@ -625,54 +783,96 @@ def subtract_nodes(
                         column_name
                     )
 
+                    # Completely new column
                     if old_column is None:
+
                         column_diff.append(
-                            copy.deepcopy(new_column)
+                            copy.deepcopy(
+                                new_column
+                            )
                         )
+
                         continue
 
                     column_result = {}
 
+                    # Permissions
                     permission_diff = _subtract_list(
-                        new_column.get("permission") or [],
-                        old_column.get("permission") or []
+                        new_column.get(
+                            "permission"
+                        ) or [],
+                        old_column.get(
+                            "permission"
+                        ) or []
                     )
 
                     if permission_diff:
-                        column_result["permission"] = permission_diff
 
+                        column_result[
+                            "permission"
+                        ] = permission_diff
+
+                    # Filters
                     filter_diff = subtract_filters(
-                        new_column.get("filters"),
-                        old_column.get("filters")
+                        new_column.get(
+                            "filters"
+                        ),
+                        old_column.get(
+                            "filters"
+                        )
                     )
 
                     if filter_diff is not None:
-                        column_result["filters"] = filter_diff
 
+                        column_result[
+                            "filters"
+                        ] = filter_diff
+
+                    # Actions
                     action_diff = subtract_action_allowed(
-                        new_column.get("action_allowed"),
-                        old_column.get("action_allowed")
+                        new_column.get(
+                            "action_allowed"
+                        ),
+                        old_column.get(
+                            "action_allowed"
+                        )
                     )
 
                     if action_diff:
-                        column_result["action_allowed"] = action_diff
+
+                        column_result[
+                            "action_allowed"
+                        ] = action_diff
 
                     if column_result:
-                        column_result["column"] = column_name
+
+                        column_result[
+                            "column"
+                        ] = column_name
+
                         column_diff.append(
                             column_result
                         )
 
                 if column_diff:
-                    diff_node[children_key] = column_diff
+
+                    diff_node[
+                        children_key
+                    ] = column_diff
+
+        # ---------------------------------------------------------
+        # Keep node identity
+        # ---------------------------------------------------------
 
         if diff_node:
-            # Always retain identity of the node.
+
             diff_node[node_key] = node_value
 
-            # Keep identity first for readability.
+            # Identity first for readability
             ordered_node = {
-                node_key: diff_node.pop(node_key),
+                node_key: diff_node.pop(
+                    node_key
+                ),
                 **diff_node
             }
 
@@ -683,61 +883,73 @@ def subtract_nodes(
     return result
 
 
+# ============================================================================
+# Permission tree subtraction
+# ============================================================================
 
 def subtract_permission_tree(
     new_tree,
     existing_tree
 ):
     """
-    Return only the permissions/filters/actions that exist in
-    new_tree but are not already present in existing_tree.
+    Return only the permissions, filters, and actions that exist
+    in new_tree but are not already present in existing_tree.
     """
 
     result = {}
 
     for group_name, new_group in new_tree.items():
 
-        old_group = existing_tree.get(group_name)
+        old_group = existing_tree.get(
+            group_name
+        )
 
+        # ---------------------------------------------------------
         # Completely new group
+        # ---------------------------------------------------------
+
         if old_group is None:
-            result[group_name] = copy.deepcopy(new_group)
+
+            result[group_name] = copy.deepcopy(
+                new_group
+            )
+
             continue
 
         diff_group = {}
 
         # ---------------------------------------------------------
-        # GROUP PERMISSIONS
+        # Group permissions
         # ---------------------------------------------------------
 
-        new_permissions = new_group.get("permission") or []
-        old_permissions = old_group.get("permission") or []
-
         permission_diff = _subtract_list(
-            new_permissions,
-            old_permissions
+            new_group.get("permission") or [],
+            old_group.get("permission") or []
         )
 
         if permission_diff:
-            diff_group["permission"] = permission_diff
+
+            diff_group["permission"] = (
+                permission_diff
+            )
 
         # ---------------------------------------------------------
-        # GROUP FILTERS
+        # Group filters
         # ---------------------------------------------------------
-
-        new_filters = new_group.get("filters")
-        old_filters = old_group.get("filters")
 
         filter_diff = subtract_filters(
-            new_filters,
-            old_filters
+            new_group.get("filters"),
+            old_group.get("filters")
         )
 
         if filter_diff is not None:
-            diff_group["filters"] = filter_diff
+
+            diff_group["filters"] = (
+                filter_diff
+            )
 
         # ---------------------------------------------------------
-        # GROUP ACTIONS
+        # Group actions
         # ---------------------------------------------------------
 
         action_diff = subtract_action_allowed(
@@ -746,41 +958,76 @@ def subtract_permission_tree(
         )
 
         if action_diff:
-            diff_group["action_allowed"] = action_diff
+
+            diff_group["action_allowed"] = (
+                action_diff
+            )
 
         # ---------------------------------------------------------
-        # CATALOGS
+        # Catalogs
         # ---------------------------------------------------------
 
         catalog_diff = subtract_nodes(
-            new_group.get("catalogs", []),
-            old_group.get("catalogs", []),
+            new_group.get(
+                "catalogs",
+                []
+            ),
+            old_group.get(
+                "catalogs",
+                []
+            ),
             "catalog",
-            "catalogs"
+            "schemas"
         )
 
         if catalog_diff:
-            diff_group["catalogs"] = catalog_diff
+
+            diff_group["catalogs"] = (
+                catalog_diff
+            )
 
         # ---------------------------------------------------------
-        # ONLY KEEP GROUP IF SOMETHING WAS ADDED
+        # Only keep group if something changed
         # ---------------------------------------------------------
 
         if diff_group:
+
             result[group_name] = diff_group
 
     return result
 
 
+# ============================================================================
+# Build complete permission tree
+# ============================================================================
 
-def build_complete_permission_tree(tree_permission_dir, tree_structure_path, output_rego_dir, check_for_action_path,security_groups_path):
+def build_complete_permission_tree(
+    tree_permission_dir,
+    tree_structure_path,
+    output_rego_dir,
+    check_for_action_path,
+    security_groups_path
+):
     """
     Build the cumulative permission tree from all accepted
     Rego policies currently present in output_rego_dir.
 
-    The result is saved as:
+    TreeBuilder is responsible for:
 
-        tree_permission/tree_structure.json
+        *.rego
+            ↓
+        combined temporary Rego
+            ↓
+        build_permission_tree()
+            ↓
+        permission tree
+
+    This helper is responsible for:
+
+        1. Checking paths
+        2. Calling TreeBuilder
+        3. Saving tree_structure.json
+        4. Returning the complete tree
     """
 
     os.makedirs(
@@ -788,89 +1035,50 @@ def build_complete_permission_tree(tree_permission_dir, tree_structure_path, out
         exist_ok=True
     )
 
+    # ---------------------------------------------------------
+    # OPA directory does not exist
+    # ---------------------------------------------------------
+
+    if not os.path.exists(
+        output_rego_dir
+    ):
+
+        return {}
+
+    # ---------------------------------------------------------
+    # Check whether there are Rego policies
+    # ---------------------------------------------------------
+
     rego_files = [
-        os.path.join(
-            output_rego_dir,
-            filename
+        filename
+        for filename in os.listdir(
+            output_rego_dir
         )
-        for filename in os.listdir(output_rego_dir)
         if filename.endswith(".rego")
     ]
 
     if not rego_files:
+
         return {}
 
     # ---------------------------------------------------------
-    # Temporary combined Rego
-    # ---------------------------------------------------------
-
-    temporary_rego = os.path.join(
-        tree_permission_dir,
-        "_combined_policies.rego"
-    )
-
-    with open(
-        temporary_rego,
-        "w",
-        encoding="utf-8"
-    ) as output:
-
-        for rego_file in sorted(rego_files):
-
-            with open(
-                rego_file,
-                "r",
-                encoding="utf-8"
-            ) as source:
-
-                output.write(
-                    source.read()
-                )
-
-                output.write(
-                    "\n\n"
-                )
-
-    # ---------------------------------------------------------
     # Build cumulative tree
+    #
+    # IMPORTANT:
+    # build_permission_tree_from_directory() internally calls
+    # the original build_permission_tree().
     # ---------------------------------------------------------
 
-    temporary_tree = os.path.join(
-        tree_permission_dir,
-        "_combined_tree.json"
+    complete_tree = (
+        build_permission_tree_from_directory(
+            opa_directory=output_rego_dir,
+            action_permissions_file=check_for_action_path,
+            security_groups_file=security_groups_path
+        )
     )
 
-    try:
-
-        build_permission_tree(
-            opa_file=temporary_rego,
-            action_permissions_file=check_for_action_path,
-            security_groups_file=security_groups_path,
-            output_file=temporary_tree
-        )
-
-        complete_tree = load_json(
-            temporary_tree
-        )
-
-    finally:
-
-        if os.path.exists(
-            temporary_rego
-        ):
-            os.remove(
-                temporary_rego
-            )
-
-        if os.path.exists(
-            temporary_tree
-        ):
-            os.remove(
-                temporary_tree
-            )
-
     # ---------------------------------------------------------
-    # Save cumulative structure
+    # Save cumulative tree
     # ---------------------------------------------------------
 
     with open(
@@ -889,6 +1097,10 @@ def build_complete_permission_tree(tree_permission_dir, tree_structure_path, out
     return complete_tree
 
 
+# ============================================================================
+# Compare candidate against cumulative tree
+# ============================================================================
+
 def get_permission_difference(
     candidate_tree_file,
     tree_permission_dir,
@@ -898,9 +1110,8 @@ def get_permission_difference(
     Compare the candidate tree against the current cumulative
     tree_structure.json.
 
-    get_new_permission_tree() expects a directory containing
-    previous trees, therefore we create a temporary directory
-    containing only the current cumulative tree.
+    The comparison is performed only against the current
+    cumulative tree.
     """
 
     comparison_dir = os.path.join(
@@ -963,14 +1174,16 @@ def get_permission_difference(
         # Compare candidate with cumulative tree
         # -----------------------------------------------------
 
-        difference = get_new_permission_tree(
+        return get_new_permission_tree(
             new_tree_file=candidate_tree_file,
             tree_directory=comparison_dir
         )
 
-        return difference
-
     finally:
+
+        # -----------------------------------------------------
+        # Cleanup temporary comparison directory
+        # -----------------------------------------------------
 
         if os.path.exists(
             comparison_dir
@@ -988,6 +1201,7 @@ def get_permission_difference(
                 if os.path.isfile(
                     file_path
                 ):
+
                     os.remove(
                         file_path
                     )

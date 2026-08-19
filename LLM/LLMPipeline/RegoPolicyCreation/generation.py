@@ -15,7 +15,7 @@ from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.RegoRuleGeneration.tree_helper.
     build_complete_permission_tree,
 )
 from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
-from TreePermission.TreeBuilder import build_permission_tree
+from TreePermission.tree_helper.tree_helper import build_permission_tree
 
 
 # ---------------------------------------------------------------------------
