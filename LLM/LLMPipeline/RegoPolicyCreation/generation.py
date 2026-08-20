@@ -11,11 +11,9 @@ from LLM.Interface.activate_local_llm import activate_llm
 from LLM.LLMPipeline.RegoPolicyCreation.IndexCreation.index_creator import reload_indexes
 from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.Extraction.extraction import extract_entities
 from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.RegoRuleGeneration.build_rego import generate_rego_policy
-from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.RegoRuleGeneration.tree_helper.tree_helper import (
-    build_complete_permission_tree,
-)
+from TreePermission.tree_helper import   build_complete_permission_tree
 from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.Rewrite.nlp_rule_rewrite import llm_explain
-from TreePermission.tree_helper.tree_helper import build_permission_tree
+from TreePermission.tree_builder import build_permission_tree
 
 
 # ---------------------------------------------------------------------------
