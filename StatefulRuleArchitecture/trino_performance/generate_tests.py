@@ -1,7 +1,9 @@
 import json
 import random
 from datetime import datetime
+import os
 from pathlib import Path
+from TreePermission.tree_builder import build_permission_tree_from_directory
 
 
 # ============================================================================
@@ -2094,16 +2096,9 @@ def inspect_tree(
 # Standalone
 # ============================================================================
 
-import os
-from dotenv import load_dotenv
-from openai import OpenAI
-
-from TreePermission.tree_builder import build_permission_tree_from_directory
-
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-from pathlib import Path
 
 DATA_MESH_DIR = Path(
     __file__

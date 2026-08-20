@@ -2,9 +2,7 @@ from pathlib import Path
 import os
 
 from TreePermission.tree_builder import build_permission_tree_from_directory
-
 from StatefulRuleArchitecture.trino_performance.generate_tests import generate_tests
-
 from StatefulRuleArchitecture.trino_performance.run_trino_tests import run_tests
 
 # ---------------------------------------------------------------------------
