@@ -120,9 +120,9 @@ def merge_nodes(target_nodes, source_nodes, node_key, children_key):
             target_nodes.append(copy.deepcopy(source_node))
             continue
 
-        target_node["permission"] = _merge_list(
-            target_node.get("permission") or [],
-            source_node.get("permission") or []
+        target_node["permissions"] = _merge_list(
+            target_node.get("permissions") or [],
+            source_node.get("permissions") or []
         )
 
         target_node["filters"] = merge_filters(
@@ -130,10 +130,10 @@ def merge_nodes(target_nodes, source_nodes, node_key, children_key):
             source_node.get("filters")
         )
 
-        target_node["action_allowed"] = merge_actions(
-            target_node.get("action_allowed"),
-            source_node.get("action_allowed")
-        )
+        target_node["allowed_actions"] = merge_actions(
+            target_node.get("allowed_actions"),
+            source_node.get("allowed_actions")
+        ) 
 
         source_children = source_node.get(children_key, [])
 
@@ -171,9 +171,9 @@ def merge_permission_tree(target, source):
 
         target_group = target[group_name]
 
-        target_group["permission"] = _merge_list(
-            target_group.get("permission") or [],
-            source_group.get("permission") or []
+        target_group["permissions"] = _merge_list(
+            target_group.get("permissions") or [],
+            source_group.get("permissions") or []
         )
 
         target_group["filters"] = merge_filters(
@@ -181,9 +181,9 @@ def merge_permission_tree(target, source):
             source_group.get("filters")
         )
 
-        target_group["action_allowed"] = merge_actions(
-            target_group.get("action_allowed"),
-            source_group.get("action_allowed")
+        target_group["allowed_actions"] = merge_actions(
+            target_group.get("allowed_actions"),
+            source_group.get("allowed_actions")
         )
 
         merge_nodes(
@@ -372,12 +372,12 @@ def subtract_nodes(new_nodes, old_nodes, node_key, children_key):
         diff_node = {}
 
         permission_diff = _subtract_list(
-            new_node.get("permission") or [],
-            old_node.get("permission") or []
+            new_node.get("permissions") or [],
+            old_node.get("permissions") or []
         )
 
         if permission_diff:
-            diff_node["permission"] = permission_diff
+            diff_node["permissions"] = permission_diff
 
         filter_diff = subtract_filters(
             new_node.get("filters"),
@@ -385,15 +385,15 @@ def subtract_nodes(new_nodes, old_nodes, node_key, children_key):
         )
 
         if filter_diff is not None:
-            diff_node["filters"] = filter_diff
+            diff_node["filters"] = filter_diff 
 
         action_diff = subtract_action_allowed(
-            new_node.get("action_allowed"),
-            old_node.get("action_allowed")
+            new_node.get("allowed_actions"),
+            old_node.get("allowed_actions")
         )
 
         if action_diff:
-            diff_node["action_allowed"] = action_diff
+            diff_node["allowed_actions"] = action_diff
 
         children = new_node.get(children_key, [])
 
@@ -438,12 +438,12 @@ def subtract_nodes(new_nodes, old_nodes, node_key, children_key):
                     column_result = {}
 
                     permission_diff = _subtract_list(
-                        new_column.get("permission") or [],
-                        old_column.get("permission") or []
+                        new_column.get("permissions") or [],
+                        old_column.get("permissions") or []
                     )
 
                     if permission_diff:
-                        column_result["permission"] = permission_diff
+                        column_result["permissions"] = permission_diff
 
                     filter_diff = subtract_filters(
                         new_column.get("filters"),
@@ -454,12 +454,12 @@ def subtract_nodes(new_nodes, old_nodes, node_key, children_key):
                         column_result["filters"] = filter_diff
 
                     action_diff = subtract_action_allowed(
-                        new_column.get("action_allowed"),
-                        old_column.get("action_allowed")
+                        new_column.get("allowed_actions"),
+                        old_column.get("allowed_actions")
                     )
 
                     if action_diff:
-                        column_result["action_allowed"] = action_diff
+                        column_result["allowed_actions"] = action_diff
 
                     if column_result:
                         column_result["column"] = column_name
@@ -502,12 +502,12 @@ def subtract_permission_tree(new_tree, existing_tree):
         diff_group = {}
 
         permission_diff = _subtract_list(
-            new_group.get("permission") or [],
-            old_group.get("permission") or []
+            new_group.get("permissions") or [],
+            old_group.get("permissions") or []
         )
 
         if permission_diff:
-            diff_group["permission"] = permission_diff
+            diff_group["permissions"] = permission_diff
 
         filter_diff = subtract_filters(
             new_group.get("filters"),
@@ -518,12 +518,12 @@ def subtract_permission_tree(new_tree, existing_tree):
             diff_group["filters"] = filter_diff
 
         action_diff = subtract_action_allowed(
-            new_group.get("action_allowed"),
-            old_group.get("action_allowed")
+            new_group.get("allowed_actions"),
+            old_group.get("allowed_actions")
         )
 
         if action_diff:
-            diff_group["action_allowed"] = action_diff
+            diff_group["allowed_actions"] = action_diff
 
         catalog_diff = subtract_nodes(
             new_group.get("catalogs", []),
@@ -591,40 +591,24 @@ def build_complete_permission_tree(
 # Compare candidate against cumulative tree
 # ============================================================================
 
-def get_permission_difference(
-    candidate_tree_file,
-    tree_permission_dir,
-    tree_structure_path
-):
+def get_permission_difference(candidate_tree_file, tree_permission_dir, tree_structure_path):
     """
     Compare the candidate tree against the current cumulative tree.
     """
-    comparison_dir = os.path.join(
-        tree_permission_dir,
-        "_comparison"
-    )
-
+    comparison_dir = os.path.join(tree_permission_dir, "_comparison")
     os.makedirs(comparison_dir, exist_ok=True)
 
     try:
         if not os.path.exists(tree_structure_path):
             return load_json(candidate_tree_file)
 
-        existing_tree_file = os.path.join(
-            comparison_dir,
-            "tree_structure.json"
-        )
+        existing_tree_file = os.path.join(comparison_dir, "tree_structure.json")
 
         with open(tree_structure_path, "r", encoding="utf-8") as source:
             existing_tree = json.load(source)
 
         with open(existing_tree_file, "w", encoding="utf-8") as destination:
-            json.dump(
-                existing_tree,
-                destination,
-                indent=2,
-                ensure_ascii=False
-            )
+            json.dump(existing_tree, destination, indent=2, ensure_ascii=False)
 
         return get_new_permission_tree(
             new_tree_file=candidate_tree_file,
@@ -634,12 +618,12 @@ def get_permission_difference(
     finally:
         if os.path.exists(comparison_dir):
             for filename in os.listdir(comparison_dir):
-                file_path = os.path.join(
-                    comparison_dir,
-                    filename
-                )
+                file_path = os.path.join(comparison_dir, filename)
 
                 if os.path.isfile(file_path):
                     os.remove(file_path)
 
-            os.rmdir(comparison_dir)
+            try:
+                os.rmdir(comparison_dir)
+            except OSError:
+                pass
