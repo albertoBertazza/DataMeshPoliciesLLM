@@ -6,7 +6,7 @@ import tokenize
 from pathlib import Path
 
 
-MAX_LINE_LENGTH = 120
+MAX_LINE_LENGTH = 250
 
 
 def _indent(line):

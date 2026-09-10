@@ -4,10 +4,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Set
 
-FILTER_PERMISSION_MAPPING = {
-    "GetColumnMask": "batchColumnMasks",
-    "GetRowFilters": "rowFilters",
-}
+FILTER_PERMISSION_MAPPING = { "GetColumnMask": "batchColumnMasks", "GetRowFilters": "rowFilters"}
 
 def _extract_filter_permissions(opa_text: str, security_groups: List[str]) -> Dict[str, Set[str]]:
     result = {group: set() for group in security_groups}
@@ -57,13 +54,8 @@ def _extract_filter_permissions(opa_text: str, security_groups: List[str]) -> Di
 
     return result
 
-
 def _has_default_filter(opa_text: str, name: str) -> bool:
-    return re.search(
-        rf'(?m)^\s*default\s+{re.escape(name)}\s*:=\s*\[\s*\]\s*$',
-        opa_text,
-    ) is not None
-
+    return re.search( rf'(?m)^\s*default\s+{re.escape(name)}\s*:=\s*\[\s*\]\s*$', opa_text) is not None
 
 def _has_filter_rule_for_group(self, text: str, name: str, group: str, patterns: List[str]) -> bool:
     pattern = rf"{re.escape(name)}\s+contains"
@@ -145,10 +137,7 @@ def build_permission_tree(opa_file: str, action_permissions_file: str, security_
         if security_group not in groups:
             groups[security_group] = _create_group()
 
-    filter_permissions = _extract_filter_permissions(
-        opa_text,
-        security_groups,
-    )
+    filter_permissions = _extract_filter_permissions( opa_text, security_groups)
 
     for group_name, permissions in filter_permissions.items():
         if not permissions:
@@ -160,11 +149,7 @@ def build_permission_tree(opa_file: str, action_permissions_file: str, security_
         for permission in sorted(permissions):
             _add_permission(groups[group_name], permission)
 
-    groups = {
-        group: data
-        for group, data in groups.items()
-        if group in security_groups
-    }
+    groups = { group: data for group, data in groups.items() if group in security_groups }
 
     permission_tree = _build_resource_permission_tree(groups, action_dependencies)
 
@@ -173,7 +158,6 @@ def build_permission_tree(opa_file: str, action_permissions_file: str, security_
 
     return permission_tree
 
-
 def _write_permission_tree(permission_tree: Dict[str, Any], output_file: str) -> None:
     output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -181,15 +165,8 @@ def _write_permission_tree(permission_tree: Dict[str, Any], output_file: str) ->
     with output_path.open("w", encoding="utf-8") as f:
         json.dump(permission_tree, f, indent=2, ensure_ascii=False)
 
-
 def _create_group() -> Dict[str, Any]:
-    return {
-        "permissions": None,
-        "filters": None,
-        "catalogs": [],
-        "global_allow_all": False,
-    }
-
+    return { "permissions": None, "filters": None, "catalogs": [], "global_allow_all": False}
 
 def _load_security_groups(security_groups_file: str) -> List[str]:
     path = Path(security_groups_file)
@@ -219,48 +196,27 @@ def _load_security_groups(security_groups_file: str) -> List[str]:
 
     return groups
 
-
 def _validate_rule_groups(rules: List[Dict[str, Any]], security_groups: List[str]) -> None:
     allowed = set(security_groups)
 
-    unknown_groups = sorted({
-        rule["group"]
-        for rule in rules
-        if rule["group"] not in allowed
-    })
+    unknown_groups = sorted({ rule["group"] for rule in rules if rule["group"] not in allowed })
 
     if unknown_groups:
-        raise ValueError(
-            f"OPA policy contains unknown security groups: {unknown_groups}. "
-            f"Allowed groups are: {security_groups}"
-        )
-
+        raise ValueError( f"OPA policy contains unknown security groups: {unknown_groups}. " f"Allowed groups are: {security_groups}" )
 
 def _validate_filter_groups(rules: List[Dict[str, Any]], security_groups: List[str]) -> None:
     allowed = set(security_groups)
 
-    unknown_groups = sorted({
-        rule["group"]
-        for rule in rules
-        if rule.get("group") is not None
-        and not rule["group"].startswith("__not_")
-        and rule["group"] != "__global__"
-        and rule["group"] not in allowed
-    })
+    unknown_groups = sorted({ rule["group"] for rule in rules if rule.get("group") is not None and not rule["group"].startswith("__not_") and rule["group"] != "__global__" and rule["group"] not in allowed })
 
     if unknown_groups:
-        raise ValueError(
-            f"OPA filter rules contain unknown security groups: {unknown_groups}. "
-            f"Allowed groups are: {security_groups}"
-        )
-
+        raise ValueError( f"OPA filter rules contain unknown security groups: {unknown_groups}. " f"Allowed groups are: {security_groups}" )
 
 def _resolve_excluded_group(synthetic_group: str) -> str:
     if synthetic_group == "__not_is_admin":
         return "admin"
 
     return synthetic_group[len("__not_"):]
-
 
 def _load_action_dependencies(action_permissions_file: str) -> Dict[str, Any]:
     path = Path(action_permissions_file)
@@ -276,15 +232,10 @@ def _load_action_dependencies(action_permissions_file: str) -> Dict[str, Any]:
 
     return data
 
-
 def _extract_operation(body: str) -> Optional[str]:
-    match = re.search(
-        r'input\.action\.operation\s*==\s*"([^"]+)"',
-        body,
-    )
+    match = re.search( r'input\.action\.operation\s*==\s*"([^"]+)"', body)
 
     return match.group(1) if match else None
-
 
 def _extract_allow_rules(opa_text: str) -> List[Dict[str, Any]]:
     helper_to_group = _extract_group_helpers(opa_text)
@@ -301,89 +252,45 @@ def _extract_allow_rules(opa_text: str) -> List[Dict[str, Any]]:
         if group is None:
             continue
 
-        operation_match = re.search(
-            r'input\.action\.operation\s*==\s*"([^"]+)"',
-            body,
-        )
+        operation_match = re.search( r'input\.action\.operation\s*==\s*"([^"]+)"', body)
 
         if operation_match:
-            rules.append({
-                "group": group,
-                "operation": operation_match.group(1),
-                "resource": _extract_resource(body),
-                "global_allow_all": False,
-            })
+            rules.append({ "group": group, "operation": operation_match.group(1), "resource": _extract_resource(body), "global_allow_all": False})
             continue
 
-        operation_set_match = re.search(
-            r'input\.action\.operation\s+in\s+([A-Za-z_][A-Za-z0-9_]*)',
-            body,
-        )
+        operation_set_match = re.search( r'input\.action\.operation\s+in\s+([A-Za-z_][A-Za-z0-9_]*)', body)
 
         if operation_set_match:
-            operations = _extract_set_definition(
-                opa_text,
-                operation_set_match.group(1),
-            )
+            operations = _extract_set_definition( opa_text, operation_set_match.group(1))
 
             resource = _extract_resource(body)
 
             for operation in operations:
-                rules.append({
-                    "group": group,
-                    "operation": operation,
-                    "resource": resource,
-                    "global_allow_all": False,
-                })
+                rules.append({ "group": group, "operation": operation, "resource": resource, "global_allow_all": False})
 
             continue
 
-        schema_in_match = re.search(
-            r'input\.action\.resource\.schema\.schemaName\s+in\s*\{([^}]+)\}',
-            body,
-        )
+        schema_in_match = re.search( r'input\.action\.resource\.schema\.schemaName\s+in\s*\{([^}]+)\}', body)
 
         if schema_in_match:
-            catalog = _search_value(
-                body,
-                r'input\.action\.resource\.schema\.catalogName',
-            )
+            catalog = _search_value( body, r'input\.action\.resource\.schema\.catalogName')
 
             if catalog:
-                schema_names = re.findall(
-                    r'"([^"]+)"',
-                    schema_in_match.group(1),
-                )
+                schema_names = re.findall( r'"([^"]+)"', schema_in_match.group(1))
 
                 operation = _extract_operation(body)
 
                 if operation:
                     for schema_name in schema_names:
-                        rules.append({
-                            "group": group,
-                            "operation": operation,
-                            "resource": {
-                                "type": "schema",
-                                "catalog": catalog,
-                                "schema": schema_name,
-                            },
-                            "global_allow_all": False,
-                        })
+                        rules.append({ "group": group, "operation": operation, "resource": { "type": "schema", "catalog": catalog, "schema": schema_name}, "global_allow_all": False})
 
                     continue
 
         print(f"[DEBUG] Global allow detected for group: {group}")
 
-        rules.append({
-            "group": group,
-            "operation": None,
-            "resource": {"type": "global"},
-            "global_allow_all": True,
-        })
+        rules.append({ "group": group, "operation": None, "resource": {"type": "global"}, "global_allow_all": True})
 
-    one_line_pattern = re.compile(
-        r'(?m)^\s*allow\s+if\s+([A-Za-z_][A-Za-z0-9_]+)\s*$'
-    )
+    one_line_pattern = re.compile( r'(?m)^\s*allow\s+if\s+([A-Za-z_][A-Za-z0-9_]+)\s*$' )
 
     for match in one_line_pattern.finditer(opa_text):
         helper = match.group(1)
@@ -394,12 +301,7 @@ def _extract_allow_rules(opa_text: str) -> List[Dict[str, Any]]:
 
         print(f"[DEBUG] One-line global allow detected: {helper} -> {group}")
 
-        rules.append({
-            "group": group,
-            "operation": None,
-            "resource": {"type": "global"},
-            "global_allow_all": True,
-        })
+        rules.append({ "group": group, "operation": None, "resource": {"type": "global"}, "global_allow_all": True})
 
     unique_rules = []
     seen = set()
@@ -413,25 +315,18 @@ def _extract_allow_rules(opa_text: str) -> List[Dict[str, Any]]:
 
     return unique_rules
 
-
 def _extract_rule_bodies(opa_text: str, rule_name: str) -> List[str]:
     results = []
 
-    pattern = re.compile(
-        rf'\b{re.escape(rule_name)}\s+if\s*\{{'
-    )
+    pattern = re.compile( rf'\b{re.escape(rule_name)}\s+if\s*\{{' )
 
     for match in pattern.finditer(opa_text):
-        body = _extract_balanced_block(
-            opa_text,
-            match.end() - 1,
-        )
+        body = _extract_balanced_block( opa_text, match.end() - 1)
 
         if body is not None:
             results.append(body)
 
     return results
-
 
 def _extract_balanced_block(text: str, opening_brace_index: int) -> Optional[str]:
     depth = 0
@@ -449,41 +344,28 @@ def _extract_balanced_block(text: str, opening_brace_index: int) -> Optional[str
 
     return None
 
-
 def _extract_group_helpers(opa_text: str) -> Dict[str, str]:
     result: Dict[str, str] = {}
 
-    pattern = re.compile(
-        r'(?m)^\s*(?P<helper>[A-Za-z_][A-Za-z0-9_]*)\s+if\s*\{'
-    )
+    pattern = re.compile( r'(?m)^\s*(?P<helper>[A-Za-z_][A-Za-z0-9_]*)\s+if\s*\{' )
 
     for match in pattern.finditer(opa_text):
         helper = match.group("helper")
 
-        body = _extract_balanced_block(
-            opa_text,
-            match.end() - 1,
-        )
+        body = _extract_balanced_block( opa_text, match.end() - 1)
 
         if body is None:
             continue
 
-        group_match = re.search(
-            r'"([^"]+)"\s+in\s+input\.context\.identity\.groups',
-            body,
-        )
+        group_match = re.search( r'"([^"]+)"\s+in\s+input\.context\.identity\.groups', body)
 
         if group_match:
             result[helper] = group_match.group(1)
 
     return result
 
-
 def _resolve_group_from_body(body: str, helper_to_group: Dict[str, str]) -> Optional[str]:
-    negative_helpers = re.findall(
-        r'\bnot\s+([A-Za-z_][A-Za-z0-9_]*)',
-        body,
-    )
+    negative_helpers = re.findall( r'\bnot\s+([A-Za-z_][A-Za-z0-9_]*)', body)
 
     if negative_helpers:
         return "__not_" + negative_helpers[0]
@@ -494,87 +376,44 @@ def _resolve_group_from_body(body: str, helper_to_group: Dict[str, str]) -> Opti
 
     return None
 
-
 def _extract_resource(body: str) -> Dict[str, Any]:
-    table_catalog = _search_value(
-        body,
-        r'input\.action\.resource\.table\.catalogName',
-    )
+    table_catalog = _search_value( body, r'input\.action\.resource\.table\.catalogName')
 
-    table_schema = _search_value(
-        body,
-        r'input\.action\.resource\.table\.schemaName',
-    )
+    table_schema = _search_value( body, r'input\.action\.resource\.table\.schemaName')
 
-    table_name = _search_value(
-        body,
-        r'input\.action\.resource\.table\.tableName',
-    )
+    table_name = _search_value( body, r'input\.action\.resource\.table\.tableName')
 
     if table_catalog and table_schema:
-        return {
-            "type": "table",
-            "catalog": table_catalog,
-            "schema": table_schema,
-            "table": table_name,
-        }
+        return { "type": "table", "catalog": table_catalog, "schema": table_schema, "table": table_name}
 
-    schema_catalog = _search_value(
-        body,
-        r'input\.action\.resource\.schema\.catalogName',
-    )
+    schema_catalog = _search_value( body, r'input\.action\.resource\.schema\.catalogName')
 
-    schema_name = _search_value(
-        body,
-        r'input\.action\.resource\.schema\.schemaName',
-    )
+    schema_name = _search_value( body, r'input\.action\.resource\.schema\.schemaName')
 
     if schema_catalog and schema_name:
-        return {
-            "type": "schema",
-            "catalog": schema_catalog,
-            "schema": schema_name,
-        }
+        return { "type": "schema", "catalog": schema_catalog, "schema": schema_name}
 
-    catalog_name = _search_value(
-        body,
-        r'input\.action\.resource\.catalog\.(?:name|catalogName)',
-    )
+    catalog_name = _search_value( body, r'input\.action\.resource\.catalog\.(?:name|catalogName)')
 
     if catalog_name:
-        return {
-            "type": "catalog",
-            "catalog": catalog_name,
-        }
+        return { "type": "catalog", "catalog": catalog_name}
 
     return {"type": "global"}
 
-
 def _search_value(body: str, field_pattern: str) -> Optional[str]:
-    match = re.search(
-        field_pattern + r'\s*==\s*"([^"]+)"',
-        body,
-    )
+    match = re.search( field_pattern + r'\s*==\s*"([^"]+)"', body)
 
     return match.group(1) if match else None
 
-
 def _extract_set_definition(opa_text: str, name: str) -> List[str]:
-    pattern = re.compile(
-        rf'{re.escape(name)}\s*:=\s*\{{(?P<body>.*?)\}}',
-        re.DOTALL,
-    )
+    pattern = re.compile( rf'{re.escape(name)}\s*:=\s*\{{(?P<body>.*?)\}}', re.DOTALL)
 
     match = pattern.search(opa_text)
 
     if not match:
         return []
 
-    return re.findall(
-        r'"([^"]+)"',
-        match.group("body"),
-    )
-
+    return re.findall( r'"([^"]+)"', match.group("body"))
 
 def _apply_resource_permission(groups: Dict[str, Dict[str, Any]], rule: Dict[str, Any]) -> None:
     group = rule["group"]
@@ -596,10 +435,7 @@ def _apply_resource_permission(groups: Dict[str, Dict[str, Any]], rule: Dict[str
     if not catalog_name:
         return
 
-    catalog = _get_or_create_catalog(
-        groups[group]["catalogs"],
-        catalog_name,
-    )
+    catalog = _get_or_create_catalog( groups[group]["catalogs"], catalog_name)
 
     if resource["type"] == "catalog":
         _add_permission(catalog, operation)
@@ -610,10 +446,7 @@ def _apply_resource_permission(groups: Dict[str, Dict[str, Any]], rule: Dict[str
     if not schema_name:
         return
 
-    schema = _get_or_create_schema(
-        catalog["schemas"],
-        schema_name,
-    )
+    schema = _get_or_create_schema( catalog["schemas"], schema_name)
 
     if resource["type"] == "schema":
         _add_permission(schema, operation)
@@ -622,15 +455,11 @@ def _apply_resource_permission(groups: Dict[str, Dict[str, Any]], rule: Dict[str
     table_name = resource.get("table")
 
     if table_name:
-        table = _get_or_create_table(
-            schema.setdefault("tables", []),
-            table_name,
-        )
+        table = _get_or_create_table( schema.setdefault("tables", []), table_name)
 
         _add_permission(table, operation)
     else:
         _add_permission(schema, operation)
-
 
 def _extract_filter_rules(opa_text: str) -> List[Dict[str, Any]]:
     rules: List[Dict[str, Any]] = []
@@ -638,10 +467,7 @@ def _extract_filter_rules(opa_text: str) -> List[Dict[str, Any]]:
     helper_to_group = _extract_group_helpers(opa_text)
 
     for body in _extract_row_filter_bodies(opa_text):
-        group = _resolve_filter_group_from_body(
-            body,
-            helper_to_group,
-        )
+        group = _resolve_filter_group_from_body( body, helper_to_group)
 
         resource = _extract_filter_resource(body)
         expression = _extract_expression(body)
@@ -649,19 +475,10 @@ def _extract_filter_rules(opa_text: str) -> List[Dict[str, Any]]:
         if expression is None:
             continue
 
-        rules.append({
-            "group": group,
-            "permissions": "GetRowFilters",
-            "resource": resource,
-            "value": {"expression": expression},
-            "type": "row",
-        })
+        rules.append({ "group": group, "permissions": "GetRowFilters", "resource": resource, "value": {"expression": expression}, "type": "row"})
 
     for body in _extract_batch_mask_bodies(opa_text):
-        group = _resolve_filter_group_from_body(
-            body,
-            helper_to_group,
-        )
+        group = _resolve_filter_group_from_body( body, helper_to_group)
 
         resource = _extract_filter_resource(body)
         expression = _extract_expression(body)
@@ -670,23 +487,10 @@ def _extract_filter_rules(opa_text: str) -> List[Dict[str, Any]]:
         if expression is None:
             continue
 
-        rules.append({
-            "group": group,
-            "permissions": "GetColumnMask",
-            "resource": resource,
-            "value": {
-                "type": "batch",
-                "index": index,
-                "expression": expression,
-            },
-            "type": "batch",
-        })
+        rules.append({ "group": group, "permissions": "GetColumnMask", "resource": resource, "value": { "type": "batch", "index": index, "expression": expression}, "type": "batch"})
 
     for body in _extract_column_mask_bodies(opa_text):
-        group = _resolve_filter_group_from_body(
-            body,
-            helper_to_group,
-        )
+        group = _resolve_filter_group_from_body( body, helper_to_group)
 
         resource = _extract_column_resource(body)
         expression = _extract_expression(body)
@@ -694,25 +498,12 @@ def _extract_filter_rules(opa_text: str) -> List[Dict[str, Any]]:
         if expression is None:
             continue
 
-        rules.append({
-            "group": group,
-            "permissions": "GetColumnMask",
-            "resource": resource,
-            "value": {
-                "type": "column",
-                "expression": expression,
-            },
-            "type": "column",
-        })
+        rules.append({ "group": group, "permissions": "GetColumnMask", "resource": resource, "value": { "type": "column", "expression": expression}, "type": "column"})
 
     return rules
 
-
 def _resolve_filter_group_from_body(body: str, helper_to_group: Dict[str, str]) -> str:
-    negative_helpers = re.findall(
-        r'\bnot\s+([A-Za-z_][A-Za-z0-9_]*)',
-        body,
-    )
+    negative_helpers = re.findall( r'\bnot\s+([A-Za-z_][A-Za-z0-9_]*)', body)
 
     if negative_helpers:
         return "__not_" + negative_helpers[0]
@@ -723,190 +514,91 @@ def _resolve_filter_group_from_body(body: str, helper_to_group: Dict[str, str]) 
 
     return "__global__"
 
-
 def _extract_row_filter_bodies(opa_text: str) -> List[str]:
     results = []
 
-    patterns = [
-        re.compile(
-            r'rowFilters\s+contains\s+'
-            r'(?:[A-Za-z_][A-Za-z0-9_]*|\{[^\n]*\})'
-            r'\s+if\s*\{'
-        ),
-        re.compile(
-            r'rowFilters\s*:=\s*'
-            r'[A-Za-z_][A-Za-z0-9_]*\s+if\s*\{'
-        ),
-    ]
+    patterns = [ re.compile( r'rowFilters\s+contains\s+' r'(?:[A-Za-z_][A-Za-z0-9_]*|\{[^\n]*\})' r'\s+if\s*\{' ), re.compile( r'rowFilters\s*:=\s*' r'[A-Za-z_][A-Za-z0-9_]*\s+if\s*\{' )]
 
     for pattern in patterns:
         for match in pattern.finditer(opa_text):
-            body = _extract_balanced_block(
-                opa_text,
-                match.end() - 1,
-            )
+            body = _extract_balanced_block( opa_text, match.end() - 1)
 
             if body is not None:
                 results.append(body)
 
     return results
 
-
 def _extract_batch_mask_bodies(opa_text: str) -> List[str]:
     results = []
 
-    pattern = re.compile(
-        r'batchColumnMasks\s+contains\s+'
-        r'[A-Za-z_][A-Za-z0-9_]*\s+if\s*\{'
-    )
+    pattern = re.compile( r'batchColumnMasks\s+contains\s+' r'[A-Za-z_][A-Za-z0-9_]*\s+if\s*\{' )
 
     for match in pattern.finditer(opa_text):
-        body = _extract_balanced_block(
-            opa_text,
-            match.end() - 1,
-        )
+        body = _extract_balanced_block( opa_text, match.end() - 1)
 
         if body is not None:
             results.append(body)
 
     return results
-
 
 def _extract_column_mask_bodies(opa_text: str) -> List[str]:
     results = []
 
-    pattern = re.compile(
-        r'(?m)^\s*columnMask\s*:=\s*'
-        r'(?:\{[^\n]*\}|[A-Za-z_][A-Za-z0-9_]*)'
-        r'\s+if\s*\{'
-    )
+    pattern = re.compile( r'(?m)^\s*columnMask\s*:=\s*' r'(?:\{[^\n]*\}|[A-Za-z_][A-Za-z0-9_]*)' r'\s+if\s*\{' )
 
     for match in pattern.finditer(opa_text):
-        body = _extract_balanced_block(
-            opa_text,
-            match.end() - 1,
-        )
+        body = _extract_balanced_block( opa_text, match.end() - 1)
 
         if body is not None:
             results.append(body)
 
     return results
 
-
 def _resolve_filter_aliases(body: str) -> str:
-    aliases = {
-        "table_resource": "input.action.resource.table",
-        "column_resource": "input.action.resource.column",
-    }
+    aliases = { "table_resource": "input.action.resource.table", "column_resource": "input.action.resource.column"}
 
     for alias, target in aliases.items():
-        body = re.sub(
-            rf'\b{alias}\.',
-            target + ".",
-            body,
-        )
+        body = re.sub( rf'\b{alias}\.', target + ".", body)
 
     return body
-
 
 def _extract_filter_resource(body: str) -> Dict[str, Any]:
     body = _resolve_filter_aliases(body)
 
-    catalog = _search_any_value(
-        body,
-        [
-            r'input\.action\.resource\.column\.catalogName',
-            r'input\.action\.resource\.table\.catalogName',
-        ],
-    )
+    catalog = _search_any_value( body, [ r'input\.action\.resource\.column\.catalogName', r'input\.action\.resource\.table\.catalogName'])
 
-    schema = _search_any_value(
-        body,
-        [
-            r'input\.action\.resource\.column\.schemaName',
-            r'input\.action\.resource\.table\.schemaName',
-        ],
-    )
+    schema = _search_any_value( body, [ r'input\.action\.resource\.column\.schemaName', r'input\.action\.resource\.table\.schemaName'])
 
-    table = _search_any_value(
-        body,
-        [
-            r'input\.action\.resource\.column\.tableName',
-            r'input\.action\.resource\.table\.tableName',
-        ],
-    )
+    table = _search_any_value( body, [ r'input\.action\.resource\.column\.tableName', r'input\.action\.resource\.table\.tableName'])
 
-    column = _search_any_value(
-        body,
-        [
-            r'input\.action\.resource\.column\.columnName',
-        ],
-    )
+    column = _search_any_value( body, [ r'input\.action\.resource\.column\.columnName'])
 
     if column is not None:
-        return {
-            "type": "column",
-            "catalog": catalog,
-            "schema": schema,
-            "table": table,
-            "column": column,
-        }
+        return { "type": "column", "catalog": catalog, "schema": schema, "table": table, "column": column}
 
     if table is not None:
-        return {
-            "type": "table",
-            "catalog": catalog,
-            "schema": schema,
-            "table": table,
-        }
+        return { "type": "table", "catalog": catalog, "schema": schema, "table": table}
 
     if schema is not None:
-        return {
-            "type": "schema",
-            "catalog": catalog,
-            "schema": schema,
-        }
+        return { "type": "schema", "catalog": catalog, "schema": schema}
 
     if catalog is not None:
-        return {
-            "type": "catalog",
-            "catalog": catalog,
-        }
+        return { "type": "catalog", "catalog": catalog}
 
     return {"type": "global"}
-
 
 def _extract_column_resource(body: str) -> Dict[str, Any]:
     body = _resolve_filter_aliases(body)
 
-    catalog = _search_any_value(
-        body,
-        [r'input\.action\.resource\.column\.catalogName'],
-    )
+    catalog = _search_any_value( body, [r'input\.action\.resource\.column\.catalogName'])
 
-    schema = _search_any_value(
-        body,
-        [r'input\.action\.resource\.column\.schemaName'],
-    )
+    schema = _search_any_value( body, [r'input\.action\.resource\.column\.schemaName'])
 
-    table = _search_any_value(
-        body,
-        [r'input\.action\.resource\.column\.tableName'],
-    )
+    table = _search_any_value( body, [r'input\.action\.resource\.column\.tableName'])
 
-    column = _search_any_value(
-        body,
-        [r'input\.action\.resource\.column\.columnName'],
-    )
+    column = _search_any_value( body, [r'input\.action\.resource\.column\.columnName'])
 
-    return {
-        "type": "column",
-        "catalog": catalog,
-        "schema": schema,
-        "table": table,
-        "column": column,
-    }
-
+    return { "type": "column", "catalog": catalog, "schema": schema, "table": table, "column": column}
 
 def _search_any_value(body: str, patterns: List[str]) -> Optional[str]:
     for pattern in patterns:
@@ -916,7 +608,6 @@ def _search_any_value(body: str, patterns: List[str]) -> Optional[str]:
             return value
 
     return None
-
 
 def _extract_expression(body: str) -> Optional[str]:
     pattern = r'"expression"\s*:\s*"((?:[^"\\]|\\.)*)"'
@@ -928,21 +619,16 @@ def _extract_expression(body: str) -> Optional[str]:
 
     return None
 
-
 def _extract_batch_index(body: str) -> str:
     if re.search(r'"index"\s*:\s*i\b', body):
         return "*"
 
-    match = re.search(
-        r'"index"\s*:\s*(\d+)',
-        body,
-    )
+    match = re.search( r'"index"\s*:\s*(\d+)', body)
 
     if match:
         return match.group(1)
 
     return "*"
-
 
 def _apply_filter_rule(groups: Dict[str, Dict[str, Any]], rule: Dict[str, Any]) -> None:
     group = rule["group"]
@@ -963,10 +649,7 @@ def _apply_filter_rule(groups: Dict[str, Dict[str, Any]], rule: Dict[str, Any]) 
     if not catalog_name:
         return
 
-    catalog = _get_or_create_catalog(
-        groups[group]["catalogs"],
-        catalog_name,
-    )
+    catalog = _get_or_create_catalog( groups[group]["catalogs"], catalog_name)
 
     if resource["type"] == "catalog":
         _add_filter(catalog, permission, value)
@@ -977,10 +660,7 @@ def _apply_filter_rule(groups: Dict[str, Dict[str, Any]], rule: Dict[str, Any]) 
     if not schema_name:
         return
 
-    schema = _get_or_create_schema(
-        catalog["schemas"],
-        schema_name,
-    )
+    schema = _get_or_create_schema( catalog["schemas"], schema_name)
 
     if resource["type"] == "schema":
         _add_filter(schema, permission, value)
@@ -991,10 +671,7 @@ def _apply_filter_rule(groups: Dict[str, Dict[str, Any]], rule: Dict[str, Any]) 
     if not table_name:
         return
 
-    table = _get_or_create_table(
-        schema.setdefault("tables", []),
-        table_name,
-    )
+    table = _get_or_create_table( schema.setdefault("tables", []), table_name)
 
     if resource["type"] == "table":
         _add_filter(table, permission, value)
@@ -1005,20 +682,12 @@ def _apply_filter_rule(groups: Dict[str, Dict[str, Any]], rule: Dict[str, Any]) 
     if not column_name:
         return
 
-    column = _get_or_create_column(
-        table.setdefault("columns", []),
-        column_name,
-    )
+    column = _get_or_create_column( table.setdefault("columns", []), column_name)
 
     _add_filter(column, permission, value)
 
-
 def _build_resource_permission_tree(groups: Dict[str, Dict[str, Any]], action_dependencies: Dict[str, Any]) -> Dict[str, Any]:
-    tree: Dict[str, Any] = {
-        "ROOT": {
-            "security_groups": {},
-        }
-    }
+    tree: Dict[str, Any] = { "ROOT": { "security_groups": {}} }
 
     root = tree["ROOT"]
 
@@ -1040,35 +709,20 @@ def _build_resource_permission_tree(groups: Dict[str, Dict[str, Any]], action_de
                 catalog_names.add(catalog_name)
 
     for catalog_name in sorted(catalog_names):
-        catalog_node = {
-            "security_groups": {},
-            "schemas": {},
-        }
+        catalog_node = { "security_groups": {}, "schemas": {}}
 
         root.setdefault("catalogs", {})[catalog_name] = catalog_node
 
         for group_name, group_data in groups.items():
-            catalog = _find_named_node(
-                group_data.get("catalogs", []),
-                "catalog",
-                catalog_name,
-            )
+            catalog = _find_named_node( group_data.get("catalogs", []), "catalog", catalog_name)
 
             if catalog is not None:
-                _merge_local_resource_entry(
-                    catalog_node,
-                    group_name,
-                    catalog,
-                )
+                _merge_local_resource_entry( catalog_node, group_name, catalog)
 
         schema_names = set()
 
         for group_data in groups.values():
-            catalog = _find_named_node(
-                group_data.get("catalogs", []),
-                "catalog",
-                catalog_name,
-            )
+            catalog = _find_named_node( group_data.get("catalogs", []), "catalog", catalog_name)
 
             if catalog is None:
                 continue
@@ -1080,53 +734,30 @@ def _build_resource_permission_tree(groups: Dict[str, Dict[str, Any]], action_de
                     schema_names.add(schema_name)
 
         for schema_name in sorted(schema_names):
-            schema_node = {
-                "security_groups": {},
-                "tables": {},
-            }
+            schema_node = { "security_groups": {}, "tables": {}}
 
             catalog_node["schemas"][schema_name] = schema_node
 
             for group_name, group_data in groups.items():
-                catalog = _find_named_node(
-                    group_data.get("catalogs", []),
-                    "catalog",
-                    catalog_name,
-                )
+                catalog = _find_named_node( group_data.get("catalogs", []), "catalog", catalog_name)
 
                 if catalog is None:
                     continue
 
-                schema = _find_named_node(
-                    catalog.get("schemas", []),
-                    "schema",
-                    schema_name,
-                )
+                schema = _find_named_node( catalog.get("schemas", []), "schema", schema_name)
 
                 if schema is not None:
-                    _merge_local_resource_entry(
-                        schema_node,
-                        group_name,
-                        schema,
-                    )
+                    _merge_local_resource_entry( schema_node, group_name, schema)
 
             table_names = set()
 
             for group_data in groups.values():
-                catalog = _find_named_node(
-                    group_data.get("catalogs", []),
-                    "catalog",
-                    catalog_name,
-                )
+                catalog = _find_named_node( group_data.get("catalogs", []), "catalog", catalog_name)
 
                 if catalog is None:
                     continue
 
-                schema = _find_named_node(
-                    catalog.get("schemas", []),
-                    "schema",
-                    schema_name,
-                )
+                schema = _find_named_node( catalog.get("schemas", []), "schema", schema_name)
 
                 if schema is None:
                     continue
@@ -1138,71 +769,40 @@ def _build_resource_permission_tree(groups: Dict[str, Dict[str, Any]], action_de
                         table_names.add(table_name)
 
             for table_name in sorted(table_names):
-                table_node = {
-                    "security_groups": {},
-                    "columns": {},
-                }
+                table_node = { "security_groups": {}, "columns": {}}
 
                 schema_node["tables"][table_name] = table_node
 
                 for group_name, group_data in groups.items():
-                    catalog = _find_named_node(
-                        group_data.get("catalogs", []),
-                        "catalog",
-                        catalog_name,
-                    )
+                    catalog = _find_named_node( group_data.get("catalogs", []), "catalog", catalog_name)
 
                     if catalog is None:
                         continue
 
-                    schema = _find_named_node(
-                        catalog.get("schemas", []),
-                        "schema",
-                        schema_name,
-                    )
+                    schema = _find_named_node( catalog.get("schemas", []), "schema", schema_name)
 
                     if schema is None:
                         continue
 
-                    table = _find_named_node(
-                        schema.get("tables", []),
-                        "table",
-                        table_name,
-                    )
+                    table = _find_named_node( schema.get("tables", []), "table", table_name)
 
                     if table is not None:
-                        _merge_local_resource_entry(
-                            table_node,
-                            group_name,
-                            table,
-                        )
+                        _merge_local_resource_entry( table_node, group_name, table)
 
                 column_names = set()
 
                 for group_data in groups.values():
-                    catalog = _find_named_node(
-                        group_data.get("catalogs", []),
-                        "catalog",
-                        catalog_name,
-                    )
+                    catalog = _find_named_node( group_data.get("catalogs", []), "catalog", catalog_name)
 
                     if catalog is None:
                         continue
 
-                    schema = _find_named_node(
-                        catalog.get("schemas", []),
-                        "schema",
-                        schema_name,
-                    )
+                    schema = _find_named_node( catalog.get("schemas", []), "schema", schema_name)
 
                     if schema is None:
                         continue
 
-                    table = _find_named_node(
-                        schema.get("tables", []),
-                        "table",
-                        table_name,
-                    )
+                    table = _find_named_node( schema.get("tables", []), "table", table_name)
 
                     if table is None:
                         continue
@@ -1214,59 +814,36 @@ def _build_resource_permission_tree(groups: Dict[str, Dict[str, Any]], action_de
                             column_names.add(column_name)
 
                 for column_name in sorted(column_names):
-                    column_node = {
-                        "security_groups": {},
-                    }
+                    column_node = { "security_groups": {}}
 
                     table_node["columns"][column_name] = column_node
 
                     for group_name, group_data in groups.items():
-                        catalog = _find_named_node(
-                            group_data.get("catalogs", []),
-                            "catalog",
-                            catalog_name,
-                        )
+                        catalog = _find_named_node( group_data.get("catalogs", []), "catalog", catalog_name)
 
                         if catalog is None:
                             continue
 
-                        schema = _find_named_node(
-                            catalog.get("schemas", []),
-                            "schema",
-                            schema_name,
-                        )
+                        schema = _find_named_node( catalog.get("schemas", []), "schema", schema_name)
 
                         if schema is None:
                             continue
 
-                        table = _find_named_node(
-                            schema.get("tables", []),
-                            "table",
-                            table_name,
-                        )
+                        table = _find_named_node( schema.get("tables", []), "table", table_name)
 
                         if table is None:
                             continue
 
-                        column = _find_named_node(
-                            table.get("columns", []),
-                            "column",
-                            column_name,
-                        )
+                        column = _find_named_node( table.get("columns", []), "column", column_name)
 
                         if column is not None:
-                            _merge_local_resource_entry(
-                                column_node,
-                                group_name,
-                                column,
-                            )
+                            _merge_local_resource_entry( column_node, group_name, column)
 
     _remove_redundant_permissions(root)
     _calculate_tree_allowed_actions(root, action_dependencies)
     _prune_empty_tree_nodes(tree["ROOT"])
 
     return tree
-
 
 def _build_local_security_group_entry(group_data: Dict[str, Any]) -> Dict[str, Any]:
     entry: Dict[str, Any] = {}
@@ -1279,13 +856,11 @@ def _build_local_security_group_entry(group_data: Dict[str, Any]) -> Dict[str, A
 
     return entry
 
-
 def _merge_local_resource_entry(resource_node: Dict[str, Any], group_name: str, source_node: Dict[str, Any]) -> None:
     entry = _build_local_security_group_entry(source_node)
 
     if entry:
         resource_node.setdefault("security_groups", {})[group_name] = entry
-
 
 def _find_named_node(nodes: List[Dict[str, Any]], key: str, value: str) -> Optional[Dict[str, Any]]:
     for node in nodes:
@@ -1293,7 +868,6 @@ def _find_named_node(nodes: List[Dict[str, Any]], key: str, value: str) -> Optio
             return node
 
     return None
-
 
 # ============================================================================
 # REMOVE REDUNDANT INHERITED PERMISSIONS
@@ -1323,10 +897,7 @@ def _remove_redundant_permissions(root: Dict[str, Any]) -> None:
                 schema_entry = schema.get("security_groups", {}).get(group_name)
 
                 if schema_entry is not None:
-                    _remove_inherited_permissions(
-                        schema_entry,
-                        catalog_available,
-                    )
+                    _remove_inherited_permissions( schema_entry, catalog_available)
                     schema_permissions = _entry_permissions(schema_entry)
                 else:
                     schema_permissions = set()
@@ -1337,10 +908,7 @@ def _remove_redundant_permissions(root: Dict[str, Any]) -> None:
                     table_entry = table.get("security_groups", {}).get(group_name)
 
                     if table_entry is not None:
-                        _remove_inherited_permissions(
-                            table_entry,
-                            schema_available,
-                        )
+                        _remove_inherited_permissions( table_entry, schema_available)
                         table_permissions = _entry_permissions(table_entry)
                     else:
                         table_permissions = set()
@@ -1351,11 +919,7 @@ def _remove_redundant_permissions(root: Dict[str, Any]) -> None:
                         column_entry = column.get("security_groups", {}).get(group_name)
 
                         if column_entry is not None:
-                            _remove_inherited_permissions(
-                                column_entry,
-                                table_available,
-                            )
-
+                            _remove_inherited_permissions( column_entry, table_available)
 
 def _remove_inherited_permissions(entry: Dict[str, Any], inherited: set) -> None:
     permissions = entry.get("permissions")
@@ -1363,17 +927,12 @@ def _remove_inherited_permissions(entry: Dict[str, Any], inherited: set) -> None
     if not isinstance(permissions, list):
         return
 
-    remaining = [
-        permission
-        for permission in permissions
-        if permission not in inherited
-    ]
+    remaining = [ permission for permission in permissions if permission not in inherited ]
 
     if remaining:
         entry["permissions"] = remaining
     else:
         entry.pop("permissions", None)
-
 
 # ============================================================================
 # ACTION CALCULATION
@@ -1381,12 +940,7 @@ def _remove_inherited_permissions(entry: Dict[str, Any], inherited: set) -> None
 
 def _calculate_tree_allowed_actions(root: Dict[str, Any], action_dependencies: Dict[str, Any]) -> None:
     for group_name in sorted(_collect_tree_groups(root)):
-        _calculate_group_tree_delta(
-            root,
-            group_name,
-            action_dependencies,
-        )
-
+        _calculate_group_tree_delta( root, group_name, action_dependencies)
 
 def _collect_tree_groups(root: Dict[str, Any]) -> set:
     groups = set(root.get("security_groups", {}).keys())
@@ -1405,117 +959,60 @@ def _collect_tree_groups(root: Dict[str, Any]) -> set:
 
     return groups
 
-
 def _calculate_group_tree_delta(root: Dict[str, Any], group_name: str, action_dependencies: Dict[str, Any]) -> None:
     root_entry = root.get("security_groups", {}).get(group_name, {})
 
     root_available = _entry_permissions(root_entry)
 
-    root_actions = _actions_for_scope(
-        root_available,
-        action_dependencies,
-        allow_child_specific=False,
-        unrestricted=root_entry.get("permissions") == ["*"],
-    )
+    root_actions = _actions_for_scope( root_available, action_dependencies, allow_child_specific=False, unrestricted=root_entry.get("permissions") == ["*"])
 
-    _set_new_allowed_actions(
-        root_entry,
-        root_actions,
-        set(),
-    )
+    _set_new_allowed_actions( root_entry, root_actions, set())
 
     for catalog in root.get("catalogs", {}).values():
         catalog_entry = catalog.get("security_groups", {}).get(group_name, {})
 
         catalog_available = root_available | _entry_permissions(catalog_entry)
 
-        catalog_actions = _actions_for_scope(
-            catalog_available,
-            action_dependencies,
-            allow_child_specific=False,
-            unrestricted=False,
-        )
+        catalog_actions = _actions_for_scope( catalog_available, action_dependencies, allow_child_specific=False, unrestricted=False)
 
-        _set_new_allowed_actions(
-            catalog_entry,
-            catalog_actions,
-            root_actions,
-        )
+        _set_new_allowed_actions( catalog_entry, catalog_actions, root_actions)
 
         for schema in catalog.get("schemas", {}).values():
             schema_entry = schema.get("security_groups", {}).get(group_name, {})
 
             schema_available = catalog_available | _entry_permissions(schema_entry)
 
-            schema_actions = _actions_for_scope(
-                schema_available,
-                action_dependencies,
-                allow_child_specific=True,
-                unrestricted=False,
-            )
+            schema_actions = _actions_for_scope( schema_available, action_dependencies, allow_child_specific=True, unrestricted=False)
 
-            _set_new_allowed_actions(
-                schema_entry,
-                schema_actions,
-                root_actions | catalog_actions,
-            )
+            _set_new_allowed_actions( schema_entry, schema_actions, root_actions | catalog_actions)
 
             for table in schema.get("tables", {}).values():
                 table_entry = table.get("security_groups", {}).get(group_name, {})
 
                 table_available = schema_available | _entry_permissions(table_entry)
 
-                table_actions = _actions_for_scope(
-                    table_available,
-                    action_dependencies,
-                    allow_child_specific=True,
-                    unrestricted=False,
-                )
+                table_actions = _actions_for_scope( table_available, action_dependencies, allow_child_specific=True, unrestricted=False)
 
-                _set_new_allowed_actions(
-                    table_entry,
-                    table_actions,
-                    root_actions | catalog_actions | schema_actions,
-                )
+                _set_new_allowed_actions( table_entry, table_actions, root_actions | catalog_actions | schema_actions)
 
                 for column in table.get("columns", {}).values():
                     column_entry = column.get("security_groups", {}).get(group_name, {})
 
                     column_available = table_available | _entry_permissions(column_entry)
 
-                    column_actions = _actions_for_scope(
-                        column_available,
-                        action_dependencies,
-                        allow_child_specific=True,
-                        unrestricted=False,
-                    )
+                    column_actions = _actions_for_scope( column_available, action_dependencies, allow_child_specific=True, unrestricted=False)
 
-                    _set_new_allowed_actions(
-                        column_entry,
-                        column_actions,
-                        root_actions
-                        | catalog_actions
-                        | schema_actions
-                        | table_actions,
-                    )
-
+                    _set_new_allowed_actions( column_entry, column_actions, root_actions | catalog_actions | schema_actions | table_actions)
 
 def _entry_permissions(entry: Dict[str, Any]) -> set:
     permissions = set(entry.get("permissions", []))
-    permissions.update(
-        _filter_permissions_as_set(entry.get("filters"))
-    )
+    permissions.update( _filter_permissions_as_set(entry.get("filters")) )
 
     return permissions
 
-
 def _actions_for_scope(available: set, action_dependencies: Dict[str, Any], allow_child_specific: bool, unrestricted: bool) -> set:
     if unrestricted:
-        return {
-            name
-            for name, requirements in action_dependencies.items()
-            if isinstance(requirements, list)
-        }
+        return { name for name, requirements in action_dependencies.items() if isinstance(requirements, list) }
 
     actions = set()
 
@@ -1523,10 +1020,7 @@ def _actions_for_scope(available: set, action_dependencies: Dict[str, Any], allo
         if not isinstance(requirements, list):
             continue
 
-        if not _requirements_satisfied(
-            requirements,
-            available,
-        ):
+        if not _requirements_satisfied( requirements, available):
             continue
 
         if not allow_child_specific and _has_scope_specific_permission(requirements):
@@ -1536,50 +1030,27 @@ def _actions_for_scope(available: set, action_dependencies: Dict[str, Any], allo
 
     return actions
 
-
 def _set_new_allowed_actions(entry: Dict[str, Any], current_actions: set, inherited_actions: set) -> None:
     if not entry:
         return
 
-    new_actions = sorted(
-        current_actions - inherited_actions
-    )
+    new_actions = sorted( current_actions - inherited_actions )
 
     if new_actions:
         entry["allowed_actions"] = new_actions
     else:
         entry.pop("allowed_actions", None)
 
-
 def _requirements_satisfied(requirements: List[str], available: set) -> bool:
-    return all(
-        requirement in available
-        for requirement in requirements
-    )
-
+    return all( requirement in available for requirement in requirements )
 
 def _filter_permissions_as_set(filters: Optional[Dict[str, Any]]) -> set:
     return set(filters.keys()) if filters else set()
 
-
 def _has_scope_specific_permission(requirements: List[str]) -> bool:
-    scope_specific = {
-        "SelectFromColumns",
-        "UpdateTableColumns",
-        "DeleteFromTable",
-        "InsertIntoTable",
-        "DropTable",
-        "DropView",
-        "CreateView",
-        "CreateTable",
-        "ShowColumns",
-        "ShowTables",
-    }
+    scope_specific = { "SelectFromColumns", "UpdateTableColumns", "DeleteFromTable", "InsertIntoTable", "DropTable", "DropView", "CreateView", "CreateTable", "ShowColumns", "ShowTables"}
 
-    return bool(
-        set(requirements) & scope_specific
-    )
-
+    return bool( set(requirements) & scope_specific )
 
 # ============================================================================
 # TREE CLEANUP
@@ -1587,11 +1058,7 @@ def _has_scope_specific_permission(requirements: List[str]) -> bool:
 
 def _prune_empty_tree_nodes(node: Dict[str, Any]) -> None:
     if "security_groups" in node:
-        empty_groups = [
-            group_name
-            for group_name, entry in node["security_groups"].items()
-            if not entry
-        ]
+        empty_groups = [ group_name for group_name, entry in node["security_groups"].items() if not entry ]
 
         for group_name in empty_groups:
             del node["security_groups"][group_name]
@@ -1599,12 +1066,7 @@ def _prune_empty_tree_nodes(node: Dict[str, Any]) -> None:
         if not node["security_groups"]:
             del node["security_groups"]
 
-    for collection_key in (
-        "catalogs",
-        "schemas",
-        "tables",
-        "columns",
-    ):
+    for collection_key in ( "catalogs", "schemas", "tables", "columns"):
         collection = node.get(collection_key)
 
         if not isinstance(collection, dict):
@@ -1624,7 +1086,6 @@ def _prune_empty_tree_nodes(node: Dict[str, Any]) -> None:
         if not collection:
             del node[collection_key]
 
-
 # ============================================================================
 # INTERNAL TREE CONSTRUCTION
 # ============================================================================
@@ -1634,77 +1095,50 @@ def _get_or_create_catalog(catalogs: List[Dict[str, Any]], catalog_name: str) ->
         if catalog["catalog"] == catalog_name:
             return catalog
 
-    catalog = {
-        "catalog": catalog_name,
-        "permissions": None,
-        "filters": None,
-        "schemas": [],
-    }
+    catalog = { "catalog": catalog_name, "permissions": None, "filters": None, "schemas": []}
 
     catalogs.append(catalog)
 
     return catalog
-
 
 def _get_or_create_schema(schemas: List[Dict[str, Any]], schema_name: str) -> Dict[str, Any]:
     for schema in schemas:
         if schema["schema"] == schema_name:
             return schema
 
-    schema = {
-        "schema": schema_name,
-        "permissions": None,
-        "filters": None,
-        "tables": [],
-    }
+    schema = { "schema": schema_name, "permissions": None, "filters": None, "tables": []}
 
     schemas.append(schema)
 
     return schema
-
 
 def _get_or_create_table(tables: List[Dict[str, Any]], table_name: str) -> Dict[str, Any]:
     for table in tables:
         if table["table"] == table_name:
             return table
 
-    table = {
-        "table": table_name,
-        "permissions": None,
-        "filters": None,
-        "columns": [],
-    }
+    table = { "table": table_name, "permissions": None, "filters": None, "columns": []}
 
     tables.append(table)
 
     return table
-
 
 def _get_or_create_column(columns: List[Dict[str, Any]], column_name: str) -> Dict[str, Any]:
     for column in columns:
         if column["column"] == column_name:
             return column
 
-    column = {
-        "column": column_name,
-        "permissions": None,
-        "filters": None,
-    }
+    column = { "column": column_name, "permissions": None, "filters": None}
 
     columns.append(column)
 
     return column
 
-
 def _add_permission(node: Dict[str, Any], permission: str) -> None:
     if node.get("permissions") is None:
         node["permissions"] = []
 
-    _add_unique(
-        node["permissions"],
-        permission,
-    )
-
+    _add_unique( node["permissions"], permission)
 
 def _add_filter(node: Dict[str, Any], filter_permission: str, value: Any) -> None:
     if node.get("filters") is None:
@@ -1722,17 +1156,12 @@ def _add_filter(node: Dict[str, Any], filter_permission: str, value: Any) -> Non
     if value not in existing:
         existing.append(value)
 
-
 def _add_unique(values: List[str], value: str) -> None:
     if value not in values:
         values.append(value)
 
-
 def _deep_copy_json(value: Any) -> Any:
-    return json.loads(
-        json.dumps(value)
-    )
-
+    return json.loads( json.dumps(value) )
 
 # ============================================================================
 # DIRECTORY BUILDER
@@ -1742,115 +1171,68 @@ def _combine_rego_files(opa_directory: str) -> Path:
     opa_dir = Path(opa_directory)
 
     if not opa_dir.exists():
-        raise FileNotFoundError(
-            f"OPA directory not found: {opa_directory}"
-        )
+        raise FileNotFoundError( f"OPA directory not found: {opa_directory}" )
 
     if not opa_dir.is_dir():
-        raise NotADirectoryError(
-            f"OPA path is not a directory: {opa_directory}"
-        )
+        raise NotADirectoryError( f"OPA path is not a directory: {opa_directory}" )
 
-    opa_files = sorted(
-        opa_dir.glob("*.rego")
-    )
+    opa_files = sorted( opa_dir.glob("*.rego") )
 
     if not opa_files:
-        raise FileNotFoundError(
-            f"No .rego files found in: {opa_directory}"
-        )
+        raise FileNotFoundError( f"No .rego files found in: {opa_directory}" )
 
-    temporary_file = tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        suffix=".rego",
-        prefix="combined_opa_",
-        delete=False,
-    )
+    temporary_file = tempfile.NamedTemporaryFile( mode="w", encoding="utf-8", suffix=".rego", prefix="combined_opa_", delete=False)
 
-    temporary_path = Path(
-        temporary_file.name
-    )
+    temporary_path = Path( temporary_file.name )
 
     try:
         for opa_file in opa_files:
-            print(
-                f"[COMBINE] Adding: {opa_file.name}"
-            )
+            print( f"[COMBINE] Adding: {opa_file.name}" )
 
-            content = opa_file.read_text(
-                encoding="utf-8"
-            )
+            content = opa_file.read_text( encoding="utf-8" )
 
-            temporary_file.write(
-                "\n\n# ============================================================\n"
-            )
+            temporary_file.write( "\n\n# ============================================================\n" )
 
-            temporary_file.write(
-                f"# FILE: {opa_file.name}\n"
-            )
+            temporary_file.write( f"# FILE: {opa_file.name}\n" )
 
-            temporary_file.write(
-                "# ============================================================\n\n"
-            )
+            temporary_file.write( "# ============================================================\n\n" )
 
             temporary_file.write(content)
             temporary_file.write("\n\n")
 
     except Exception:
         temporary_file.close()
-        temporary_path.unlink(
-            missing_ok=True
-        )
+        temporary_path.unlink( missing_ok=True )
         raise
 
     finally:
         if not temporary_file.closed:
             temporary_file.close()
 
-    print(
-        f"[COMBINE] Created temporary Rego file: {temporary_path}"
-    )
+    print( f"[COMBINE] Created temporary Rego file: {temporary_path}" )
 
     return temporary_path
-
 
 def build_permission_tree_from_directory(opa_directory: str, action_permissions_file: str, security_groups_file: str, output_file: Optional[str] = None) -> Dict[str, Any]:
     temporary_rego: Optional[Path] = None
 
     try:
-        temporary_rego = _combine_rego_files(
-            opa_directory
-        )
+        temporary_rego = _combine_rego_files( opa_directory )
 
-        print(
-            f"[BUILD] Parsing combined policy: {temporary_rego}"
-        )
+        print( f"[BUILD] Parsing combined policy: {temporary_rego}" )
 
-        actual_tree = build_permission_tree(
-            opa_file=str(temporary_rego),
-            action_permissions_file=action_permissions_file,
-            security_groups_file=security_groups_file,
-        )
+        actual_tree = build_permission_tree( opa_file=str(temporary_rego), action_permissions_file=action_permissions_file, security_groups_file=security_groups_file)
 
         if output_file is not None:
-            _write_permission_tree(
-                actual_tree,
-                output_file,
-            )
+            _write_permission_tree( actual_tree, output_file)
 
         return actual_tree
 
     finally:
         if temporary_rego is not None:
-            temporary_rego.unlink(
-                missing_ok=True
-            )
+            temporary_rego.unlink( missing_ok=True )
 
-            print(
-                f"[CLEANUP] Removed temporary file: {temporary_rego}"
-            )
-
+            print( f"[CLEANUP] Removed temporary file: {temporary_rego}" )
 
 # ============================================================================
 # STANDALONE EXECUTION
@@ -1858,71 +1240,30 @@ def build_permission_tree_from_directory(opa_directory: str, action_permissions_
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-OPA_DIRECTORY = (
-    PROJECT_ROOT
-    / "docker-compose"
-    / "opa"
-)
+OPA_DIRECTORY = ( PROJECT_ROOT / "docker-compose" / "opa" )
 
-ACTION_PERMISSIONS_FILE = (
-    PROJECT_ROOT
-    / "LLM"
-    / "Structure"
-    / "checkForAction.json"
-)
+ACTION_PERMISSIONS_FILE = ( PROJECT_ROOT / "LLM" / "Structure" / "checkForAction.json" )
 
-SECURITY_GROUPS_FILE = (
-    PROJECT_ROOT
-    / "LLM"
-    / "Structure"
-    / "security_groups.json"
-)
+SECURITY_GROUPS_FILE = ( PROJECT_ROOT / "LLM" / "Structure" / "security_groups.json" )
 
-OUTPUT_FILE = (
-    PROJECT_ROOT
-    / "TreePermission"
-    / "output"
-    / "permission_tree.json"
-)
-
+OUTPUT_FILE = ( PROJECT_ROOT / "TreePermission" / "output" / "permission_tree.json" )
 
 if __name__ == "__main__":
     print("=" * 70)
     print("BUILDING PERMISSION TREE")
     print("=" * 70)
 
-    print(
-        f"Project root:       {PROJECT_ROOT}"
-    )
+    print( f"Project root:       {PROJECT_ROOT}" )
 
-    print(
-        f"OPA directory:      {OPA_DIRECTORY}"
-    )
+    print( f"OPA directory:      {OPA_DIRECTORY}" )
 
-    print(
-        f"Action permissions: {ACTION_PERMISSIONS_FILE}"
-    )
+    print( f"Action permissions: {ACTION_PERMISSIONS_FILE}" )
 
-    print(
-        f"Security groups:    {SECURITY_GROUPS_FILE}"
-    )
+    print( f"Security groups:    {SECURITY_GROUPS_FILE}" )
 
-    print(
-        f"Output:             {OUTPUT_FILE}"
-    )
+    print( f"Output:             {OUTPUT_FILE}" )
 
-    tree = build_permission_tree_from_directory(
-        opa_directory=str(OPA_DIRECTORY),
-        action_permissions_file=str(ACTION_PERMISSIONS_FILE),
-        security_groups_file=str(SECURITY_GROUPS_FILE),
-        output_file=str(OUTPUT_FILE),
-    )
+    tree = build_permission_tree_from_directory( opa_directory=str(OPA_DIRECTORY), action_permissions_file=str(ACTION_PERMISSIONS_FILE), security_groups_file=str(SECURITY_GROUPS_FILE), output_file=str(OUTPUT_FILE))
 
     print("\nPermission tree:")
-    print(
-        json.dumps(
-            tree,
-            indent=2,
-            ensure_ascii=False,
-        )
-    )
+    print( json.dumps( tree, indent=2, ensure_ascii=False) )

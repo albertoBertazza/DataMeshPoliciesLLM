@@ -1,7 +1,6 @@
 import json
 from typing import Any, Dict, List, Optional
 
-
 class PermissionTreeResolver:
     """
     Resolver for the hierarchical permission tree.
@@ -87,10 +86,7 @@ class PermissionTreeResolver:
     # ========================================================================
 
     @staticmethod
-    def _security_group_node(
-        node: Optional[Dict[str, Any]],
-        security_group: str,
-    ) -> Optional[Dict[str, Any]]:
+    def _security_group_node( node: Optional[Dict[str, Any]], security_group: str) -> Optional[Dict[str, Any]]:
         if not isinstance(node, dict):
             return None
 
@@ -138,10 +134,7 @@ class PermissionTreeResolver:
         return []
 
     @staticmethod
-    def _allowed_action_data(
-        node: Optional[Dict[str, Any]],
-        action: str,
-    ) -> Optional[Dict[str, Any]]:
+    def _allowed_action_data( node: Optional[Dict[str, Any]], action: str) -> Optional[Dict[str, Any]]:
         if not isinstance(node, dict):
             return None
 
@@ -158,11 +151,7 @@ class PermissionTreeResolver:
         return action_data
 
     @staticmethod
-    def _find_resource(
-        nodes: Any,
-        key: str,
-        value: str,
-    ) -> Optional[Dict[str, Any]]:
+    def _find_resource( nodes: Any, key: str, value: str) -> Optional[Dict[str, Any]]:
         """
         Find a resource in either supported representation.
 
@@ -245,157 +234,66 @@ class PermissionTreeResolver:
     # ========================================================================
 
     def catalog_node(self, catalog: str) -> Optional[Dict[str, Any]]:
-        return self._find_resource(
-            self.root.get("catalogs", {}),
-            "catalog",
-            catalog,
-        )
+        return self._find_resource( self.root.get("catalogs", {}), "catalog", catalog)
 
-    def catalog_security_group(
-        self,
-        security_group: str,
-        catalog: str,
-    ) -> Optional[Dict[str, Any]]:
-        return self._security_group_node(
-            self.catalog_node(catalog),
-            security_group,
-        )
+    def catalog_security_group( self, security_group: str, catalog: str) -> Optional[Dict[str, Any]]:
+        return self._security_group_node( self.catalog_node(catalog), security_group)
 
     # ========================================================================
     # Schema
     # ========================================================================
 
-    def schema_node(
-        self,
-        catalog: str,
-        schema: str,
-    ) -> Optional[Dict[str, Any]]:
+    def schema_node( self, catalog: str, schema: str) -> Optional[Dict[str, Any]]:
         catalog_node = self.catalog_node(catalog)
 
         if not catalog_node:
             return None
 
-        return self._find_resource(
-            catalog_node.get("schemas", {}),
-            "schema",
-            schema,
-        )
+        return self._find_resource( catalog_node.get("schemas", {}), "schema", schema)
 
-    def schema_security_group(
-        self,
-        security_group: str,
-        catalog: str,
-        schema: str,
-    ) -> Optional[Dict[str, Any]]:
-        return self._security_group_node(
-            self.schema_node(catalog, schema),
-            security_group,
-        )
+    def schema_security_group( self, security_group: str, catalog: str, schema: str) -> Optional[Dict[str, Any]]:
+        return self._security_group_node( self.schema_node(catalog, schema), security_group)
 
     # ========================================================================
     # Table
     # ========================================================================
 
-    def table_node(
-        self,
-        catalog: str,
-        schema: str,
-        table: str,
-    ) -> Optional[Dict[str, Any]]:
+    def table_node( self, catalog: str, schema: str, table: str) -> Optional[Dict[str, Any]]:
         schema_node = self.schema_node(catalog, schema)
 
         if not schema_node:
             return None
 
-        return self._find_resource(
-            schema_node.get("tables", {}),
-            "table",
-            table,
-        )
+        return self._find_resource( schema_node.get("tables", {}), "table", table)
 
-    def table_security_group(
-        self,
-        security_group: str,
-        catalog: str,
-        schema: str,
-        table: str,
-    ) -> Optional[Dict[str, Any]]:
-        return self._security_group_node(
-            self.table_node(catalog, schema, table),
-            security_group,
-        )
+    def table_security_group( self, security_group: str, catalog: str, schema: str, table: str) -> Optional[Dict[str, Any]]:
+        return self._security_group_node( self.table_node(catalog, schema, table), security_group)
 
     # ========================================================================
     # Column
     # ========================================================================
 
-    def column_node(
-        self,
-        catalog: str,
-        schema: str,
-        table: str,
-        column: str,
-    ) -> Optional[Dict[str, Any]]:
+    def column_node( self, catalog: str, schema: str, table: str, column: str) -> Optional[Dict[str, Any]]:
         table_node = self.table_node(catalog, schema, table)
 
         if not table_node:
             return None
 
-        return self._find_resource(
-            table_node.get("columns", {}),
-            "column",
-            column,
-        )
+        return self._find_resource( table_node.get("columns", {}), "column", column)
 
-    def column_security_group(
-        self,
-        security_group: str,
-        catalog: str,
-        schema: str,
-        table: str,
-        column: str,
-    ) -> Optional[Dict[str, Any]]:
-        return self._security_group_node(
-            self.column_node(catalog, schema, table, column),
-            security_group,
-        )
+    def column_security_group( self, security_group: str, catalog: str, schema: str, table: str, column: str) -> Optional[Dict[str, Any]]:
+        return self._security_group_node( self.column_node(catalog, schema, table, column), security_group)
 
     # ========================================================================
     # Path resolution
     # ========================================================================
 
-    def resolve_path(
-        self,
-        security_group: str,
-        catalog: str,
-        schema: str,
-        table: Optional[str] = None,
-    ) -> Dict[str, Optional[Dict[str, Any]]]:
+    def resolve_path( self, security_group: str, catalog: str, schema: str, table: Optional[str] = None) -> Dict[str, Optional[Dict[str, Any]]]:
 
-        result = {
-            "root": self._security_group_node(
-                self.root,
-                security_group,
-            ),
-            "catalog": self.catalog_security_group(
-                security_group,
-                catalog,
-            ),
-            "schema": self.schema_security_group(
-                security_group,
-                catalog,
-                schema,
-            ),
-            "table": None,
-        }
+        result = { "root": self._security_group_node( self.root, security_group), "catalog": self.catalog_security_group( security_group, catalog), "schema": self.schema_security_group( security_group, catalog, schema), "table": None}
 
         if table is not None:
-            result["table"] = self.table_security_group(
-                security_group,
-                catalog,
-                schema,
-                table,
-            )
+            result["table"] = self.table_security_group( security_group, catalog, schema, table)
 
         return result
 
@@ -403,28 +301,11 @@ class PermissionTreeResolver:
     # Effective permissions
     # ========================================================================
 
-    def effective_permissions(
-        self,
-        security_group: str,
-        catalog: str,
-        schema: str,
-        table: Optional[str] = None,
-    ) -> Dict[str, List[str]]:
+    def effective_permissions( self, security_group: str, catalog: str, schema: str, table: Optional[str] = None) -> Dict[str, List[str]]:
 
-        path = self.resolve_path(
-            security_group,
-            catalog,
-            schema,
-            table,
-        )
+        path = self.resolve_path( security_group, catalog, schema, table)
 
-        result = {
-            "root": [],
-            "catalog": [],
-            "schema": [],
-            "table": [],
-            "effective": [],
-        }
+        result = { "root": [], "catalog": [], "schema": [], "table": [], "effective": []}
 
         effective = set()
 
@@ -445,20 +326,9 @@ class PermissionTreeResolver:
     # Effective allowed actions
     # ========================================================================
 
-    def effective_allowed_actions(
-        self,
-        security_group: str,
-        catalog: str,
-        schema: str,
-        table: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    def effective_allowed_actions( self, security_group: str, catalog: str, schema: str, table: Optional[str] = None) -> Dict[str, Any]:
 
-        path = self.resolve_path(
-            security_group,
-            catalog,
-            schema,
-            table,
-        )
+        path = self.resolve_path( security_group, catalog, schema, table)
 
         effective_actions = set()
         source = {}
@@ -490,40 +360,20 @@ class PermissionTreeResolver:
                 # More specific levels override the source.
                 source[action] = level
 
-                data = self._allowed_action_data(
-                    node,
-                    action,
-                )
+                data = self._allowed_action_data( node, action)
 
                 if data is not None:
                     action_data[action] = data
 
-        return {
-            "global_allow_all": global_allow_all,
-            "actions": sorted(effective_actions),
-            "source": source,
-            "action_data": action_data,
-        }
+        return { "global_allow_all": global_allow_all, "actions": sorted(effective_actions), "source": source, "action_data": action_data}
 
     # ========================================================================
     # Action resolution
     # ========================================================================
 
-    def resolve_action(
-        self,
-        security_group: str,
-        catalog: str,
-        schema: str,
-        table: str,
-        action: str,
-    ) -> Dict[str, Any]:
+    def resolve_action( self, security_group: str, catalog: str, schema: str, table: str, action: str) -> Dict[str, Any]:
 
-        path = self.resolve_path(
-            security_group,
-            catalog,
-            schema,
-            table,
-        )
+        path = self.resolve_path( security_group, catalog, schema, table)
 
         # More specific resources take precedence.
         for level in ("table", "schema", "catalog", "root"):
@@ -534,70 +384,26 @@ class PermissionTreeResolver:
 
             # permissions: ["*"] means unrestricted access.
             if self._is_global(node):
-                return {
-                    "allowed": True,
-                    "source": level,
-                    "action": action,
-                    "action_data": {
-                        "global": True,
-                    },
-                    "permissions": self._permissions(node),
-                }
+                return { "allowed": True, "source": level, "action": action, "action_data": { "global": True}, "permissions": self._permissions(node)}
 
             actions = self._allowed_actions(node)
 
             # Explicit wildcard in allowed_actions.
             if "*" in actions:
-                return {
-                    "allowed": True,
-                    "source": level,
-                    "action": action,
-                    "action_data": {
-                        "global": True,
-                    },
-                    "permissions": self._permissions(node),
-                }
+                return { "allowed": True, "source": level, "action": action, "action_data": { "global": True}, "permissions": self._permissions(node)}
 
             if action in actions:
-                return {
-                    "allowed": True,
-                    "source": level,
-                    "action": action,
-                    "action_data": self._allowed_action_data(
-                        node,
-                        action,
-                    ),
-                    "permissions": self._permissions(node),
-                }
+                return { "allowed": True, "source": level, "action": action, "action_data": self._allowed_action_data( node, action), "permissions": self._permissions(node)}
 
-        return {
-            "allowed": False,
-            "source": None,
-            "action": action,
-            "action_data": None,
-            "permissions": [],
-        }
+        return { "allowed": False, "source": None, "action": action, "action_data": None, "permissions": []}
 
     # ========================================================================
     # Column filters
     # ========================================================================
 
-    def column_filters(
-        self,
-        security_group: str,
-        catalog: str,
-        schema: str,
-        table: str,
-        column: str,
-    ) -> Dict[str, Any]:
+    def column_filters( self, security_group: str, catalog: str, schema: str, table: str, column: str) -> Dict[str, Any]:
 
-        node = self.column_security_group(
-            security_group,
-            catalog,
-            schema,
-            table,
-            column,
-        )
+        node = self.column_security_group( security_group, catalog, schema, table, column)
 
         if not node:
             return {}
@@ -613,22 +419,9 @@ class PermissionTreeResolver:
     # Specific filter
     # ========================================================================
 
-    def get_column_mask(
-        self,
-        security_group: str,
-        catalog: str,
-        schema: str,
-        table: str,
-        column: str,
-    ) -> List[Dict[str, Any]]:
+    def get_column_mask( self, security_group: str, catalog: str, schema: str, table: str, column: str) -> List[Dict[str, Any]]:
 
-        filters = self.column_filters(
-            security_group,
-            catalog,
-            schema,
-            table,
-            column,
-        )
+        filters = self.column_filters( security_group, catalog, schema, table, column)
 
         masks = filters.get("GetColumnMask", [])
 
@@ -652,9 +445,7 @@ class PermissionTreeResolver:
 
             if isinstance(security_groups, dict):
                 for group_node in security_groups.values():
-                    actions.update(
-                        self._allowed_actions(group_node)
-                    )
+                    actions.update( self._allowed_actions(group_node) )
 
             for key in self.RESOURCE_KEYS:
                 nodes = node.get(key, {})
@@ -664,12 +455,7 @@ class PermissionTreeResolver:
 
         collect(self.root)
 
-        return sorted(
-            action
-            for action in actions
-            if action != "*"
-        )
-
+        return sorted( action for action in actions if action != "*" )
 
 # ============================================================================
 # EXAMPLE USAGE
@@ -677,11 +463,7 @@ class PermissionTreeResolver:
 
 if __name__ == "__main__":
 
-    with open(
-        "../output/permission_tree.json",
-        "r",
-        encoding="utf-8",
-    ) as f:
+    with open( "../output/permission_tree.json", "r", encoding="utf-8") as f:
         tree = json.load(f)
 
     resolver = PermissionTreeResolver(tree)
@@ -694,12 +476,7 @@ if __name__ == "__main__":
     print("SECURITY GROUPS")
     print("=" * 70)
 
-    print(
-        json.dumps(
-            resolver.security_groups(),
-            indent=2,
-        )
-    )
+    print( json.dumps( resolver.security_groups(), indent=2) )
 
     # ========================================================================
     # 2. Effective permissions for hr_manager
@@ -709,19 +486,9 @@ if __name__ == "__main__":
     print("HR MANAGER - EFFECTIVE PERMISSIONS")
     print("=" * 70)
 
-    result = resolver.effective_permissions(
-        security_group="hr_manager",
-        catalog="iceberg",
-        schema="hr",
-        table="employees",
-    )
+    result = resolver.effective_permissions( security_group="hr_manager", catalog="iceberg", schema="hr", table="employees")
 
-    print(
-        json.dumps(
-            result,
-            indent=2,
-        )
-    )
+    print( json.dumps( result, indent=2) )
 
     # ========================================================================
     # 3. Effective actions for hr_manager
@@ -731,19 +498,9 @@ if __name__ == "__main__":
     print("HR MANAGER - EFFECTIVE ACTIONS")
     print("=" * 70)
 
-    result = resolver.effective_allowed_actions(
-        security_group="hr_manager",
-        catalog="iceberg",
-        schema="hr",
-        table="employees",
-    )
+    result = resolver.effective_allowed_actions( security_group="hr_manager", catalog="iceberg", schema="hr", table="employees")
 
-    print(
-        json.dumps(
-            result,
-            indent=2,
-        )
-    )
+    print( json.dumps( result, indent=2) )
 
     # ========================================================================
     # 4. Check SelectFromTableAction for hr_manager
@@ -753,20 +510,9 @@ if __name__ == "__main__":
     print("HR MANAGER - SELECT ACTION")
     print("=" * 70)
 
-    result = resolver.resolve_action(
-        security_group="hr_manager",
-        catalog="iceberg",
-        schema="hr",
-        table="employees",
-        action="SelectFromTableAction",
-    )
+    result = resolver.resolve_action( security_group="hr_manager", catalog="iceberg", schema="hr", table="employees", action="SelectFromTableAction")
 
-    print(
-        json.dumps(
-            result,
-            indent=2,
-        )
-    )
+    print( json.dumps( result, indent=2) )
 
     # ========================================================================
     # 5. Check DropTableAction for hr_manager
@@ -776,20 +522,9 @@ if __name__ == "__main__":
     print("HR MANAGER - DROP TABLE")
     print("=" * 70)
 
-    result = resolver.resolve_action(
-        security_group="hr_manager",
-        catalog="iceberg",
-        schema="hr",
-        table="employees",
-        action="DropTableAction",
-    )
+    result = resolver.resolve_action( security_group="hr_manager", catalog="iceberg", schema="hr", table="employees", action="DropTableAction")
 
-    print(
-        json.dumps(
-            result,
-            indent=2,
-        )
-    )
+    print( json.dumps( result, indent=2) )
 
     # ========================================================================
     # 6. Check admin global access
@@ -799,20 +534,9 @@ if __name__ == "__main__":
     print("ADMIN - DROP TABLE")
     print("=" * 70)
 
-    result = resolver.resolve_action(
-        security_group="admin",
-        catalog="iceberg",
-        schema="hr",
-        table="employees",
-        action="DropTableAction",
-    )
+    result = resolver.resolve_action( security_group="admin", catalog="iceberg", schema="hr", table="employees", action="DropTableAction")
 
-    print(
-        json.dumps(
-            result,
-            indent=2,
-        )
-    )
+    print( json.dumps( result, indent=2) )
 
     # ========================================================================
     # 7. Check analyst access
@@ -822,20 +546,9 @@ if __name__ == "__main__":
     print("ANALYST - SELECT TABLE")
     print("=" * 70)
 
-    result = resolver.resolve_action(
-        security_group="analyst",
-        catalog="iceberg",
-        schema="hr",
-        table="employees",
-        action="SelectFromTableAction",
-    )
+    result = resolver.resolve_action( security_group="analyst", catalog="iceberg", schema="hr", table="employees", action="SelectFromTableAction")
 
-    print(
-        json.dumps(
-            result,
-            indent=2,
-        )
-    )
+    print( json.dumps( result, indent=2) )
 
     # ========================================================================
     # 8. Check analyst column mask
@@ -845,20 +558,9 @@ if __name__ == "__main__":
     print("ANALYST - ATTRITION COLUMN MASK")
     print("=" * 70)
 
-    result = resolver.get_column_mask(
-        security_group="analyst",
-        catalog="iceberg",
-        schema="hr",
-        table="employees",
-        column="attrition",
-    )
+    result = resolver.get_column_mask( security_group="analyst", catalog="iceberg", schema="hr", table="employees", column="attrition")
 
-    print(
-        json.dumps(
-            result,
-            indent=2,
-        )
-    )
+    print( json.dumps( result, indent=2) )
 
     # ========================================================================
     # 9. Check hr_manager column mask
@@ -868,20 +570,9 @@ if __name__ == "__main__":
     print("HR MANAGER - ATTRITION COLUMN MASK")
     print("=" * 70)
 
-    result = resolver.get_column_mask(
-        security_group="hr_manager",
-        catalog="iceberg",
-        schema="hr",
-        table="employees",
-        column="attrition",
-    )
+    result = resolver.get_column_mask( security_group="hr_manager", catalog="iceberg", schema="hr", table="employees", column="attrition")
 
-    print(
-        json.dumps(
-            result,
-            indent=2,
-        )
-    )
+    print( json.dumps( result, indent=2) )
 
     # ========================================================================
     # 10. Check business travel column mask
@@ -891,20 +582,9 @@ if __name__ == "__main__":
     print("ANALYST - BUSINESS TRAVEL COLUMN MASK")
     print("=" * 70)
 
-    result = resolver.get_column_mask(
-        security_group="analyst",
-        catalog="iceberg",
-        schema="hr",
-        table="employees",
-        column="businesstravel",
-    )
+    result = resolver.get_column_mask( security_group="analyst", catalog="iceberg", schema="hr", table="employees", column="businesstravel")
 
-    print(
-        json.dumps(
-            result,
-            indent=2,
-        )
-    )
+    print( json.dumps( result, indent=2) )
 
     # ========================================================================
     # 11. Collect all actions in tree
@@ -916,9 +596,4 @@ if __name__ == "__main__":
 
     result = resolver.collect_allowed_actions()
 
-    print(
-        json.dumps(
-            result,
-            indent=2,
-        )
-    )
+    print( json.dumps( result, indent=2) )
