@@ -192,15 +192,15 @@ def reload_indexes(
         index_suffix
     )
 
-    extraction_index = build_index_if_needed(
-        INPUT_EXTRACTION_PATH,
-        extraction_index_path,
-        gen_index_extraction,
-        is_local=is_local,
-        embedding_url=embedding_url,
-        client=client,
-        embedding_model=embedding_model,
-    )
+    # extraction_index = build_index_if_needed(
+    #     INPUT_EXTRACTION_PATH,
+    #     extraction_index_path,
+    #     gen_index_extraction,
+    #     is_local=is_local,
+    #     embedding_url=embedding_url,
+    #     client=client,
+    #     embedding_model=embedding_model,
+    # )
 
     rewrite_rule_index = build_index_if_needed(
         INPUT_REWRITE_RULE_PATH,
@@ -222,7 +222,7 @@ def reload_indexes(
         embedding_model=embedding_model,
     )
 
-    return extraction_index, rewrite_rule_index, build_rego_index
+    return rewrite_rule_index, build_rego_index
 
 
 

@@ -14,7 +14,7 @@ from LLM.LLMPipeline.RegoPolicyCreation.IndexCreation.index_creator import (
     reload_indexes,
 )
 from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.Extraction.extraction import (
-    extract_entities,
+     build_intermediate_representation,
 )
 from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.RegoRuleGeneration.build_rego import (
     generate_rego_policy,
@@ -25,6 +25,10 @@ from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.Rewrite.nlp_rule_rewrite import
 
 from TreePermission.tree_builder import (
     build_permission_tree_from_directory,
+)
+
+from LLM.LLMPipeline.RegoPolicyCreation.Pipeline.Compiler.check_depth_permission import (
+    compile_policy,
 )
 
 
@@ -110,6 +114,10 @@ DATA_MESH_STRUCTURE_PATH = (
 
 INPUT_STRUCTURE_PATH = (
     STRUCTURE_DIR / "input.json"
+)
+
+PERMISSION_DEPTH_PATH = (
+    STRUCTURE_DIR / "permission_depth.json"
 )
 
 REGO_POLICY_CREATION_DIR = (
@@ -485,7 +493,6 @@ def build_policy_filename(
 def process_rule(
     rule_passed,
     index_rewrite_rule,
-    index_extraction,
     index_build_rego,
     check_for_action,
     data_mesh,
@@ -571,17 +578,7 @@ def process_rule(
 
     try:
 
-        entities = extract_entities(
-            explanation["text"],
-            index_extraction,
-            check_for_action,
-            is_local=is_local,
-            chat_url=chat_url,
-            embedding_url=embedding_url,
-            client=client,
-            model=model,
-            embedding_model=embedding_model,
-        )
+        entities = build_intermediate_representation(explanation, check_for_action)
 
     except Exception as error:
 
@@ -605,305 +602,358 @@ def process_rule(
     )
 
     # ========================================================================
-    # 3. Generate Rego
+    # 3. Compile permissions using permission_depth.json
     # ========================================================================
 
     print(
-        "\n[Generating OPA policy...]"
+        "\n[Compiling permissions...]"
     )
 
     try:
 
-        policy = generate_rego_policy(
-            entities,
-            index_build_rego,
-            input_structure,
-            is_local=is_local,
-            chat_url=chat_url,
-            embedding_url=embedding_url,
-            client=client,
-            model=model,
-            embedding_model=embedding_model,
-        )
+        if entities is None:
+            print(
+                "Compilation skipped: extraction returned no entities."
+            )
 
-    except Exception as error:
+            return False, None
 
-        print(
-            "Policy generation failed:",
-            error,
-        )
-
-        return False, None
-
-    # ========================================================================
-    # 4. Prepare directories
-    # ========================================================================
-
-    OUTPUT_REGO_DIR.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    TREE_PERMISSION_DIR.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    OPA_FILE_PATH.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    # ========================================================================
-    # 5. Complete Rego policy
-    # ========================================================================
-
-    REGO_HEADER = """
-package trino.authz
-
-import future.keywords.in
-import future.keywords.if
-import future.keywords.contains
-
-default allow := false
-
-default batchColumnMasks := []
-default rowFilters := []
-
-"""
-
-    full_policy = (
-        REGO_HEADER
-        + policy
-    )
-
-    # ========================================================================
-    # 6. Generate filename
-    # ========================================================================
-
-    filename = build_policy_filename(
-        explanation["text"]
-    )
-
-    output_file = (
-        OUTPUT_REGO_DIR / filename
-    )
-
-    output_opa_file = (
-        OPA_FILE_PATH / filename
-    )
-
-    # ========================================================================
-    # 7. Write candidate Rego
-    # ========================================================================
-
-    output_file.write_text(
-        full_policy,
-        encoding="utf-8",
-    )
-
-    print(
-        "\nGenerated candidate policy:",
-        output_file,
-    )
-
-    # ========================================================================
-    # 8. Build candidate permission tree
-    # ========================================================================
-
-    print(
-        "\n[Building candidate permission tree...]"
-    )
-
-    try:
-
-        candidate_tree = build_permission_tree_from_directory(
-            opa_directory=str(
-                OUTPUT_REGO_DIR
+        canonical_policy = compile_policy(
+            extracted_rules=[entities],
+            data_mesh_file=str(
+                DATA_MESH_STRUCTURE_PATH
             ),
-            action_permissions_file=str(
-                CHECK_FOR_ACTION_PATH
-            ),
-            security_groups_file=str(
-                SECURITY_GROUPS_PATH
+            permission_depth_file=str(
+                PERMISSION_DEPTH_PATH
             ),
         )
 
     except Exception as error:
 
         print(
-            "Failed to build candidate permission tree:",
-            error,
-        )
-
-        output_file.unlink(
-            missing_ok=True
-        )
-
-        return False, None
-
-    save_json_file(
-        candidate_tree,
-        CANDIDATE_TREE_PATH,
-    )
-
-    print(
-        "\nCandidate permission tree:"
-    )
-
-    print(
-        json.dumps(
-            candidate_tree,
-            indent=2,
-            ensure_ascii=False,
-        )
-    )
-
-    # ========================================================================
-    # 9. Load cumulative tree
-    # ========================================================================
-
-    print(
-        "\n[Checking existing permissions...]"
-    )
-
-    cumulative_tree = (
-        load_cumulative_tree()
-    )
-
-    difference_tree = (
-        subtract_permission_tree(
-            candidate_tree,
-            cumulative_tree,
-        )
-    )
-
-    print(
-        "\n[Permission difference]"
-    )
-
-    print(
-        json.dumps(
-            difference_tree,
-            indent=2,
-            ensure_ascii=False,
-        )
-    )
-
-    # ========================================================================
-    # 10. No new permissions
-    # ========================================================================
-
-    if not difference_tree:
-
-        print(
-            "\nNo new permissions found."
-        )
-
-        print(
-            "Generated policy is already represented "
-            "by the cumulative permission tree."
-        )
-
-        output_file.unlink(
-            missing_ok=True
-        )
-
-        CANDIDATE_TREE_PATH.unlink(
-            missing_ok=True
-        )
-
-        return True, explanation
-
-    # ========================================================================
-    # 11. New permissions found
-    # ========================================================================
-
-    print(
-        "\nNew permissions detected:"
-    )
-
-    print(
-        json.dumps(
-            difference_tree,
-            indent=2,
-            ensure_ascii=False,
-        )
-    )
-
-    # ========================================================================
-    # 12. Copy same policy to OPA
-    # ========================================================================
-
-    output_opa_file.write_text(
-        full_policy,
-        encoding="utf-8",
-    )
-
-    print(
-        "\nUpdated OPA:",
-        output_opa_file,
-    )
-
-    # ========================================================================
-    # 13. Rebuild cumulative permission tree
-    # ========================================================================
-
-    try:
-
-        complete_tree = (
-            rebuild_cumulative_permission_tree()
-        )
-
-    except Exception as error:
-
-        print(
-            "Failed to rebuild cumulative permission tree:",
+            "Permission compilation failed:",
             error,
         )
 
         return False, None
 
     print(
-        "\n[Cumulative permission tree]"
+        "\n[Canonical policy]"
     )
 
     print(
         json.dumps(
-            complete_tree,
+            canonical_policy,
             indent=2,
             ensure_ascii=False,
         )
     )
 
-    print(
-        "\nSaved cumulative tree:",
-        TREE_STRUCTURE_PATH,
-    )
 
-    # ========================================================================
-    # 14. Remove candidate tree
-    # ========================================================================
 
-    CANDIDATE_TREE_PATH.unlink(
-        missing_ok=True
-    )
 
-    # ========================================================================
-    # 15. Remove duplicated OPA defaults
-    # ========================================================================
 
-    remove_duplicate_rego_default(
-        OPA_FILE_PATH
-    )
 
-    # ========================================================================
-    # 16. Restart OPA
-    # ========================================================================
-
-    restart_opa()
-
-    return True, explanation
+#     # ========================================================================
+#     # 3. Generate Rego
+#     # ========================================================================
+#
+#     print(
+#         "\n[Generating OPA policy...]"
+#     )
+#
+#     try:
+#
+#         policy = generate_rego_policy(
+#             entities,
+#             index_build_rego,
+#             input_structure,
+#             is_local=is_local,
+#             chat_url=chat_url,
+#             embedding_url=embedding_url,
+#             client=client,
+#             model=model,
+#             embedding_model=embedding_model,
+#         )
+#
+#     except Exception as error:
+#
+#         print(
+#             "Policy generation failed:",
+#             error,
+#         )
+#
+#         return False, None
+#
+#     # ========================================================================
+#     # 4. Prepare directories
+#     # ========================================================================
+#
+#     OUTPUT_REGO_DIR.mkdir(
+#         parents=True,
+#         exist_ok=True,
+#     )
+#
+#     TREE_PERMISSION_DIR.mkdir(
+#         parents=True,
+#         exist_ok=True,
+#     )
+#
+#     OPA_FILE_PATH.mkdir(
+#         parents=True,
+#         exist_ok=True,
+#     )
+#
+#     # ========================================================================
+#     # 5. Complete Rego policy
+#     # ========================================================================
+#
+#     REGO_HEADER = """
+# package trino.authz
+#
+# import future.keywords.in
+# import future.keywords.if
+# import future.keywords.contains
+#
+# default allow := false
+#
+# default batchColumnMasks := []
+# default rowFilters := []
+#
+# """
+#
+#     full_policy = (
+#         REGO_HEADER
+#         + policy
+#     )
+#
+#     # ========================================================================
+#     # 6. Generate filename
+#     # ========================================================================
+#
+#     filename = build_policy_filename(
+#         explanation["text"]
+#     )
+#
+#     output_file = (
+#         OUTPUT_REGO_DIR / filename
+#     )
+#
+#     output_opa_file = (
+#         OPA_FILE_PATH / filename
+#     )
+#
+#     # ========================================================================
+#     # 7. Write candidate Rego
+#     # ========================================================================
+#
+#     output_file.write_text(
+#         full_policy,
+#         encoding="utf-8",
+#     )
+#
+#     print(
+#         "\nGenerated candidate policy:",
+#         output_file,
+#     )
+#
+#     # ========================================================================
+#     # 8. Build candidate permission tree
+#     # ========================================================================
+#
+#     print(
+#         "\n[Building candidate permission tree...]"
+#     )
+#
+#     try:
+#
+#         candidate_tree = build_permission_tree_from_directory(
+#             opa_directory=str(
+#                 OUTPUT_REGO_DIR
+#             ),
+#             action_permissions_file=str(
+#                 CHECK_FOR_ACTION_PATH
+#             ),
+#             security_groups_file=str(
+#                 SECURITY_GROUPS_PATH
+#             ),
+#         )
+#
+#     except Exception as error:
+#
+#         print(
+#             "Failed to build candidate permission tree:",
+#             error,
+#         )
+#
+#         output_file.unlink(
+#             missing_ok=True
+#         )
+#
+#         return False, None
+#
+#     save_json_file(
+#         candidate_tree,
+#         CANDIDATE_TREE_PATH,
+#     )
+#
+#     print(
+#         "\nCandidate permission tree:"
+#     )
+#
+#     print(
+#         json.dumps(
+#             candidate_tree,
+#             indent=2,
+#             ensure_ascii=False,
+#         )
+#     )
+#
+#     # ========================================================================
+#     # 9. Load cumulative tree
+#     # ========================================================================
+#
+#     print(
+#         "\n[Checking existing permissions...]"
+#     )
+#
+#     cumulative_tree = (
+#         load_cumulative_tree()
+#     )
+#
+#     difference_tree = (
+#         subtract_permission_tree(
+#             candidate_tree,
+#             cumulative_tree,
+#         )
+#     )
+#
+#     print(
+#         "\n[Permission difference]"
+#     )
+#
+#     print(
+#         json.dumps(
+#             difference_tree,
+#             indent=2,
+#             ensure_ascii=False,
+#         )
+#     )
+#
+#     # ========================================================================
+#     # 10. No new permissions
+#     # ========================================================================
+#
+#     if not difference_tree:
+#
+#         print(
+#             "\nNo new permissions found."
+#         )
+#
+#         print(
+#             "Generated policy is already represented "
+#             "by the cumulative permission tree."
+#         )
+#
+#         output_file.unlink(
+#             missing_ok=True
+#         )
+#
+#         CANDIDATE_TREE_PATH.unlink(
+#             missing_ok=True
+#         )
+#
+#         return True, explanation
+#
+#     # ========================================================================
+#     # 11. New permissions found
+#     # ========================================================================
+#
+#     print(
+#         "\nNew permissions detected:"
+#     )
+#
+#     print(
+#         json.dumps(
+#             difference_tree,
+#             indent=2,
+#             ensure_ascii=False,
+#         )
+#     )
+#
+#     # ========================================================================
+#     # 12. Copy same policy to OPA
+#     # ========================================================================
+#
+#     output_opa_file.write_text(
+#         full_policy,
+#         encoding="utf-8",
+#     )
+#
+#     print(
+#         "\nUpdated OPA:",
+#         output_opa_file,
+#     )
+#
+#     # ========================================================================
+#     # 13. Rebuild cumulative permission tree
+#     # ========================================================================
+#
+#     try:
+#
+#         complete_tree = (
+#             rebuild_cumulative_permission_tree()
+#         )
+#
+#     except Exception as error:
+#
+#         print(
+#             "Failed to rebuild cumulative permission tree:",
+#             error,
+#         )
+#
+#         return False, None
+#
+#     print(
+#         "\n[Cumulative permission tree]"
+#     )
+#
+#     print(
+#         json.dumps(
+#             complete_tree,
+#             indent=2,
+#             ensure_ascii=False,
+#         )
+#     )
+#
+#     print(
+#         "\nSaved cumulative tree:",
+#         TREE_STRUCTURE_PATH,
+#     )
+#
+#     # ========================================================================
+#     # 14. Remove candidate tree
+#     # ========================================================================
+#
+#     CANDIDATE_TREE_PATH.unlink(
+#         missing_ok=True
+#     )
+#
+#     # ========================================================================
+#     # 15. Remove duplicated OPA defaults
+#     # ========================================================================
+#
+#     remove_duplicate_rego_default(
+#         OPA_FILE_PATH
+#     )
+#
+#     # ========================================================================
+#     # 16. Restart OPA
+#     # ========================================================================
+#
+#     restart_opa()
+#
+#     return True, explanation
 
 
 # ============================================================================
@@ -1011,7 +1061,6 @@ def main():
     client = initialize_llm()
 
     (
-        index_extraction,
         index_rewrite_rule,
         index_build_rego,
     ) = reload_indexes(
@@ -1043,7 +1092,6 @@ def main():
         process_rule(
             rule_passed=rule,
             index_rewrite_rule=index_rewrite_rule,
-            index_extraction=index_extraction,
             index_build_rego=index_build_rego,
             check_for_action=check_for_action,
             data_mesh=data_mesh,

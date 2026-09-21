@@ -526,14 +526,14 @@ def main():
             "Usage:"
         )
         print(
-            "  python compact_python.py <file.py>"
+            "  python compact.py <file.py>"
         )
         print()
         print(
             "Optional backup:"
         )
         print(
-            "  python compact_python.py <file.py> --backup"
+            "  python compact.py <file.py> --backup"
         )
         sys.exit(1)
 

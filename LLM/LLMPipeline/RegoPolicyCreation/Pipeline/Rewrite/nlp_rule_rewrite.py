@@ -1,4 +1,5 @@
 import json
+import re
 import numpy as np
 
 from LLM.Interface.embedding_call import embedding_call
@@ -9,17 +10,11 @@ from LLM.Interface.llm_call import llm_call
 # Constants
 # ============================================================================
 
-RESOURCE_FIELDS = {
-    "catalog",
-    "schema",
-    "table",
-    "column",
-}
+RESOURCE_FIELDS = {"catalog", "schema", "table", "column"}
 
-AVAILABLE_ACTION_FIELDS = {
-    "intent",
-    "action",
-}
+AVAILABLE_ACTION_FIELDS = {"intent", "action"}
+
+EFFECTS = {"allow", "deny"}
 
 
 # ============================================================================
@@ -27,56 +22,27 @@ AVAILABLE_ACTION_FIELDS = {
 # ============================================================================
 
 def _get_catalogs(data_mesh_structure):
-    """
-    Return the authoritative list of catalogs.
-
-    Expected structure:
-
-    {
-        "catalogs": [
-            {
-                "name": "iceberg",
-                "schemas": [...]
-            }
-        ]
-    }
-    """
-
     if not isinstance(data_mesh_structure, dict):
         return []
 
     catalogs = data_mesh_structure.get("catalogs", [])
 
-    if not isinstance(catalogs, list):
-        return []
-
-    return catalogs
+    return catalogs if isinstance(catalogs, list) else []
 
 
 def _find_catalog(data_mesh_structure, catalog_name):
-    """Find a catalog by exact name."""
-
     if not catalog_name:
         return None
 
     for catalog in _get_catalogs(data_mesh_structure):
-
-        if not isinstance(catalog, dict):
-            continue
-
-        if catalog.get("name") == catalog_name:
+        if isinstance(catalog, dict) and catalog.get("name") == catalog_name:
             return catalog
 
     return None
 
 
 def _find_schema(catalog, schema_name):
-    """Find a schema inside a catalog by exact name."""
-
-    if not isinstance(catalog, dict):
-        return None
-
-    if not schema_name:
+    if not isinstance(catalog, dict) or not schema_name:
         return None
 
     schemas = catalog.get("schemas", [])
@@ -85,23 +51,14 @@ def _find_schema(catalog, schema_name):
         return None
 
     for schema in schemas:
-
-        if not isinstance(schema, dict):
-            continue
-
-        if schema.get("name") == schema_name:
+        if isinstance(schema, dict) and schema.get("name") == schema_name:
             return schema
 
     return None
 
 
 def _find_table(schema, table_name):
-    """Find a table inside a schema by exact name."""
-
-    if not isinstance(schema, dict):
-        return None
-
-    if not table_name:
+    if not isinstance(schema, dict) or not table_name:
         return None
 
     tables = schema.get("tables", [])
@@ -110,37 +67,13 @@ def _find_table(schema, table_name):
         return None
 
     for table in tables:
-
-        if not isinstance(table, dict):
-            continue
-
-        if table.get("name") == table_name:
+        if isinstance(table, dict) and table.get("name") == table_name:
             return table
 
     return None
 
 
 def _get_columns(table):
-    """
-    Return normalized column names.
-
-    Supports:
-
-        "columns": [
-            "employee_id",
-            "salary"
-        ]
-
-    and:
-
-        "columns": [
-            {
-                "name": "employee_id",
-                "type": "varchar"
-            }
-        ]
-    """
-
     if not isinstance(table, dict):
         return []
 
@@ -152,16 +85,12 @@ def _get_columns(table):
     result = []
 
     for column in columns:
-
         if isinstance(column, str):
-
             if column:
                 result.append(column)
 
         elif isinstance(column, dict):
-
             name = column.get("name")
-
             if isinstance(name, str) and name:
                 result.append(name)
 
@@ -169,20 +98,12 @@ def _get_columns(table):
 
 
 def _get_schema_names(catalog):
-    """Return all schema names from a catalog."""
-
     if not isinstance(catalog, dict):
-        return []
-
-    schemas = catalog.get("schemas", [])
-
-    if not isinstance(schemas, list):
         return []
 
     result = []
 
-    for schema in schemas:
-
+    for schema in catalog.get("schemas", []):
         if not isinstance(schema, dict):
             continue
 
@@ -195,20 +116,12 @@ def _get_schema_names(catalog):
 
 
 def _get_table_names(schema):
-    """Return all table names from a schema."""
-
     if not isinstance(schema, dict):
-        return []
-
-    tables = schema.get("tables", [])
-
-    if not isinstance(tables, list):
         return []
 
     result = []
 
-    for table in tables:
-
+    for table in schema.get("tables", []):
         if not isinstance(table, dict):
             continue
 
@@ -221,35 +134,99 @@ def _get_table_names(schema):
 
 
 def _get_column_names(table):
-    """Alias kept for readability."""
-
     return _get_columns(table)
+
+
+# ============================================================================
+# Normalize Data Mesh
+# ============================================================================
+
+def _normalize_data_mesh_structure(data_mesh_structure):
+    """
+    Supports both:
+
+        {
+            "iceberg": {
+                "hr": {
+                    "employees": ["id", "name"]
+                }
+            }
+        }
+
+    and:
+
+        {
+            "catalogs": [
+                {
+                    "name": "iceberg",
+                    "schemas": [...]
+                }
+            ]
+        }
+    """
+
+    if not isinstance(data_mesh_structure, dict):
+        return {"catalogs": []}
+
+    if isinstance(data_mesh_structure.get("catalogs"), list):
+        return data_mesh_structure
+
+    catalogs = []
+
+    for catalog_name, schemas_data in data_mesh_structure.items():
+
+        if not isinstance(schemas_data, dict):
+            continue
+
+        schemas = []
+
+        for schema_name, tables_data in schemas_data.items():
+
+            if not isinstance(tables_data, dict):
+                continue
+
+            tables = []
+
+            for table_name, columns_data in tables_data.items():
+
+                columns = []
+
+                if isinstance(columns_data, list):
+
+                    for column in columns_data:
+
+                        if isinstance(column, str):
+                            columns.append(column)
+
+                        elif isinstance(column, dict):
+                            column_name = column.get("name")
+
+                            if column_name:
+                                columns.append(column_name)
+
+                tables.append({
+                    "name": table_name,
+                    "columns": columns
+                })
+
+            schemas.append({
+                "name": schema_name,
+                "tables": tables
+            })
+
+        catalogs.append({
+            "name": catalog_name,
+            "schemas": schemas
+        })
+
+    return {"catalogs": catalogs}
 
 
 # ============================================================================
 # Catalog inference
 # ============================================================================
 
-def _infer_unique_catalog(
-    data_mesh_structure,
-    schema_name,
-):
-    """
-    Infer a catalog only when exactly one catalog contains
-    the requested schema.
-
-    Example:
-
-        schema = finance
-
-    If only iceberg.finance exists:
-
-        catalog = iceberg
-
-    If finance exists in multiple catalogs:
-
-        catalog remains unknown.
-    """
+def _infer_unique_catalog(data_mesh_structure, schema_name):
 
     if not schema_name:
         return None
@@ -261,157 +238,96 @@ def _infer_unique_catalog(
         if not isinstance(catalog, dict):
             continue
 
-        schema = _find_schema(
-            catalog,
-            schema_name,
-        )
-
-        if schema is not None:
+        if _find_schema(catalog, schema_name) is not None:
 
             catalog_name = catalog.get("name")
 
             if catalog_name:
                 matches.append(catalog_name)
 
-    if len(matches) == 1:
-        return matches[0]
-
-    return None
+    return matches[0] if len(matches) == 1 else None
 
 
 # ============================================================================
 # Resource validation
 # ============================================================================
 
-def _validate_resource_path(
-    resource,
-    data_mesh_structure,
-):
-    """
-    Deterministically validate:
-
-        catalog
-            -> schema
-                -> table
-                    -> column
-
-    against the authoritative Data Mesh Structure.
-
-    The LLM does not determine whether a resource exists.
-
-    No resource is replaced with another resource.
-    No wildcard is generated.
-    """
+def _validate_resource_path(resource, data_mesh_structure):
 
     if not isinstance(resource, dict):
         return {
             "valid": False,
-            "feedback": "The extracted resource is not a valid object.",
+            "feedback": "The extracted resource is not a valid object."
         }
 
-    catalog_name = resource.get("catalog")
-    schema_name = resource.get("schema")
-    table_name = resource.get("table")
-    column_name = resource.get("column")
-
-    # ------------------------------------------------------------------------
-    # Normalize empty strings to None
-    # ------------------------------------------------------------------------
-
+    # Normalize values.
     for field in RESOURCE_FIELDS:
 
         value = resource.get(field)
 
         if isinstance(value, str):
             value = value.strip()
+            resource[field] = value if value else None
 
-            if value == "":
-                value = None
-
-            resource[field] = value
+        elif value is not None:
+            return {
+                "valid": False,
+                "feedback": f"Resource field '{field}' must be a string or null."
+            }
 
     catalog_name = resource.get("catalog")
     schema_name = resource.get("schema")
     table_name = resource.get("table")
     column_name = resource.get("column")
 
-    # ------------------------------------------------------------------------
-    # No resource specified
-    # ------------------------------------------------------------------------
-
+    # No resource specified.
     if not any(
-        [
-            catalog_name,
-            schema_name,
-            table_name,
-            column_name,
-        ]
+        [catalog_name, schema_name, table_name, column_name]
     ):
         return {
             "valid": True,
-            "feedback": "",
+            "feedback": ""
         }
 
-    # ------------------------------------------------------------------------
-    # Validate hierarchy syntax
-    #
-    # A table requires a schema.
-    # A column requires a table.
-    # ------------------------------------------------------------------------
-
+    # Hierarchy constraints.
     if column_name and not table_name:
-
         return {
             "valid": False,
             "feedback": (
-                f"The column '{column_name}' was specified without "
-                "a table."
-            ),
+                f"The column '{column_name}' was specified without a table."
+            )
         }
 
     if table_name and not schema_name:
-
         return {
             "valid": False,
             "feedback": (
-                f"The table '{table_name}' was specified without "
-                "a schema."
-            ),
+                f"The table '{table_name}' was specified without a schema."
+            )
         }
 
-    # ------------------------------------------------------------------------
-    # Infer catalog only from an unambiguous schema
-    # ------------------------------------------------------------------------
-
+    # Infer catalog from schema only when unique.
     if catalog_name is None and schema_name:
 
         inferred_catalog = _infer_unique_catalog(
             data_mesh_structure,
-            schema_name,
+            schema_name
         )
 
         if inferred_catalog:
-
             resource["catalog"] = inferred_catalog
             catalog_name = inferred_catalog
 
         else:
 
-            catalogs = _get_catalogs(
-                data_mesh_structure
-            )
-
             matching_catalogs = []
 
-            for catalog in catalogs:
+            for catalog in _get_catalogs(data_mesh_structure):
 
                 if not isinstance(catalog, dict):
                     continue
 
-                if _find_schema(
-                    catalog,
-                    schema_name,
-                ) is not None:
+                if _find_schema(catalog, schema_name) is not None:
 
                     name = catalog.get("name")
 
@@ -419,109 +335,74 @@ def _validate_resource_path(
                         matching_catalogs.append(name)
 
             if len(matching_catalogs) > 1:
-
                 return {
                     "valid": False,
                     "feedback": (
                         f"The schema '{schema_name}' exists in multiple "
-                        "catalogs: "
-                        + ", ".join(
-                            repr(x)
-                            for x in matching_catalogs
-                        )
+                        f"catalogs: "
+                        + ", ".join(repr(x) for x in matching_catalogs)
                         + ". A catalog must be specified."
-                    ),
+                    )
                 }
 
             return {
                 "valid": False,
                 "feedback": (
                     f"The schema '{schema_name}' could not be resolved "
-                    "to a unique catalog."
-                ),
+                    f"to a unique catalog."
+                )
             }
 
-    # ------------------------------------------------------------------------
-    # Resource exists but catalog is still unknown
-    # ------------------------------------------------------------------------
-
     if not catalog_name:
-
         return {
             "valid": False,
             "feedback": (
                 "The request contains a resource but no catalog "
                 "could be identified."
-            ),
+            )
         }
 
-    # ------------------------------------------------------------------------
-    # Catalog
-    # ------------------------------------------------------------------------
-
+    # Catalog.
     catalog = _find_catalog(
         data_mesh_structure,
-        catalog_name,
+        catalog_name
     )
 
     if catalog is None:
 
-        available = []
-
-        for item in _get_catalogs(
-            data_mesh_structure
-        ):
-
-            if not isinstance(item, dict):
-                continue
-
-            name = item.get("name")
-
-            if name:
-                available.append(name)
+        available = [
+            item.get("name")
+            for item in _get_catalogs(data_mesh_structure)
+            if isinstance(item, dict) and item.get("name")
+        ]
 
         return {
             "valid": False,
             "feedback": (
                 f"The catalog '{catalog_name}' does not exist. "
                 "Available catalogs are: "
-                + (
-                    ", ".join(
-                        repr(x)
-                        for x in available
-                    )
-                    if available
-                    else "none"
-                )
+                + (", ".join(repr(x) for x in available)
+                   if available else "none")
                 + "."
-            ),
+            )
         }
 
-    # ------------------------------------------------------------------------
-    # Catalog-only request
-    # ------------------------------------------------------------------------
-
+    # Catalog-only.
     if not schema_name:
-
         return {
             "valid": True,
-            "feedback": "",
+            "feedback": ""
         }
 
-    # ------------------------------------------------------------------------
-    # Schema
-    # ------------------------------------------------------------------------
-
+    # Schema.
     schema = _find_schema(
         catalog,
-        schema_name,
+        schema_name
     )
 
     if schema is None:
 
-        available = _get_schema_names(
-            catalog
-        )
+        available = _get_schema_names(catalog)
 
         return {
             "valid": False,
@@ -529,43 +410,29 @@ def _validate_resource_path(
                 f"The schema '{schema_name}' does not exist "
                 f"in catalog '{catalog_name}'. "
                 "Available schemas are: "
-                + (
-                    ", ".join(
-                        repr(x)
-                        for x in available
-                    )
-                    if available
-                    else "none"
-                )
+                + (", ".join(repr(x) for x in available)
+                   if available else "none")
                 + "."
-            ),
+            )
         }
 
-    # ------------------------------------------------------------------------
-    # Schema-only request
-    # ------------------------------------------------------------------------
-
+    # IMPORTANT:
+    # Schema-only authorization is valid.
     if not table_name:
-
         return {
             "valid": True,
-            "feedback": "",
+            "feedback": ""
         }
 
-    # ------------------------------------------------------------------------
-    # Table
-    # ------------------------------------------------------------------------
-
+    # Table.
     table = _find_table(
         schema,
-        table_name,
+        table_name
     )
 
     if table is None:
 
-        available = _get_table_names(
-            schema
-        )
+        available = _get_table_names(schema)
 
         return {
             "valid": False,
@@ -574,39 +441,23 @@ def _validate_resource_path(
                 f"in catalog '{catalog_name}', "
                 f"schema '{schema_name}'. "
                 "Available tables are: "
-                + (
-                    ", ".join(
-                        repr(x)
-                        for x in available
-                    )
-                    if available
-                    else "none"
-                )
+                + (", ".join(repr(x) for x in available)
+                   if available else "none")
                 + "."
-            ),
+            )
         }
 
-    # ------------------------------------------------------------------------
-    # Table-only request
-    # ------------------------------------------------------------------------
-
+    # Table-only.
     if not column_name:
-
         return {
             "valid": True,
-            "feedback": "",
+            "feedback": ""
         }
 
-    # ------------------------------------------------------------------------
-    # Column
-    # ------------------------------------------------------------------------
-
-    column_names = _get_column_names(
-        table
-    )
+    # Column.
+    column_names = _get_column_names(table)
 
     if column_name not in column_names:
-
         return {
             "valid": False,
             "feedback": (
@@ -616,20 +467,16 @@ def _validate_resource_path(
                 f"table '{table_name}'. "
                 "Available columns are: "
                 + (
-                    ", ".join(
-                        repr(x)
-                        for x in column_names
-                    )
-                    if column_names
-                    else "none"
+                    ", ".join(repr(x) for x in column_names)
+                    if column_names else "none"
                 )
                 + "."
-            ),
+            )
         }
 
     return {
         "valid": True,
-        "feedback": "",
+        "feedback": ""
     }
 
 
@@ -641,42 +488,17 @@ def _make_expanded_resource(
     catalog_name,
     schema_name,
     table_name,
-    column_name="",
+    column_name=""
 ):
-    """
-    Create the canonical expanded resource representation.
-
-    IMPORTANT:
-
-    Empty columnName means the table itself.
-
-    It never means "*".
-    """
-
     return {
         "catalogName": catalog_name,
         "schemaName": schema_name,
         "tableName": table_name,
-        "columnName": column_name,
+        "columnName": column_name
     }
 
 
-def _expand_table(
-    catalog_name,
-    schema_name,
-    table,
-):
-    """
-    Expand one table.
-
-    A table is represented once with an empty columnName.
-
-    We intentionally do NOT expand a table into all its columns.
-
-    This is important because:
-
-        table-level request != column-level request
-    """
+def _expand_table(catalog_name, schema_name, table):
 
     if not isinstance(table, dict):
         return []
@@ -688,69 +510,41 @@ def _expand_table(
 
     return [
         _make_expanded_resource(
-            catalog_name=catalog_name,
-            schema_name=schema_name,
-            table_name=table_name,
-            column_name="",
+            catalog_name,
+            schema_name,
+            table_name
         )
     ]
 
 
-def _expand_schema(
-    catalog_name,
-    schema_name,
-    schema,
-):
-    """
-    Expand a schema into all existing tables.
-
-    No wildcard is generated.
-    """
+def _expand_schema(catalog_name, schema_name, schema):
 
     if not isinstance(schema, dict):
         return []
 
     result = []
 
-    tables = schema.get("tables", [])
-
-    if not isinstance(tables, list):
-        return result
-
-    for table in tables:
+    for table in schema.get("tables", []):
 
         result.extend(
             _expand_table(
                 catalog_name,
                 schema_name,
-                table,
+                table
             )
         )
 
     return result
 
 
-def _expand_catalog(
-    catalog_name,
-    catalog,
-):
-    """
-    Expand a catalog into all existing schemas and tables.
-
-    No wildcard is generated.
-    """
+def _expand_catalog(catalog_name, catalog):
 
     if not isinstance(catalog, dict):
         return []
 
     result = []
 
-    schemas = catalog.get("schemas", [])
-
-    if not isinstance(schemas, list):
-        return result
-
-    for schema in schemas:
+    for schema in catalog.get("schemas", []):
 
         if not isinstance(schema, dict):
             continue
@@ -764,38 +558,14 @@ def _expand_catalog(
             _expand_schema(
                 catalog_name,
                 schema_name,
-                schema,
+                schema
             )
         )
 
     return result
 
 
-def _expand_resource(
-    resource,
-    data_mesh_structure,
-):
-    """
-    Deterministically expand an already validated resource.
-
-    Rules:
-
-        catalog
-            -> every existing table
-
-        catalog + schema
-            -> every existing table in schema
-
-        catalog + schema + table
-            -> exactly that table
-
-        catalog + schema + table + column
-            -> exactly that column
-
-    IMPORTANT:
-
-    There is NEVER a "*" value.
-    """
+def _expand_resource(resource, data_mesh_structure):
 
     if not isinstance(resource, dict):
         return []
@@ -810,87 +580,63 @@ def _expand_resource(
 
     catalog = _find_catalog(
         data_mesh_structure,
-        catalog_name,
+        catalog_name
     )
 
     if catalog is None:
         return []
 
-    # ------------------------------------------------------------------------
-    # Catalog
-    # ------------------------------------------------------------------------
-
+    # Catalog scope.
     if not schema_name:
-
         return _expand_catalog(
             catalog_name,
-            catalog,
+            catalog
         )
-
-    # ------------------------------------------------------------------------
-    # Schema
-    # ------------------------------------------------------------------------
 
     schema = _find_schema(
         catalog,
-        schema_name,
+        schema_name
     )
 
     if schema is None:
         return []
 
+    # Schema scope.
     if not table_name:
-
         return _expand_schema(
             catalog_name,
             schema_name,
-            schema,
+            schema
         )
-
-    # ------------------------------------------------------------------------
-    # Table
-    # ------------------------------------------------------------------------
 
     table = _find_table(
         schema,
-        table_name,
+        table_name
     )
 
     if table is None:
         return []
 
-    # ------------------------------------------------------------------------
-    # Table-only
-    # ------------------------------------------------------------------------
-
+    # Table scope.
     if not column_name:
-
         return [
             _make_expanded_resource(
-                catalog_name=catalog_name,
-                schema_name=schema_name,
-                table_name=table_name,
-                column_name="",
+                catalog_name,
+                schema_name,
+                table_name
             )
         ]
 
-    # ------------------------------------------------------------------------
-    # Column
-    # ------------------------------------------------------------------------
-
-    columns = _get_column_names(
-        table
-    )
-
-    if column_name not in columns:
+    # Column scope.
+    if column_name not in _get_column_names(table):
         return []
 
     return [
         _make_expanded_resource(
-            catalog_name=catalog_name,
-            schema_name=schema_name,
-            table_name=table_name,
-            column_name=column_name,
+            catalog_name,
+            schema_name,
+            table_name,
+            column_name
         )
     ]
 
@@ -900,9 +646,9 @@ def _expand_resource(
 # ============================================================================
 
 def cosine_similarity(a, b):
+
     denominator = (
-        np.linalg.norm(a)
-        *
+        np.linalg.norm(a) *
         np.linalg.norm(b)
     )
 
@@ -910,15 +656,9 @@ def cosine_similarity(a, b):
         return 0.0
 
     return float(
-        np.dot(a, b)
-        /
-        denominator
+        np.dot(a, b) / denominator
     )
 
-
-# ============================================================================
-# Retrieve semantic examples
-# ============================================================================
 
 def find_best_examples(
     rule,
@@ -927,8 +667,9 @@ def find_best_examples(
     n=3,
     embedding_url=None,
     client=None,
-    embedding_model=None,
+    embedding_model=None
 ):
+
     if not index:
         return []
 
@@ -937,7 +678,7 @@ def find_best_examples(
         is_local=is_local,
         embedding_url=embedding_url,
         client=client,
-        embedding_model=embedding_model,
+        embedding_model=embedding_model
     )
 
     ranked = []
@@ -956,15 +697,15 @@ def find_best_examples(
             (
                 cosine_similarity(
                     query_embedding,
-                    embedding,
+                    embedding
                 ),
-                example,
+                example
             )
         )
 
     ranked.sort(
         key=lambda item: item[0],
-        reverse=True,
+        reverse=True
     )
 
     return [
@@ -977,17 +718,9 @@ def find_best_examples(
 # Action helpers
 # ============================================================================
 
-def _normalize_available_actions(
-    available_actions,
-):
-    """
-    Normalize the authoritative available action list.
-    """
+def _normalize_available_actions(available_actions):
 
-    if not isinstance(
-        available_actions,
-        list,
-    ):
+    if not isinstance(available_actions, list):
         return []
 
     result = []
@@ -1004,75 +737,21 @@ def _normalize_available_actions(
     return result
 
 
-def _build_action_existence(
-    requested_actions,
-    available_actions,
-):
-    """
-    Build deterministic action existence information.
-    """
+def _validate_actions(requested_actions, available_actions):
 
-    available = set(
-        available_actions
-    )
-
-    result = []
-
-    for item in requested_actions:
-
-        if not isinstance(item, dict):
-            continue
-
-        action_name = item.get(
-            "action"
-        )
-
-        if action_name is None:
-            result.append(
-                {
-                    "action": None,
-                    "exists": False,
-                }
-            )
-            continue
-
-        result.append(
-            {
-                "action": action_name,
-                "exists": action_name in available,
-            }
-        )
-
-    return result
-
-
-def _validate_actions(
-    requested_actions,
-    available_actions,
-):
-    """
-    Deterministically validate actions.
-
-    The LLM may propose an action, but Python decides
-    whether it is actually available.
-    """
-
-    if not isinstance(
-        requested_actions,
-        list,
-    ) or not requested_actions:
-
+    if (
+        not isinstance(requested_actions, list)
+        or not requested_actions
+    ):
         return {
             "valid": False,
             "feedback": (
                 "No actionable operation could be identified "
                 "from the request."
-            ),
+            )
         }
 
-    available = set(
-        available_actions
-    )
+    available = set(available_actions)
 
     invalid = []
     valid = []
@@ -1080,50 +759,30 @@ def _validate_actions(
     for item in requested_actions:
 
         if not isinstance(item, dict):
-
-            invalid.append(
-                {
-                    "intent": "",
-                    "action": None,
-                }
-            )
-
+            invalid.append({
+                "intent": "",
+                "action": None
+            })
             continue
 
-        intent = item.get(
-            "intent",
-            "",
-        )
-
-        action = item.get(
-            "action"
-        )
+        intent = item.get("intent", "")
+        action = item.get("action")
 
         if action is None:
-
-            invalid.append(
-                {
-                    "intent": intent,
-                    "action": None,
-                }
-            )
-
+            invalid.append({
+                "intent": intent,
+                "action": None
+            })
             continue
 
         if action not in available:
-
-            invalid.append(
-                {
-                    "intent": intent,
-                    "action": action,
-                }
-            )
-
+            invalid.append({
+                "intent": intent,
+                "action": action
+            })
             continue
 
-        valid.append(
-            action
-        )
+        valid.append(action)
 
     if invalid:
 
@@ -1150,9 +809,7 @@ def _validate_actions(
         messages.append(
             "Available actions are: "
             + (
-                ", ".join(
-                    available_actions
-                )
+                ", ".join(available_actions)
                 if available_actions
                 else "none"
             )
@@ -1161,21 +818,19 @@ def _validate_actions(
 
         return {
             "valid": False,
-            "feedback": " ".join(messages),
+            "feedback": " ".join(messages)
         }
 
     if not valid:
 
         return {
             "valid": False,
-            "feedback": (
-                "No valid Trino actions were identified."
-            ),
+            "feedback": "No valid Trino actions were identified."
         }
 
     return {
         "valid": True,
-        "feedback": "",
+        "feedback": ""
     }
 
 
@@ -1184,63 +839,24 @@ def _validate_actions(
 # ============================================================================
 
 def _clean_json_response(response):
-    """
-    Clean common formatting errors produced by local LLMs.
-
-    Accepts:
-
-        {"key": "value"}
-
-    and:
-
-        ```json
-        {"key": "value"}
-        ```
-
-    and responses containing explanatory text before/after
-    the JSON object.
-    """
 
     if response is None:
-        raise ValueError(
-            "LLM returned no response."
-        )
+        raise ValueError("LLM returned no response.")
 
     response = str(response).strip()
 
     if not response:
-        raise ValueError(
-            "LLM returned an empty response."
-        )
-
-    # ------------------------------------------------------------------
-    # Remove markdown code fences
-    # ------------------------------------------------------------------
+        raise ValueError("LLM returned an empty response.")
 
     if response.startswith("```"):
 
         lines = response.splitlines()
 
-        cleaned_lines = []
-
-        for line in lines:
-
-            stripped = line.strip()
-
-            if stripped.startswith("```"):
-                continue
-
-            cleaned_lines.append(
-                line
-            )
-
         response = "\n".join(
-            cleaned_lines
+            line
+            for line in lines
+            if not line.strip().startswith("```")
         ).strip()
-
-    # ------------------------------------------------------------------
-    # Locate the first JSON object.
-    # ------------------------------------------------------------------
 
     start = response.find("{")
 
@@ -1250,13 +866,6 @@ def _clean_json_response(response):
             + response
         )
 
-    # ------------------------------------------------------------------
-    # Locate the matching final closing brace.
-    #
-    # rfind is sufficient here because the expected response is
-    # a single JSON object.
-    # ------------------------------------------------------------------
-
     end = response.rfind("}")
 
     if end < start:
@@ -1265,12 +874,7 @@ def _clean_json_response(response):
             + response
         )
 
-    response = response[
-        start:end + 1
-    ].strip()
-
-    return response
-
+    return response[start:end + 1].strip()
 
 
 def _llm_json(
@@ -1279,30 +883,8 @@ def _llm_json(
     is_local,
     chat_url=None,
     client=None,
-    model=None,
+    model=None
 ):
-    """
-    Execute an LLM request and require a JSON object.
-
-    The OpenAI-compatible JSON response format requires the word
-    "json" to appear somewhere in the messages when using:
-
-        response_format={"type": "json_object"}
-
-    Therefore this function explicitly injects a JSON instruction
-    into the system message instead of relying on every individual
-    extraction prompt to contain it.
-    """
-
-    # ------------------------------------------------------------------
-    # IMPORTANT:
-    #
-    # Some OpenAI-compatible servers validate that the literal word
-    # "json" appears in the messages when response_format=json_object
-    # is used.
-    #
-    # Do this centrally so every caller is protected.
-    # ------------------------------------------------------------------
 
     system_content = (
         "You must return the answer as valid JSON. "
@@ -1310,60 +892,45 @@ def _llm_json(
         + system_prompt.strip()
     )
 
-    user_content = user_prompt.strip()
-
     messages = [
         {
             "role": "system",
-            "content": system_content,
+            "content": system_content
         },
         {
             "role": "user",
-            "content": user_content,
-        },
+            "content": user_prompt.strip()
+        }
     ]
 
     response = llm_call(
         messages=messages,
         temperature=0.0,
-        response_format={
-            "type": "json_object"
-        },
+        response_format={"type": "json_object"},
         max_tokens=1200,
         is_local=is_local,
         chat_url=chat_url,
         client=client,
-        model=model,
+        model=model
     )
 
-    response = _clean_json_response(
-        response
-    )
+    response = _clean_json_response(response)
 
     try:
-
-        result = json.loads(
-            response
-        )
+        result = json.loads(response)
 
     except json.JSONDecodeError as e:
-
         raise ValueError(
-            "LLM returned invalid JSON:\n"
-            + response
+            "LLM returned invalid JSON:\n" + response
         ) from e
 
-    if not isinstance(
-        result,
-        dict,
-    ):
-
+    if not isinstance(result, dict):
         raise ValueError(
             "LLM JSON response must be an object:\n"
             + json.dumps(
                 result,
                 ensure_ascii=False,
-                indent=2,
+                indent=2
             )
         )
 
@@ -1380,19 +947,14 @@ def _extract_security_group(
     is_local,
     chat_url=None,
     client=None,
-    model=None,
+    model=None
 ):
-    """
-    Extract only the explicitly mentioned security group.
-
-    Existence is validated deterministically in Python.
-    """
 
     system_prompt = """
-You extract the security group or role explicitly mentioned
-in a natural-language Trino authorization rule.
+Extract the security group or role explicitly mentioned
+in the authorization rule.
 
-Return ONLY this JSON object:
+Return ONLY:
 
 {
   "security_group": null
@@ -1400,49 +962,14 @@ Return ONLY this JSON object:
 
 Rules:
 
-1. Extract only an explicitly mentioned security group or role.
-
-2. Do not invent a security group.
-
-3. Do not infer a group from a resource.
-
-4. Do not infer a group from an action.
-
-5. Do not validate whether the group exists.
-
-6. Python performs existence validation.
-
-7. Preserve the requested group name.
-
-8. If no security group can be identified, return null.
-
-9. Return no fields other than "security_group".
-
-Examples:
-
-Rule:
-"finance manager can select from finance"
-
-Return:
-{
-  "security_group": "finance_manager"
-}
-
-Rule:
-"analyst can read the sales schema"
-
-Return:
-{
-  "security_group": "analyst"
-}
-
-Rule:
-"users can read the finance schema"
-
-Return:
-{
-  "security_group": null
-}
+1. Extract only an explicitly mentioned security group.
+2. Do not invent a group.
+3. Do not infer a group from the resource.
+4. Do not infer a group from the action.
+5. Python validates whether the group exists.
+6. Preserve the group name.
+7. If no group is mentioned, return null.
+8. Return no other fields.
 """
 
     result = _llm_json(
@@ -1452,7 +979,7 @@ Return:
             + json.dumps(
                 security_groups,
                 ensure_ascii=False,
-                indent=2,
+                indent=2
             )
             + "\n\nRule:\n"
             + rule
@@ -1460,48 +987,38 @@ Return:
         is_local=is_local,
         chat_url=chat_url,
         client=client,
-        model=model,
+        model=model
     )
 
-    if set(result.keys()) != {
-        "security_group"
-    }:
-
+    if set(result.keys()) != {"security_group"}:
         raise ValueError(
-            "Security group extraction returned invalid JSON. "
-            "Expected exactly: security_group. "
-            f"Received: {json.dumps(result, ensure_ascii=False)}"
+            "Security group extraction returned invalid JSON."
         )
 
-    group = result.get(
-        "security_group"
-    )
+    group = result.get("security_group")
 
     if group is None or group == "":
-
         return {
             "security_group": None,
             "existSecureGroup": False,
             "feedback": (
                 "No security group could be identified "
                 "in the request."
-            ),
+            )
         }
 
     if not isinstance(group, str):
-
         raise ValueError(
-            "The 'security_group' field must be a string or null."
+            "'security_group' must be a string or null."
         )
 
     group = group.strip()
 
     if group in security_groups:
-
         return {
             "security_group": group,
             "existSecureGroup": True,
-            "feedback": "",
+            "feedback": ""
         }
 
     return {
@@ -1511,15 +1028,12 @@ Return:
             f"The security group '{group}' does not exist. "
             "Available security groups are: "
             + (
-                ", ".join(
-                    repr(x)
-                    for x in security_groups
-                )
+                ", ".join(repr(x) for x in security_groups)
                 if security_groups
                 else "none"
             )
             + "."
-        ),
+        )
     }
 
 
@@ -1533,33 +1047,20 @@ def _extract_resource(
     is_local,
     chat_url=None,
     client=None,
-    model=None,
+    model=None
 ):
-    """
-    Extract only resources explicitly mentioned in the rule.
-
-    The LLM performs the initial extraction.
-
-    Python then performs a deterministic recovery step for table names:
-    if the rule explicitly contains the name of an existing table but
-    the LLM returned table=None, Python restores that table name.
-
-    The LLM does NOT perform expansion.
-    The LLM does NOT perform validation.
-    """
 
     system_prompt = """
-You extract the DATA RESOURCE explicitly mentioned in a
-natural-language Trino authorization rule.
+Extract ONLY the DATA RESOURCE explicitly mentioned.
 
-The authoritative hierarchy is:
+Hierarchy:
 
 catalog
-  └── schema
-        └── table
-              └── column
+  -> schema
+      -> table
+          -> column
 
-Return ONLY this JSON object:
+Return ONLY:
 
 {
   "catalog": null,
@@ -1570,72 +1071,33 @@ Return ONLY this JSON object:
 
 Rules:
 
-1. Extract only resources explicitly mentioned in the rule.
-
-2. Do not invent resource names.
-
-3. Do not replace an explicitly requested resource with another
-   resource.
-
-4. Do not validate whether a resource exists.
-
-5. Python performs validation.
-
-6. Preserve resource names exactly as requested.
-
-7. If a catalog is explicitly mentioned, return it.
-
-8. If a schema is explicitly mentioned, return it.
-
-9. If a table is explicitly mentioned, return it.
-
-10. If a column is explicitly mentioned, return it.
-
-11. If a level is not explicitly specified, return null.
-
-12. If a schema is specified but no table is specified,
-    table MUST be null.
-
-13. If a catalog is specified but no schema is specified,
-    schema MUST be null.
-
-14. If the rule explicitly names a table, NEVER return null
-    for table.
-
-15. Expansion is performed deterministically by Python.
-
-16. Return no fields other than:
-    catalog, schema, table, column.
+1. Extract only explicitly mentioned resource names.
+2. Never invent a resource.
+3. Never replace one resource with another.
+4. Python validates existence.
+5. Preserve names exactly.
+6. Missing levels must be null.
+7. Schema without table means table=null.
+8. Catalog without schema means schema=null.
+9. Table requires schema.
+10. Column requires table.
+11. A rule about "tables inside schema X" is schema-level.
+12. Do NOT choose an arbitrary table when the rule is schema-level.
+13. Return no other fields.
 
 Examples:
 
-Rule:
-"The Finance Manager can update catalog iceberg, schema finance."
+"hr_manager cannot select from tables in schema hr"
 
-Return:
 {
-  "catalog": "iceberg",
-  "schema": "finance",
+  "catalog": null,
+  "schema": "hr",
   "table": null,
   "column": null
 }
 
-Rule:
-"The Finance Manager can update the asset table in
-catalog iceberg, schema finance."
+"hr_manager cannot select from employees in schema hr"
 
-Return:
-{
-  "catalog": "iceberg",
-  "schema": "finance",
-  "table": "asset",
-  "column": null
-}
-
-Rule:
-"The Analyst can select table employees in schema hr."
-
-Return:
 {
   "catalog": null,
   "schema": "hr",
@@ -1643,10 +1105,8 @@ Return:
   "column": null
 }
 
-Rule:
-"The Analyst can select salary from employees in schema hr."
+"hr_manager cannot select salary from employees in schema hr"
 
-Return:
 {
   "catalog": null,
   "schema": "hr",
@@ -1662,7 +1122,7 @@ Return:
             + json.dumps(
                 data_mesh_structure,
                 ensure_ascii=False,
-                indent=2,
+                indent=2
             )
             + "\n\nRule:\n"
             + rule
@@ -1670,26 +1130,18 @@ Return:
         is_local=is_local,
         chat_url=chat_url,
         client=client,
-        model=model,
+        model=model
     )
 
     if set(result.keys()) != RESOURCE_FIELDS:
-
-        missing = RESOURCE_FIELDS - set(result.keys())
-        extra = set(result.keys()) - RESOURCE_FIELDS
-
         raise ValueError(
             "Resource extraction returned invalid JSON. "
-            f"Missing fields: {sorted(missing)}. "
-            f"Unexpected fields: {sorted(extra)}. "
             f"Received: {json.dumps(result, ensure_ascii=False)}"
         )
 
     resource = {
-        "catalog": result.get("catalog"),
-        "schema": result.get("schema"),
-        "table": result.get("table"),
-        "column": result.get("column"),
+        field: result.get(field)
+        for field in RESOURCE_FIELDS
     }
 
     for field, value in resource.items():
@@ -1701,141 +1153,290 @@ Return:
             )
 
         if isinstance(value, str):
-
             value = value.strip()
+            resource[field] = value if value else None
 
-            resource[field] = (
-                value
-                if value
-                else None
-            )
-
-    # ========================================================================
-    # DETERMINISTIC TABLE RECOVERY
-    # ========================================================================
+    # ------------------------------------------------------------------------
+    # Deterministic table recovery.
     #
-    # The LLM sometimes returns:
-    #
-    #   catalog = iceberg
-    #   schema  = finance
-    #   table   = null
-    #
-    # even though the rule explicitly says:
-    #
-    #   "... asset table ..."
-    #
-    # We must not expand the whole schema in this situation.
-    #
-    # If the rule contains exactly one existing table name from the
-    # authoritative Data Mesh, recover that table deterministically.
-    #
-    # This never invents a table.
-    # ========================================================================
+    # IMPORTANT:
+    # Only recover a table if the rule explicitly contains exactly one
+    # existing table name. Never recover a table merely because a schema
+    # contains tables.
+    # ------------------------------------------------------------------------
 
     if (
         resource["table"] is None
         and resource["schema"] is not None
+        and resource["catalog"] is not None
     ):
 
-        candidate_tables = []
+        catalog = _find_catalog(
+            data_mesh_structure,
+            resource["catalog"]
+        )
 
-        catalog_name = resource["catalog"]
-        schema_name = resource["schema"]
+        schema = _find_schema(
+            catalog,
+            resource["schema"]
+        )
 
-        # --------------------------------------------------------------------
-        # Use the authoritative normalized Data Mesh structure.
-        # --------------------------------------------------------------------
+        if schema is not None:
 
-        if catalog_name and schema_name:
+            candidate_tables = []
+            rule_lower = rule.lower()
 
-            catalog = _find_catalog(
-                data_mesh_structure,
-                catalog_name,
-            )
+            for table_name in _get_table_names(schema):
 
-            schema = _find_schema(
-                catalog,
-                schema_name,
-            )
-
-            if schema is not None:
-
-                table_names = _get_table_names(
-                    schema
+                pattern = (
+                    r"\b"
+                    + re.escape(table_name.lower())
+                    + r"\b"
                 )
 
-                rule_lower = rule.lower()
+                if re.search(pattern, rule_lower):
+                    candidate_tables.append(table_name)
 
-                for table_name in table_names:
+            if len(candidate_tables) == 1:
+                resource["table"] = candidate_tables[0]
 
-                    if not isinstance(
-                        table_name,
-                        str,
-                    ):
-                        continue
-
-                    # Exact word occurrence.
-                    #
-                    # This avoids matching:
-                    #
-                    #   asset
-                    #
-                    # inside:
-                    #
-                    #   asset_history
-                    #
-                    # or:
-                    #
-                    #   assets
-                    #
-                    import re
-
-                    pattern = (
-                        r"\b"
-                        + re.escape(
-                            table_name.lower()
-                        )
-                        + r"\b"
+            elif len(candidate_tables) > 1:
+                raise ValueError(
+                    "Multiple table names were explicitly identified "
+                    "but the resource extractor did not return a table: "
+                    + ", ".join(
+                        repr(x)
+                        for x in candidate_tables
                     )
-
-                    if re.search(
-                        pattern,
-                        rule_lower,
-                    ):
-                        candidate_tables.append(
-                            table_name
-                        )
-
-        # --------------------------------------------------------------------
-        # Recover only when exactly one table is explicitly identifiable.
-        # --------------------------------------------------------------------
-
-        if len(candidate_tables) == 1:
-
-            resource["table"] = candidate_tables[0]
-
-        # --------------------------------------------------------------------
-        # If multiple existing table names occur in the rule, do not guess.
-        # --------------------------------------------------------------------
-
-        elif len(candidate_tables) > 1:
-
-            raise ValueError(
-                "Multiple table names were explicitly identified "
-                "in the rule and the resource extractor did not "
-                "return a table. "
-                "Identified tables: "
-                + ", ".join(
-                    repr(x)
-                    for x in candidate_tables
                 )
-            )
 
     return resource
+
+
+# ============================================================================
+# Column mask / row filter extraction
+# ============================================================================
+
+def _extract_effects(
+    rule,
+    resource,
+    is_local,
+    chat_url=None,
+    client=None,
+    model=None
+):
+    """
+    Extract optional row-filter and column-mask declarations.
+
+    These are NOT ordinary permissions.
+
+    Return:
+
+    {
+      "column_mask": null,
+      "row_filter": null
+    }
+    """
+
+    system_prompt = """
+Extract optional DATA FILTERING declarations from a Trino
+authorization rule.
+
+Return ONLY:
+
+{
+  "column_mask": null,
+  "row_filter": null
+}
+
+Rules:
+
+1. A column mask means a column value must be transformed,
+   masked, hidden or replaced.
+2. A row filter means rows must be restricted by a predicate.
+3. Do not invent expressions.
+4. Preserve the expression stated by the user.
+5. If no column mask exists, return null.
+6. If no row filter exists, return null.
+7. These are not permissions.
+8. A column mask normally requires a specific column.
+9. A row filter normally requires a table.
+10. Return no other fields.
+
+Example:
+
+"HR managers can select salary from employees but mask salary
+as '****'"
+
+{
+  "column_mask": "'****'",
+  "row_filter": null
+}
+
+Example:
+
+"HR managers can select employees where department = 'HR'"
+
+{
+  "column_mask": null,
+  "row_filter": "department = 'HR'"
+}
+"""
+
+    context = {
+        "rule": rule,
+        "resource": resource
+    }
+
+    result = _llm_json(
+        system_prompt,
+        json.dumps(
+            context,
+            ensure_ascii=False,
+            indent=2
+        ),
+        is_local=is_local,
+        chat_url=chat_url,
+        client=client,
+        model=model
+    )
+
+    if set(result.keys()) != {
+        "column_mask",
+        "row_filter"
+    }:
+        raise ValueError(
+            "Column/row effect extraction returned invalid JSON. "
+            f"Received: {json.dumps(result, ensure_ascii=False)}"
+        )
+
+    column_mask = result.get("column_mask")
+    row_filter = result.get("row_filter")
+
+    if column_mask is not None and not isinstance(column_mask, str):
+        raise ValueError(
+            "'column_mask' must be a string or null."
+        )
+
+    if row_filter is not None and not isinstance(row_filter, str):
+        raise ValueError(
+            "'row_filter' must be a string or null."
+        )
+
+    return {
+        "column_mask": (
+            column_mask.strip()
+            if isinstance(column_mask, str)
+            and column_mask.strip()
+            else None
+        ),
+        "row_filter": (
+            row_filter.strip()
+            if isinstance(row_filter, str)
+            and row_filter.strip()
+            else None
+        )
+    }
+
+
+def _validate_effects(
+    effects,
+    resource,
+    data_mesh_structure
+):
+    """
+    Validate mask/filter scope against the authoritative Data Mesh.
+    """
+
+    feedback = []
+
+    column_mask = effects.get("column_mask")
+    row_filter = effects.get("row_filter")
+
+    # Column mask requires a concrete column.
+    if column_mask and not resource.get("column"):
+        feedback.append(
+            "A column mask requires a specific column."
+        )
+
+    # Row filter requires a concrete table.
+    if row_filter and not resource.get("table"):
+        feedback.append(
+            "A row filter requires a specific table."
+        )
+
+    # If resource is already invalid, don't perform deeper validation.
+    path_result = _validate_resource_path(
+        resource,
+        data_mesh_structure
+    )
+
+    if not path_result["valid"]:
+        feedback.append(path_result["feedback"])
+
+    return {
+        "valid": not feedback,
+        "feedback": " ".join(feedback)
+    }
+
 
 # ============================================================================
 # Action extraction
 # ============================================================================
+
+def _format_action_examples(examples):
+
+    blocks = []
+
+    for ex in examples or []:
+
+        if not isinstance(ex, dict):
+            continue
+
+        rule = (ex.get("input") or {}).get("rule")
+        exp = ex.get("explanation") or {}
+
+        if not rule:
+            continue
+
+        items = (
+            [
+                {
+                    "intent": a,
+                    "action": a,
+                    "effect": "allow"
+                }
+                for a in exp.get("allowed", [])
+            ]
+            +
+            [
+                {
+                    "intent": a,
+                    "action": a,
+                    "effect": "deny"
+                }
+                for a in exp.get("deny", [])
+            ]
+        )
+
+        blocks.append(
+            "Rule:\n"
+            + rule
+            + "\nReturn:\n"
+            + json.dumps(
+                {
+                    "requested_actions": items
+                },
+                ensure_ascii=False
+            )
+        )
+
+    return (
+        "\n\n".join(blocks)
+        if blocks
+        else "No examples."
+    )
+
 
 def _extract_actions(
     rule,
@@ -1844,17 +1445,12 @@ def _extract_actions(
     chat_url=None,
     client=None,
     model=None,
+    examples=None
 ):
-    """
-    Extract intended Trino actions.
-
-    The LLM may only propose actions from Available Actions.
-    Python validates the result again.
-    """
 
     system_prompt = """
-You identify the intended Trino authorization operation or
-operations from a natural-language rule.
+Identify the intended Trino authorization operations and whether
+each operation is allowed or denied.
 
 Return ONLY:
 
@@ -1862,93 +1458,36 @@ Return ONLY:
   "requested_actions": [
     {
       "intent": "",
-      "action": null
+      "action": null,
+      "effect": "allow"
     }
   ]
 }
 
 Rules:
 
-1. Do not invent actions.
+1. action MUST exactly match one of Available Actions or null.
+2. Never invent an action.
+3. "select", "read", "query" -> SelectFromColumnsAction
+   when that action exists.
+4. "insert" -> InsertIntoTableAction.
+5. "update" -> UpdateTableColumnsAction.
+6. "delete" -> DeleteFromTableAction.
+7. "show tables" -> ShowTablesAction.
+8. "show schemas" -> ShowSchemasAction.
+9. "add column" -> AddColumnAction.
+10. "create table" -> CreateTableAction.
+11. "create schema" -> CreateSchemaAction.
+12. "deny", "cannot", "not allowed", "forbidden",
+    "prohibited" -> effect="deny".
+13. Otherwise use effect="allow".
+14. One item per operation.
+15. A rule may mix allow and deny.
+16. Return no other fields.
 
-2. The "action" MUST be one of the supplied Available Actions
-   or null if no available action matches.
+Examples:
 
-3. Python will validate the action again.
-
-4. Map natural-language operations to the closest available
-   Trino action.
-
-5. Use these mappings when applicable:
-
-   SELECT / READ / QUERY / RETRIEVE DATA
-       -> SelectFromColumns
-
-   INSERT
-       -> InsertIntoTable
-
-   UPDATE
-       -> UpdateTableColumns
-
-   DELETE
-       -> DeleteFromTable
-
-   CREATE TABLE
-       -> CreateTable
-
-   CREATE SCHEMA
-       -> CreateSchema
-
-   CREATE VIEW
-       -> CreateView
-
-   DROP TABLE
-       -> DropTable
-
-   DROP SCHEMA
-       -> DropSchema
-
-   DROP VIEW
-       -> DropView
-
-   ADD COLUMN
-       -> AddColumn
-
-   ALTER COLUMN
-       -> AlterColumn
-
-   DROP COLUMN
-       -> DropColumn
-
-   RENAME TABLE
-       -> RenameTable
-
-   RENAME COLUMN
-       -> RenameColumn
-
-   SHOW TABLES
-       -> ShowTables
-
-   SHOW SCHEMAS
-       -> ShowSchemas
-
-   SHOW COLUMNS
-       -> ShowColumns
-
-6. A request may contain multiple operations.
-
-7. Do not return an action that is not present in
-   Available Actions.
-
-8. The "intent" field describes the operation identified
-   in the natural-language rule.
-
-9. If an operation cannot be mapped to an available action,
-   return null for its action.
-
-10. Return no fields other than:
-    requested_actions, intent, action.
-"""
+""" + _format_action_examples(examples)
 
     result = _llm_json(
         system_prompt,
@@ -1957,7 +1496,7 @@ Rules:
             + json.dumps(
                 available_actions,
                 ensure_ascii=False,
-                indent=2,
+                indent=2
             )
             + "\n\nRule:\n"
             + rule
@@ -1965,316 +1504,154 @@ Rules:
         is_local=is_local,
         chat_url=chat_url,
         client=client,
-        model=model,
+        model=model
     )
 
-    if set(result.keys()) != {
-        "requested_actions"
-    }:
-
+    if set(result.keys()) != {"requested_actions"}:
         raise ValueError(
-            "Action extraction returned invalid JSON. "
-            "Expected exactly 'requested_actions'. "
-            f"Received: {json.dumps(result, ensure_ascii=False)}"
+            "Action extraction returned invalid JSON."
         )
 
-    requested_actions = result.get(
-        "requested_actions"
-    )
+    items = result.get("requested_actions")
 
-    if not isinstance(
-        requested_actions,
-        list,
-    ):
-
+    if not isinstance(items, list):
         raise ValueError(
             "'requested_actions' must be a list."
         )
 
     normalized = []
 
-    for item in requested_actions:
+    for item in items:
 
         if not isinstance(item, dict):
-
-            normalized.append(
-                {
-                    "intent": "",
-                    "action": None,
-                }
-            )
-
             continue
 
-        normalized.append(
-            {
-                "intent": item.get(
-                    "intent",
-                    "",
-                ),
-                "action": item.get(
-                    "action"
-                ),
-            }
-        )
+        effect = item.get("effect")
+
+        if effect not in EFFECTS:
+            raise ValueError(
+                f"Invalid effect: {effect!r}"
+            )
+
+        normalized.append({
+            "intent": item.get("intent", ""),
+            "action": item.get("action"),
+            "effect": effect
+        })
 
     return normalized
 
 
-##############################################################
-# Normalize
-################################################################
-def _normalize_data_mesh_structure(data_mesh_structure):
-    """
-    Normalize the compact Data Mesh representation:
+# ============================================================================
+# Split allow / deny
+# ============================================================================
 
-    {
-        "iceberg": {
-            "hr": {
-                "employees": [
-                    "employee_id",
-                    "name"
-                ]
-            }
-        }
-    }
+def _split_allowed_deny(
+    requested_actions,
+    available_actions
+):
 
-    into the canonical representation expected by the
-    deterministic traversal functions:
+    available = set(available_actions)
 
-    {
-        "catalogs": [
-            {
-                "name": "iceberg",
-                "schemas": [
-                    {
-                        "name": "hr",
-                        "tables": [
-                            {
-                                "name": "employees",
-                                "columns": [
-                                    "employee_id",
-                                    "name"
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]
-    }
-    """
+    allowed = []
+    deny = []
 
-    if not isinstance(
-        data_mesh_structure,
-        dict,
-    ):
-        return {
-            "catalogs": []
-        }
+    for item in requested_actions:
 
-    # Already normalized.
-    if isinstance(
-        data_mesh_structure.get("catalogs"),
-        list,
-    ):
-        return data_mesh_structure
+        action = item.get("action")
 
-    catalogs = []
-
-    for catalog_name, schemas_data in data_mesh_structure.items():
-
-        if not isinstance(
-            schemas_data,
-            dict,
-        ):
+        if action not in available:
             continue
 
-        schemas = []
-
-        for schema_name, tables_data in schemas_data.items():
-
-            if not isinstance(
-                tables_data,
-                dict,
-            ):
-                continue
-
-            tables = []
-
-            for table_name, columns_data in tables_data.items():
-
-                columns = []
-
-                if isinstance(
-                    columns_data,
-                    list,
-                ):
-
-                    for column in columns_data:
-
-                        if isinstance(
-                            column,
-                            str,
-                        ):
-                            columns.append(
-                                column
-                            )
-
-                        elif isinstance(
-                            column,
-                            dict,
-                        ):
-
-                            column_name = column.get(
-                                "name"
-                            )
-
-                            if column_name:
-                                columns.append(
-                                    column_name
-                                )
-
-                tables.append(
-                    {
-                        "name": table_name,
-                        "columns": columns,
-                    }
-                )
-
-            schemas.append(
-                {
-                    "name": schema_name,
-                    "tables": tables,
-                }
-            )
-
-        catalogs.append(
-            {
-                "name": catalog_name,
-                "schemas": schemas,
-            }
+        target = (
+            deny
+            if item.get("effect") == "deny"
+            else allowed
         )
 
-    return {
-        "catalogs": catalogs
-    }
+        if action not in target:
+            target.append(action)
+
+    conflicts = sorted(
+        set(allowed) & set(deny)
+    )
+
+    return allowed, deny, conflicts
 
 
 # ============================================================================
 # Final explanation
 # ============================================================================
 
+def _build_explanation_text(
+    rule,
+    group,
+    resource,
+    allowed,
+    deny,
+    column_mask=None,
+    row_filter=None
+):
+
+    parts = [
+        f"{k} {resource[k]}"
+        for k in (
+            "catalog",
+            "schema",
+            "table",
+            "column"
+        )
+        if resource.get(k)
+    ]
+
+    scope = ", ".join(parts) or "no specific resource"
+
+    text = (
+        f"Group {group or 'unknown'}: "
+        f"allowed {allowed or 'none'}, "
+        f"denied {deny or 'none'}, "
+        f"on {scope}."
+    )
+
+    if column_mask:
+        text += f" Column mask: {column_mask}."
+
+    if row_filter:
+        text += f" Row filter: {row_filter}."
+
+    return text
+
+
 def _generate_final_explanation(
     rule,
     security_group_result,
     resource,
     expanded_resources,
-    action_result,
-    requested_actions,
+    allowed,
+    deny,
     path_result,
+    effects,
     examples,
     is_local,
     chat_url=None,
     client=None,
     model=None,
+    data_mesh_structure=None
 ):
-    """
-    Generate only the human-readable explanation.
 
-    IMPORTANT:
-
-    The returned llm_feedback is NOT trusted for validation.
-    Deterministic validation is handled by Python.
-    """
-
-    system_prompt = """
-You explain a Trino authorization request.
-
-Return ONLY:
-
-{
-  "text": ""
-}
-
-Rules:
-
-1. Describe the original request concisely.
-
-2. Do not invent resources.
-
-3. Do not invent security groups.
-
-4. Do not invent actions.
-
-5. Use only the supplied information.
-
-6. Do not silently replace the requested resource.
-
-7. Do not introduce "*" or wildcard resources.
-
-8. If the resource was expanded, describe the actual
-   catalog/schema/table resources supplied.
-
-9. If validation failed, clearly state that the requested
-   resource or action could not be validated.
-
-10. Do not claim that a request is valid when the supplied
-    validation result is invalid.
-
-11. Return no fields other than "text".
-
-12. Do not return markdown.
-"""
-
-    context = {
-        "rule": rule,
-        "security_group": security_group_result,
-        "resource": resource,
-        "expanded_resources": expanded_resources,
-        "actions": {
-            "requested": requested_actions,
-            "validation": action_result,
-        },
-        "path_validation": path_result,
-        "semantic_examples": examples,
-    }
-
-    result = _llm_json(
-        system_prompt,
-        json.dumps(
-            context,
-            ensure_ascii=False,
-            indent=2,
-        ),
-        is_local=is_local,
-        chat_url=chat_url,
-        client=client,
-        model=model,
+    return _build_explanation_text(
+        rule,
+        security_group_result.get("security_group"),
+        resource,
+        allowed,
+        deny,
+        column_mask=effects.get("column_mask"),
+        row_filter=effects.get("row_filter")
     )
-
-    if set(result.keys()) != {"text"}:
-
-        raise ValueError(
-            "Final explanation returned invalid JSON. "
-            f"Received: {json.dumps(result, ensure_ascii=False)}"
-        )
-
-    text = result.get("text")
-
-    if not isinstance(text, str):
-        text = ""
-
-    text = text.strip()
-
-    if not text:
-        text = rule
-
-    return text
 
 
 # ============================================================================
-# Main function
+# Main
 # ============================================================================
 
 def llm_explain(
@@ -2289,82 +1666,38 @@ def llm_explain(
     embedding_url=None,
     client=None,
     model=None,
-    embedding_model=None,
+    embedding_model=None
 ):
-    """
-    Interpret and validate a natural-language Trino
-    authorization rule.
 
-    Pipeline:
-
-        Natural language
-              |
-              +--> semantic examples
-              |
-              +--> security group extraction
-              |
-              +--> resource extraction
-              |
-              +--> deterministic resource validation
-              |
-              +--> deterministic resource expansion
-              |
-              +--> action extraction
-              |
-              +--> deterministic action validation
-              |
-              +--> deterministic feedback
-              |
-              +--> final explanation
-
-    The LLM never determines whether a resource exists.
-
-    The LLM never expands resources.
-
-    The LLM never determines whether an action exists.
-    """
-
-    if not isinstance(
-        rule,
-        str,
-    ) or not rule.strip():
-
+    if not isinstance(rule, str) or not rule.strip():
         raise ValueError(
             "The rule must be a non-empty string."
         )
 
     rule = rule.strip()
 
-    # Normalize Data Mesh once.
+    # Normalize authoritative Data Mesh once.
     data_mesh_structure = _normalize_data_mesh_structure(
         data_mesh_structure
     )
-
-    # =========================================================================
-    # 0. Normalize authoritative inputs
-    # =========================================================================
 
     security_groups = [
         group
         for group in (
             security_groups
-            if isinstance(
-                security_groups,
-                list,
-            )
+            if isinstance(security_groups, list)
             else []
         )
-        if isinstance(group, str)
-        and group.strip()
+        if isinstance(group, str) and group.strip()
     ]
 
     available_actions = _normalize_available_actions(
         available_actions
     )
 
-    # =========================================================================
-    # 1. Retrieve semantic examples
-    # =========================================================================
+    # ------------------------------------------------------------------------
+    # Examples
+    # ------------------------------------------------------------------------
 
     examples = []
 
@@ -2377,12 +1710,12 @@ def llm_explain(
             n=n,
             embedding_url=embedding_url,
             client=client,
-            embedding_model=embedding_model,
+            embedding_model=embedding_model
         )
 
-    # =========================================================================
-    # 2. Extract security group
-    # =========================================================================
+    # ------------------------------------------------------------------------
+    # Security group
+    # ------------------------------------------------------------------------
 
     security_group_result = _extract_security_group(
         rule=rule,
@@ -2390,12 +1723,12 @@ def llm_explain(
         is_local=is_local,
         chat_url=chat_url,
         client=client,
-        model=model,
+        model=model
     )
 
-    # =========================================================================
-    # 3. Extract resource
-    # =========================================================================
+    # ------------------------------------------------------------------------
+    # Resource
+    # ------------------------------------------------------------------------
 
     resource = _extract_resource(
         rule=rule,
@@ -2403,37 +1736,37 @@ def llm_explain(
         is_local=is_local,
         chat_url=chat_url,
         client=client,
-        model=model,
+        model=model
     )
 
-    # =========================================================================
-    # 4. Deterministic Data Mesh validation
-    # =========================================================================
+    # ------------------------------------------------------------------------
+    # Validate resource
+    # ------------------------------------------------------------------------
 
     path_result = _validate_resource_path(
         resource=resource,
-        data_mesh_structure=data_mesh_structure,
+        data_mesh_structure=data_mesh_structure
     )
 
-    # =========================================================================
-    # 5. Deterministic resource expansion
+    # ------------------------------------------------------------------------
+    # Expand only after successful validation.
     #
-    # NEVER expand an invalid resource.
-    # NEVER generate "*".
-    # =========================================================================
+    # Schema-level rules expand to concrete tables.
+    # This is only for compilation; the original resource scope remains
+    # schema-level.
+    # ------------------------------------------------------------------------
 
     expanded_resources = []
 
     if path_result["valid"]:
-
         expanded_resources = _expand_resource(
             resource=resource,
-            data_mesh_structure=data_mesh_structure,
+            data_mesh_structure=data_mesh_structure
         )
 
-    # =========================================================================
-    # 6. Extract actions
-    # =========================================================================
+    # ------------------------------------------------------------------------
+    # Actions
+    # ------------------------------------------------------------------------
 
     requested_actions = _extract_actions(
         rule=rule,
@@ -2442,68 +1775,66 @@ def llm_explain(
         chat_url=chat_url,
         client=client,
         model=model,
+        examples=examples
     )
-
-    # =========================================================================
-    # 7. Deterministic action validation
-    # =========================================================================
 
     action_result = _validate_actions(
         requested_actions=requested_actions,
-        available_actions=available_actions,
+        available_actions=available_actions
     )
 
-    # =========================================================================
-    # 8. Action existence
-    # =========================================================================
-
-    action_existence = _build_action_existence(
-        requested_actions=requested_actions,
-        available_actions=available_actions,
+    allowed, deny, conflicts = _split_allowed_deny(
+        requested_actions,
+        available_actions
     )
 
-    # =========================================================================
-    # 9. Deterministic feedback
-    # =========================================================================
+    # ------------------------------------------------------------------------
+    # Row filter / column mask
+    # ------------------------------------------------------------------------
+
+    effects = _extract_effects(
+        rule=rule,
+        resource=resource,
+        is_local=is_local,
+        chat_url=chat_url,
+        client=client,
+        model=model
+    )
+
+    effects_result = _validate_effects(
+        effects=effects,
+        resource=resource,
+        data_mesh_structure=data_mesh_structure
+    )
+
+    # ------------------------------------------------------------------------
+    # Feedback
+    # ------------------------------------------------------------------------
 
     feedback = []
 
-    if security_group_result.get(
-        "feedback"
+    for part in (
+        security_group_result,
+        path_result,
+        action_result,
+        effects_result
     ):
 
-        feedback.append(
-            security_group_result[
-                "feedback"
-            ]
-        )
+        if part.get("feedback"):
+            feedback.append(
+                part["feedback"]
+            )
 
-    if path_result.get(
-        "feedback"
-    ):
+    if conflicts:
 
         feedback.append(
-            path_result[
-                "feedback"
-            ]
+            "The same action is both allowed and denied: "
+            + ", ".join(
+                repr(x)
+                for x in conflicts
+            )
+            + "."
         )
-
-    if action_result.get(
-        "feedback"
-    ):
-
-        feedback.append(
-            action_result[
-                "feedback"
-            ]
-        )
-
-    # =========================================================================
-    # 10. Additional deterministic resource feedback
-    #
-    # A syntactically valid resource that expands to zero resources
-    # is also considered unresolved.
-    # =========================================================================
 
     resource_was_requested = any(
         resource.get(field)
@@ -2518,110 +1849,80 @@ def llm_explain(
 
         feedback.append(
             "The requested resource path is valid syntactically, "
-            "but it does not resolve to any concrete table or column "
-            "in the Data Mesh Structure."
+            "but it does not resolve to any concrete table or "
+            "column in the Data Mesh Structure."
         )
 
-    # =========================================================================
-    # 11. Final explanation
-    # =========================================================================
+    # ------------------------------------------------------------------------
+    # Final explanation
+    # ------------------------------------------------------------------------
 
     text = _generate_final_explanation(
         rule=rule,
         security_group_result=security_group_result,
         resource=resource,
         expanded_resources=expanded_resources,
-        action_result=action_result,
-        requested_actions=requested_actions,
+        allowed=allowed,
+        deny=deny,
         path_result=path_result,
+        effects=effects,
         examples=examples,
         is_local=is_local,
         chat_url=chat_url,
         client=client,
         model=model,
+        data_mesh_structure=data_mesh_structure
     )
 
-    # =========================================================================
-    # 12. Only valid actions are returned as trinoActions
-    # =========================================================================
-
-    valid_trino_actions = []
-
-    available_action_set = set(
-        available_actions
-    )
-
-    for item in requested_actions:
-
-        if not isinstance(item, dict):
-            continue
-
-        action = item.get(
-            "action"
-        )
-
-        if action in available_action_set:
-
-            valid_trino_actions.append(
-                {
-                    "intent": item.get(
-                        "intent",
-                        "",
-                    ),
-                    "action": action,
-                }
-            )
-
-    # =========================================================================
-    # 13. Return
-    # =========================================================================
+    # ------------------------------------------------------------------------
+    # Return
+    # ------------------------------------------------------------------------
 
     return {
         "text": text,
 
+        "securityGroup":
+            security_group_result["security_group"],
+
         "existSecureGroup":
-            security_group_result[
-                "existSecureGroup"
-            ],
+            security_group_result["existSecureGroup"],
 
         "pathExistOnDataMeshStructure":
-            path_result[
-                "valid"
-            ],
+            path_result["valid"],
 
         "actionExist":
-            action_existence,
+            action_result["valid"] and not conflicts,
 
         "resource": {
-            "catalogName":
-                resource.get(
-                    "catalog"
-                ),
-
-            "schemaName":
-                resource.get(
-                    "schema"
-                ),
-
-            "tableName":
-                resource.get(
-                    "table"
-                ),
-
-            "columnName":
-                resource.get(
-                    "column"
-                ),
+            "catalog": resource.get("catalog") or "",
+            "schema": resource.get("schema") or "",
+            "table": resource.get("table") or "",
+            "column": resource.get("column") or ""
         },
+
+        "allowed": allowed,
+
+        "deny": deny,
+
+        "columnMask":
+            effects.get("column_mask"),
+
+        "rowFilter":
+            effects.get("row_filter"),
 
         "expandedResources":
             expanded_resources,
 
-        "trinoActions":
-            valid_trino_actions,
+        "trinoActions": [
+            {
+                "intent": item["intent"],
+                "action": item["action"],
+                "effect": item["effect"]
+            }
+            for item in requested_actions
+            if item.get("action") in set(available_actions)
+        ],
 
         "llm_feedback":
-            " ".join(
-                feedback
-            ),
+            " ".join(feedback)
     }
