@@ -9,3 +9,7 @@ bash Communication/trino_session.sh --user alice --password alice123
 ```bash
 bash Communication/trino_session.sh --user finance --password finance123
 ```
+
+```bash
+bash Communication/trino_session.sh --user hr --password hr123
+```
