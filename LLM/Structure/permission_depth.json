@@ -1,0 +1,42 @@
+{
+  "comment": "Defines the depth of permissions in the hierarchy of resources. 0: catalog, 1: schema, 2: table/view/materialized view, 3: column",
+  "permission_depth": {
+    "ExecuteQuery": 0,
+
+    "AccessCatalog": 1,
+
+    "CreateSchema": 2,
+    "DropSchema": 2,
+    "RenameSchema": 2,
+    "SetSchemaAuthorization": 2,
+    "ShowSchemas": 2,
+
+    "CreateTable": 3,
+    "CreateView": 3,
+    "CreateMaterializedView": 3,
+    "DeleteFromTable": 3,
+    "DropTable": 3,
+    "DropView": 3,
+    "DropMaterializedView": 3,
+    "InsertIntoTable": 3,
+    "RefreshMaterializedView": 3,
+    "RenameTable": 3,
+    "RenameView": 3,
+    "RenameMaterializedView": 3,
+    "SetTableComment": 3,
+    "SetViewComment": 3,
+    "ShowTables": 3,
+    "ShowCreateTable": 3,
+    "TruncateTable": 3,
+    "UpdateTableColumns": 3,
+    "GetRowFilters": 3,
+
+    "AddColumn": 4,
+    "DropColumn": 4,
+    "RenameColumn": 4,
+    "SetColumnComment": 4,
+    "SelectFromColumns": 4,
+    "ShowColumns": 4,
+    "GetColumnMask": 4
+  }
+}
