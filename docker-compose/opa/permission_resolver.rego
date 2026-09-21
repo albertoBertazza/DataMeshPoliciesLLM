@@ -14,6 +14,14 @@ resource_depth := {
     "column": 4
 }
 
+# ------------------------------------------------------------
+# ADMIN
+# ------------------------------------------------------------
+
+is_admin if {
+    "admin" in input.context.identity.groups
+}
+
 
 # ------------------------------------------------------------
 # Target resource
@@ -31,7 +39,15 @@ target_info := {"res": res, "depth": 4} if {
 } else := {"res": res, "depth": 1} if {
     res := input.action.resource.catalog
     res.catalogName != null
-} else := {"res": {}, "depth": 0}
+} else := {
+    "res": {
+        "catalogName": null,
+        "schemaName": null,
+        "tableName": null,
+        "columnName": null
+    },
+    "depth": 0
+}
 
 
 # ------------------------------------------------------------
@@ -101,111 +117,27 @@ matching_rules contains rule if {
 
 
 # ------------------------------------------------------------
-# Most-specific permission declaration
-# ------------------------------------------------------------
-
-permission_rules(perm) := rules if {
-    rules := [
-        r |
-        some r in matching_rules
-        perm in r.permissions.allow
-        resource_depth[r.resource_type] <= target_info.depth
-    ]
-}
-
-deny_rules(perm) := rules if {
-    rules := [
-        r |
-        some r in matching_rules
-        perm in r.permissions.deny
-        resource_depth[r.resource_type] <= target_info.depth
-    ]
-}
-
-
-# ------------------------------------------------------------
-# Find the most-specific declaration
-# ------------------------------------------------------------
-
-most_specific_permission_rule(perm) := rule if {
-    candidates := [
-        r |
-        some r in matching_rules
-        perm in r.permissions.allow
-        resource_depth[r.resource_type] <= target_info.depth
-    ]
-
-    count(candidates) > 0
-
-    max_depth := max([
-        resource_depth[r.resource_type] |
-        some r in candidates
-    ])
-
-    some r in candidates
-    resource_depth[r.resource_type] == max_depth
-
-    rule := r
-}
-
-most_specific_deny_rule(perm) := rule if {
-    candidates := [
-        r |
-        some r in matching_rules
-        perm in r.permissions.deny
-        resource_depth[r.resource_type] <= target_info.depth
-    ]
-
-    count(candidates) > 0
-
-    max_depth := max([
-        resource_depth[r.resource_type] |
-        some r in candidates
-    ])
-
-    some r in candidates
-    resource_depth[r.resource_type] == max_depth
-
-    rule := r
-}
-
-
-# ------------------------------------------------------------
 # Effective permission
 #
-# Most-specific explicit declaration wins.
-# If there is no declaration, permission is denied.
+# ALLOW:
+#   at least one ALLOW on the path
+#   AND no DENY on the path
+#
+# DENY:
+#   any DENY on the path
+#   OR no ALLOW on the path
 # ------------------------------------------------------------
 
-permission_allowed(perm) if {
-    allow_rule := most_specific_permission_rule(perm)
-
-    not most_specific_deny_rule_at_same_depth(perm, allow_rule)
+permission_denied(perm) if {
+    some r in matching_rules
+    perm in r.permissions.deny
 }
 
 permission_allowed(perm) if {
-    deny_rule := most_specific_deny_rule(perm)
+    some r in matching_rules
+    perm in r.permissions.allow
 
-    not most_specific_allow_rule_at_same_depth(perm, deny_rule)
-
-    # This rule is currently a deny, so this branch
-    # intentionally does not grant the permission.
-    false
-}
-
-
-most_specific_deny_rule_at_same_depth(perm, allow_rule) if {
-    deny_rule := most_specific_deny_rule(perm)
-
-    resource_depth[deny_rule.resource_type] ==
-    resource_depth[allow_rule.resource_type]
-}
-
-most_specific_allow_rule_at_same_depth(perm, deny_rule) if {
-    allow_rule := most_specific_permission_rule(perm)
-
-    resource_depth[allow_rule.resource_type] ==
-    resource_depth[deny_rule.resource_type]
+    not permission_denied(perm)
 }
 
 
@@ -215,15 +147,6 @@ most_specific_allow_rule_at_same_depth(perm, deny_rule) if {
 
 allow if {
     permission_allowed(input.action.operation)
-}
-
-
-# ------------------------------------------------------------
-# ADMIN
-# ------------------------------------------------------------
-
-is_admin if {
-    "admin" in input.context.identity.groups
 }
 
 allow if is_admin
@@ -307,8 +230,7 @@ batch contains i if {
     input.action.filterResources[i]
 }
 
-# FilterCatalogs:
-# Trino sends catalog.name, while the policy resolver expects catalogName.
+# FilterCatalogs.
 batch contains i if {
     not is_admin
     input.action.operation == "FilterCatalogs"
@@ -325,10 +247,38 @@ batch contains i if {
         }
 }
 
+# FilterSchemas -> ShowSchemas
+batch contains i if {
+    not is_admin
+    input.action.operation == "FilterSchemas"
+
+    some i
+    raw_resource := input.action.filterResources[i]
+
+    allow
+        with input.action.operation as "ShowSchemas"
+        with input.action.resource as raw_resource
+}
+
+# FilterTables -> ShowTables
+batch contains i if {
+    not is_admin
+    input.action.operation == "FilterTables"
+
+    some i
+    raw_resource := input.action.filterResources[i]
+
+    allow
+        with input.action.operation as "ShowTables"
+        with input.action.resource as raw_resource
+}
+
 # Normal batch authorization.
 batch contains i if {
     not is_admin
     input.action.operation != "FilterCatalogs"
+    input.action.operation != "FilterSchemas"
+    input.action.operation != "FilterTables"
 
     some i
 
@@ -337,7 +287,7 @@ batch contains i if {
     allow with input.action.resource as raw_resource
 }
 
-# FilterColumns special case.
+# FilterColumns.
 batch contains i if {
     not is_admin
     input.action.operation == "FilterColumns"
@@ -346,12 +296,14 @@ batch contains i if {
     raw_resource := input.action.filterResources[0]
     column_name := raw_resource.table.columns[i]
 
-    allow with input.action.operation as "SelectFromColumns" with input.action.resource as {
-        "column": {
-            "catalogName": raw_resource.table.catalogName,
-            "schemaName": raw_resource.table.schemaName,
-            "tableName": raw_resource.table.tableName,
-            "columnName": column_name
+    allow
+        with input.action.operation as "SelectFromColumns"
+        with input.action.resource as {
+            "column": {
+                "catalogName": raw_resource.table.catalogName,
+                "schemaName": raw_resource.table.schemaName,
+                "tableName": raw_resource.table.tableName,
+                "columnName": column_name
+            }
         }
-    }
 }

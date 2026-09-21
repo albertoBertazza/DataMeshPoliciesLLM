@@ -281,3 +281,66 @@ iceberg.hr.people.email
 So the policy is now internally consistent with your actual Data Mesh.
 
 **One caveat:** `SELECT` itself may trigger several Trino authorization checks rather than one single OPA call. That's why testing the individual permissions (`SelectFromColumns`, `GetRowFilters`, `GetColumnMask`, etc.) is useful when debugging your OPA policy.
+
+
+
+### example of full access for auditor
+
+```json
+{
+  "rules": [
+    {
+      "rule_id": "rule_root_auditor",
+      "group": "auditor",
+      "resource_type": "root",
+      "scope": {
+        "catalog": null,
+        "schema": null,
+        "table": null,
+        "column": null
+      },
+      "permissions": {
+        "allow": [
+          "AccessCatalog",
+          "AddColumn",
+          "CreateMaterializedView",
+          "CreateSchema",
+          "CreateTable",
+          "CreateView",
+          "DeleteFromTable",
+          "DropColumn",
+          "DropMaterializedView",
+          "DropSchema",
+          "DropTable",
+          "DropView",
+          "ExecuteQuery",
+          "GetColumnMask",
+          "GetRowFilters",
+          "InsertIntoTable",
+          "RefreshMaterializedView",
+          "RenameColumn",
+          "RenameMaterializedView",
+          "RenameSchema",
+          "RenameTable",
+          "RenameView",
+          "SelectFromColumns",
+          "SetColumnComment",
+          "SetSchemaAuthorization",
+          "SetTableComment",
+          "SetViewComment",
+          "ShowColumns",
+          "ShowCreateSchema",
+          "ShowCreateTable",
+          "ShowSchemas",
+          "ShowTables",
+          "TruncateTable",
+          "UpdateTableColumns"
+        ],
+        "deny": []
+      },
+      "row_filter": null,
+      "column_masks": {}
+    }
+  ]
+}
+```
