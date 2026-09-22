@@ -1,173 +1,20 @@
-import json
-import os
-
-from dotenv import load_dotenv
-from openai import OpenAI
-
+from Function.jsonHelper import load_json
 from LLM.Interface.activate_local_llm import activate_llm
-from LLM.LLMPipeline.Evaluation.evaluate import evaluate_test
-from LLM.LLMPipeline.RegoPolicyCreation.IndexCreation.index_creator import reload_indexes
-from LLM.LLMPipeline.RegoPolicyCreation.generation import process_rule
-from LLM.LLMPipeline.TrinoTestInteraction.test_generator import generate_test
-from Tester.run_test_trino import launch_test
+from LLM.LLMPipeline.IndexCreation.EvaluationTest import gen_index_evaluation
+from LLM.LLMPipeline.IndexCreation.index_creator import reload_indexes
+from Pipelines.C_EvaluationTestResultPipeline.A_TestExecution.run_test_trino import launch_test
+from Pipelines.C_EvaluationTestResultPipeline.B_TestEvaluation import evaluate_test
+
+from LLM.LLMPipeline.IndexCreation.Rewrite import gen_index_rewrite
+from Pipelines.A_GenerationPipeline.generation import process_rule
+# from Pipelines.B_TestGenerationPipeline.test_generator import generate_test
+from Pipelines.costantPath import CHECK_FOR_ACTION_PATH, SECURITY_GROUPS_PATH, \
+    DATA_MESH_STRUCTURE_PATH, USER_CREDENTIALS_PATH, INPUT_STRUCTURE_PATH, EMBEDDING_URL, CLIENT, IS_LOCAL, \
+    EMBEDDING_MODEL, LOCAL_EMBEDDING_MODEL, LLAMA_DIR, CHAT_URL, LOCAL_CHAT_MODEL, \
+    MODEL, DATABASE_REWRITE_RULE_FILE, INDEXED_REWRITE_RULE_PATH, DATABASE_EVALUATION_TEST_FILE, \
+    INDEXED_EVALUATION_TEST_PATH
 
 from reset_rego import delete_files_generated
-
-# ==========================================================
-# LLM CONFIG
-# ==========================================================
-
-CHAT_URL = "http://127.0.0.1:8080"
-EMBEDDING_URL = "http://127.0.0.1:8081"
-
-load_dotenv()
-
-CLIENT = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
-)
-
-MODEL = os.getenv(
-    "OPENAI_MODEL",
-    "gpt-4o-mini"
-)
-
-EMBEDDING_MODEL = "text-embedding-3-small"
-
-IS_LOCAL = os.getenv(
-    "IS_LOCAL",
-    "False"
-) == "True"
-
-
-
-# ==========================================================
-# PATHS
-# ==========================================================
-
-DATA_MESH_DIR = os.getcwd()
-
-LLM_DIR = os.path.join(
-    DATA_MESH_DIR,
-    "LLM"
-)
-
-
-STRUCTURE_DIR = os.path.join(
-    LLM_DIR,
-    "Structure"
-)
-
-
-USER_CREDENTIALS_PATH = os.path.join(
-    STRUCTURE_DIR,
-    "user_credentials.json"
-)
-
-CHECK_FOR_ACTION_PATH = os.path.join(
-    STRUCTURE_DIR,
-    "checkForAction.json"
-)
-
-INPUT_SCHEMA_PATH = os.path.join(
-    STRUCTURE_DIR,
-    "input.json"
-)
-
-SECURITY_GROUPS_PATH = os.path.join(
-    STRUCTURE_DIR,
-    "security_groups.json"
-)
-
-DATA_MESH_STRUCTURE_PATH = os.path.join(
-    STRUCTURE_DIR,
-    "data_mesh.json"
-)
-
-INPUT_STRUCTURE_PATH = os.path.join(
-    STRUCTURE_DIR,
-    "input.json"
-)
-
-
-REGO_DIR = os.path.join(
-    LLM_DIR,
-    "LLMPipeline",
-    "RegoPolicyCreation"
-)
-
-
-EXAMPLE_DIR = os.path.join(
-    REGO_DIR,
-    "ExampleDatastore"
-)
-
-
-REWRITE_RULE_EXAMPLES_PATH = os.path.join(
-    EXAMPLE_DIR,
-    "rewrite_rule.json"
-)
-
-
-EXTRACTION_EXAMPLES_PATH = os.path.join(
-    EXAMPLE_DIR,
-    "extraction.json"
-)
-
-
-
-TRINO_TEST_DIR = os.path.join(
-    LLM_DIR,
-    "LLMPipeline",
-    "TrinoTestInteraction"
-)
-
-
-TEST_INDEX_DIR = TRINO_TEST_DIR
-
-
-
-EVALUATION_DIR = os.path.join(
-    LLM_DIR,
-    "LLMPipeline",
-    "Evaluation"
-)
-
-
-EVALUATION_EXAMPLES_PATH = os.path.join(
-    EVALUATION_DIR,
-    "Examples",
-    "evaluation_examples.json"
-)
-
-
-
-DOCKER_COMPOSE_PATH = os.path.join(
-    DATA_MESH_DIR,
-    "docker-compose"
-)
-
-
-POLICY_PATH = os.path.join(
-    DOCKER_COMPOSE_PATH,
-    "opa"
-)
-
-
-
-# ==========================================================
-# UTILS
-# ==========================================================
-
-def load_json(path):
-
-    with open(
-        path,
-        "r",
-        encoding="utf-8"
-    ) as f:
-        return json.load(f)
-
-
 
 # ==========================================================
 # LOAD STRUCTURE
@@ -178,7 +25,7 @@ CHECK_FOR_ACTION = load_json(
 )
 
 INPUT_SCHEMA = load_json(
-    INPUT_SCHEMA_PATH
+    INPUT_STRUCTURE_PATH
 )
 
 SECURITY_GROUPS = load_json(
@@ -197,23 +44,9 @@ INPUT_STRUCTURE = load_json(
     INPUT_STRUCTURE_PATH
 )
 
-
-
 # ==========================================================
-# LOCAL LLM
+# LLM CONFIG
 # ==========================================================
-
-LLAMA_DIR = r"C:\Users\berta\BertaFiles\Project\DataMeshPoliciesLLM\LLM\LocalLLMIntelIpex\llama-cpp-ipex-llm-2.3.0b20250424-win"
-
-
-LOCAL_CHAT_MODEL = os.getenv(
-    "LOCAL_CHAT_MODEL"
-)
-
-LOCAL_EMBEDDING_MODEL = os.getenv(
-    "LOCAL_EMBEDDING_MODEL"
-)
-
 
 activate_llm(
     LLAMA_DIR,
@@ -239,21 +72,7 @@ activate_llm(
 # INDEXES
 # ==========================================================
 
-INDEX_EXTRACTION, INDEX_REWRITE_RULE, INDEX_BUILD_REGO = reload_indexes(
-    IS_LOCAL,
-    embedding_url=EMBEDDING_URL,
-    client=CLIENT,
-    embedding_model=EMBEDDING_MODEL
-)
-
-
-INDEX_TEST_CREATION = reload_indexes(
-    IS_LOCAL,
-    embedding_url=EMBEDDING_URL,
-    client=CLIENT,
-    embedding_model=EMBEDDING_MODEL
-)
-
+INDEX_REWRITE_RULE = reload_indexes( IS_LOCAL, embedding_url=EMBEDDING_URL, client=CLIENT, embedding_model=EMBEDDING_MODEL, database_path=DATABASE_REWRITE_RULE_FILE,index_path=INDEXED_REWRITE_RULE_PATH,filename="rewrite_rule_example", gen_index_function=gen_index_rewrite)
 
 
 # ==========================================================
@@ -292,21 +111,18 @@ if __name__ == "__main__":
         # Generate OPA policy
         # -------------------------------
 
-        result, explanation = process_rule(
-            rule,
-            INDEX_REWRITE_RULE,
-            INDEX_EXTRACTION,
-            INDEX_BUILD_REGO,
-            CHECK_FOR_ACTION,
-            DATA_MESH,
-            SECURITY_GROUPS,
-            INPUT_STRUCTURE,
+        success, result, explanation = process_rule(
+            rule_passed=rule,
+            index_rewrite_rule=INDEX_REWRITE_RULE,
+            check_for_action=CHECK_FOR_ACTION,
+            data_mesh=DATA_MESH,
+            security_groups=SECURITY_GROUPS,
             is_local=IS_LOCAL,
             chat_url=CHAT_URL,
             embedding_url=EMBEDDING_URL,
             client=CLIENT,
             model=MODEL,
-            embedding_model=EMBEDDING_MODEL
+            embedding_model=EMBEDDING_MODEL,
         )
 
 
@@ -318,19 +134,18 @@ if __name__ == "__main__":
         # -------------------------------
         # Generate Trino tests
         # -------------------------------
-
-        generate_test(
-            explanation,
-            data_mesh=DATA_MESH,
-            user_credentials=USER_CREDENTIALS,
-            test_creation_example_indexes=INDEX_TEST_CREATION,
-            is_local=IS_LOCAL,
-            chat_url=CHAT_URL,
-            embedding_url=EMBEDDING_URL,
-            client=CLIENT,
-            model=MODEL,
-            embedding_model=EMBEDDING_MODEL
-        )
+        #TODO
+        # generate_test(
+        #     explanation,
+        #     data_mesh=DATA_MESH,
+        #     user_credentials=USER_CREDENTIALS,
+        #     is_local=IS_LOCAL,
+        #     chat_url=CHAT_URL,
+        #     embedding_url=EMBEDDING_URL,
+        #     client=CLIENT,
+        #     model=MODEL,
+        #     embedding_model=EMBEDDING_MODEL
+        # )
 
 
 
@@ -346,14 +161,14 @@ if __name__ == "__main__":
         # Evaluate results
         # -------------------------------
 
-        evaluate_test(
-            data_mesh=DATA_MESH,
-            users=USER_CREDENTIALS,
-            actions=CHECK_FOR_ACTION,
-            policy_path=POLICY_PATH,
-            examples_path=EVALUATION_EXAMPLES_PATH,
-            is_local=IS_LOCAL,
-            chat_url=CHAT_URL,
-            client=CLIENT,
-            model=MODEL
-        )
+        # evaluate_test(
+        #     data_mesh=DATA_MESH,
+        #     users=USER_CREDENTIALS,
+        #     actions=CHECK_FOR_ACTION,
+        #     policy_path=POLICY_PATH,
+        #     examples_path=EVALUATION_EXAMPLES_PATH,
+        #     is_local=IS_LOCAL,
+        #     chat_url=CHAT_URL,
+        #     client=CLIENT,
+        #     model=MODEL
+        # )

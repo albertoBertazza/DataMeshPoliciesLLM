@@ -65,7 +65,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-OUTPUT_FILE="$PROJECT_ROOT/LLM/Structure/data_mesh.json"
+OUTPUT_FILE="$PROJECT_ROOT/Structure/data_mesh.json"
 
 mkdir -p "$(dirname "$OUTPUT_FILE")"
 

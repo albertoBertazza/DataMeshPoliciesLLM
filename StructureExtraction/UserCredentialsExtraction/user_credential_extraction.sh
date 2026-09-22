@@ -7,8 +7,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REALM_FILE="$PROJECT_ROOT/docker-compose/keycloak/import/trino-realm.json"
 
 OUTPUT_FILE="$PROJECT_ROOT/docker-compose/etc/user-group/groups.txt"
-SECURITY_GROUPS_JSON="$PROJECT_ROOT/LLM/Structure/security_groups.json"
-USER_CREDENTIALS_JSON="$PROJECT_ROOT/LLM/Structure/user_credentials.json"
+SECURITY_GROUPS_JSON="$PROJECT_ROOT/Structure/security_groups.json"
+USER_CREDENTIALS_JSON="$PROJECT_ROOT/Structure/user_credentials.json"
 
 mkdir -p "$(dirname "$OUTPUT_FILE")"
 mkdir -p "$(dirname "$SECURITY_GROUPS_JSON")"
