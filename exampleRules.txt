@@ -1,0 +1,5 @@
+auditor can select from table inside schema finance
+
+finance manager can select from table inside schema finance
+
+finance manager is not allowed to select from table inside schema finance

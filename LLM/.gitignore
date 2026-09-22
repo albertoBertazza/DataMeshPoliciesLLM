@@ -1,3 +1,5 @@
-LLMPipeline/RegoPolicyCreation/output/rego_policies/*.rego
+LLMPipeline/RegoPolicyCreation/output/rego_policies/*.json
+
+LLMPipeline/RegoPolicyCreation/output/last_requested_rule_tree_permission/*.json
 
 LLMPipeline/RegoPolicyCreation/output/tree_permission/*.json
