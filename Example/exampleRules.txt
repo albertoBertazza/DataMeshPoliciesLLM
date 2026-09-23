@@ -26,3 +26,6 @@ hr_manager can create schema inside iceberg
 
 hr_manager can create table inside hr schema
 
+hr_manager can create view on finance.employee_finance
+
+hr_manager can select from table in procurement schema

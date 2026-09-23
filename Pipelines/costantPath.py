@@ -111,3 +111,14 @@ DOCKER_COMPOSE_OPA_DIR = BASE_DIR / "StatelessRuleArchitecture" / "docker-opa-st
 # ============================================================================
 SOURCE_FILE = BASE_DIR / "policyReference.rego"
 TARGET_DIRECTORIES = [ BASE_DIR / "docker-compose" / "opa", BASE_DIR / "StatelessRuleArchitecture" / "docker-opa-stateless" / "opa"]
+
+
+
+EXAMPLE_RULES =[
+    "hr_manager can add column in hr.people",
+    "hr_manager can create materialized view on hr.people",
+    "hr_manager can create schema inside iceberg",
+    "hr_manager can create table inside hr schema",
+    "hr_manager can create view on finance.employee_finance",
+    "hr_manager can select from table in procurement schema",
+]

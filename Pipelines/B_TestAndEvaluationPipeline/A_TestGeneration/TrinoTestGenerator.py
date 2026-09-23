@@ -615,6 +615,32 @@ class TrinoTestGenerator:
 
         return result
 
+    # =================================
+    # Helper find table
+    # ================================
+
+    def _find_table_in_schema(
+            self,
+            catalog: str,
+            schema: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Return one existing table from the given schema.
+
+        The Data Mesh is authoritative for physically existing
+        resources.
+        """
+
+        for candidate in self.resources["tables"]:
+
+            if (
+                    candidate.get("catalog") == catalog
+                    and candidate.get("schema") == schema
+            ):
+                return candidate
+
+        return None
+
     # =========================================================
     # SQL CONTEXT
     # =========================================================
@@ -710,8 +736,16 @@ class TrinoTestGenerator:
             """
             CREATE TABLE operates at schema level.
 
-            No existing table is required because the SQL creates
-            a new table.
+            The schema must already exist, but the table being created
+            does not need to exist.
+
+            Therefore the authorization resource is:
+
+                iceberg.hr
+
+            while the SQL additionally requires a generated table name:
+
+                iceberg.hr.<test_table>
             """
 
             parent_context = (
@@ -724,12 +758,18 @@ class TrinoTestGenerator:
             if parent_context is None:
                 return None
 
-            return self._add_action_values(
-                action,
-                parent_context,
-                username,
-                test_run_id,
+            if test_run_id is None:
+                test_run_id = (
+                    self._create_test_run_id(username)
+                )
+
+            # The table does not exist yet, so it cannot come from
+            # the Data Mesh. Generate a unique name for the test.
+            parent_context["test_table"] = (
+                f"test_table_{test_run_id}"
             )
+
+            return parent_context
 
         # =====================================================
         # CREATE VIEW / MATERIALIZED VIEW
@@ -784,6 +824,56 @@ class TrinoTestGenerator:
             return self._add_action_values(
                 action,
                 parent_context,
+                username,
+                test_run_id,
+            )
+
+        # =====================================================
+        # TABLE ACTIONS FROM A SCHEMA RESOURCE
+        # =====================================================
+
+        if (
+                resource_level == "table"
+                and not resource.get("table")
+        ):
+            """
+            The authorization target is a schema, but the SQL action
+            requires an existing table.
+
+            Example:
+
+                resolver resource:
+                    iceberg.procurement
+
+                SQL:
+                    SELECT * FROM iceberg.procurement.<table>
+
+            Select an existing physical table from the Data Mesh.
+            """
+
+            catalog = resource.get("catalog")
+            schema = resource.get("schema")
+
+            if not catalog or not schema:
+                return None
+
+            table_resource = self._find_table_in_schema(
+                catalog,
+                schema,
+            )
+
+            if table_resource is None:
+                return None
+
+            context = {
+                "catalog": catalog,
+                "schema": schema,
+                "table": table_resource["table"],
+            }
+
+            return self._add_action_values(
+                action,
+                context,
                 username,
                 test_run_id,
             )
