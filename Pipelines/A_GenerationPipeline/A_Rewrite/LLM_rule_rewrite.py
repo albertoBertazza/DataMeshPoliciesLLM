@@ -901,6 +901,5 @@ def llm_explain( rule, example_index, data_mesh_structure, security_groups, avai
         "columnMask":effects.get("column_mask"),
         "rowFilter":effects.get("row_filter"),
         "expandedResources":expanded_resources,
-        "trinoActions": [ { "intent": item["intent"], "action": item["action"], "effect": item["effect"] } for item in requested_actions if item.get("action") in set(available_actions) ],
         "llm_feedback":" ".join(feedback)
     }

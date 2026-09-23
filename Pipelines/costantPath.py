@@ -47,11 +47,11 @@ C_EVALUATION_TEST_RESULT_PIPELINE_PATH = (DATA_MESH_DIR / "Pipelines" / "C_Evalu
 # --------------------------------------------------------------------------
 STRUCTURE_DIR = DATA_MESH_DIR / "Structure"
 
-CHECK_FOR_ACTION_PATH = ( STRUCTURE_DIR / "checkForAction.json" )
-DATA_MESH_STRUCTURE_PATH = ( STRUCTURE_DIR / "data_mesh.json" )
-INPUT_STRUCTURE_PATH = ( STRUCTURE_DIR / "input.json" )
-PERMISSION_DEPTH_PATH = ( STRUCTURE_DIR / "permission_depth.json" )
-SECURITY_GROUPS_PATH = ( STRUCTURE_DIR / "security_groups.json" )
+CHECK_FOR_ACTION_PATH = os.path.join( STRUCTURE_DIR, "checkForAction.json" )
+DATA_MESH_STRUCTURE_PATH = os.path.join( STRUCTURE_DIR, "data_mesh.json" )
+INPUT_STRUCTURE_PATH = os.path.join( STRUCTURE_DIR, "input.json" )
+PERMISSION_DEPTH_PATH = os.path.join( STRUCTURE_DIR, "permission_depth.json" )
+SECURITY_GROUPS_PATH = os.path.join( STRUCTURE_DIR, "security_groups.json" )
 USER_CREDENTIALS_PATH = os.path.join( STRUCTURE_DIR, "user_credentials.json" )
 
 
@@ -70,6 +70,7 @@ PERMISSION_TREE_MAP_PATH = ( PERMISSION_TREE_MAP / "single_request_tree.json" )
 
 CUMULATIVE_TREE_DIR = ( OUTPUT_GENERATION_DIR / "cumulative_tree" )
 CUMULATIVE_TREE_PATH = ( CUMULATIVE_TREE_DIR / "cumulative_tree.json" )
+CUMULATIVE_TREE_TEMP_PATH = ( CUMULATIVE_TREE_DIR / "cumulative_tree_temp.json" )
 
 GENERATED_RULE_DIR = (OUTPUT_GENERATION_DIR / "generated_rules")
 GENERATED_RULE_PATH = (GENERATED_RULE_DIR / "generated_rules.json" )

@@ -1,13 +1,14 @@
 import json
 import os
+import shutil
 from typing import Any, Dict
 from openai import OpenAI
 from Function.jsonHelper import load_json
 from LLM.Interface.activate_local_llm import activate_llm
 from LLM.LLMPipeline.IndexCreation.Rewrite.gen_index_rewrite import gen_index_rewrite
 from LLM.LLMPipeline.IndexCreation.index_creator import ( reload_indexes)
-from Pipelines.A_GenerationPipeline.A_Extraction.extraction import ( build_intermediate_representation)
-from Pipelines.A_GenerationPipeline.B_Rewrite.nlp_rule_rewrite import ( llm_explain)
+from Pipelines.A_GenerationPipeline.B_Extraction.extraction import (build_intermediate_representation)
+from Pipelines.A_GenerationPipeline.A_Rewrite.LLM_rule_rewrite import (llm_explain)
 from Pipelines.A_GenerationPipeline.C_PermissionTree.permission_tree_writer import ( PermissionTreeWriter)
 from Pipelines.A_GenerationPipeline.C_PermissionTree.permission_tree_merger import ( PermissionTreeMerger)
 from Pipelines.A_GenerationPipeline.E_Compiler.permission_compiler import ( PermissionCompiler)
@@ -15,8 +16,8 @@ from Pipelines.A_GenerationPipeline.D_PolicyWriter.policy_writer import ( Policy
 from Pipelines.costantPath import LLAMA_DIR, IS_LOCAL, CHAT_URL, LOCAL_CHAT_MODEL, EMBEDDING_URL, LOCAL_EMBEDDING_MODEL, \
     EMBEDDING_MODEL, MODEL, PERMISSION_TREE_MAP_PATH, \
     SECURITY_GROUPS_PATH, DATA_MESH_STRUCTURE_PATH, PERMISSION_DEPTH_PATH, CHECK_FOR_ACTION_PATH, DATA_MESH_DIR, \
-    CUMULATIVE_TREE_PATH, GENERATED_RULE_PATH, DATA_JSON_FILE_RULES, DATABASE_REWRITE_RULE_FILE, \
-    INDEXED_REWRITE_RULE_PATH
+    CUMULATIVE_TREE_TEMP_PATH, GENERATED_RULE_PATH, DATA_JSON_FILE_RULES, DATABASE_REWRITE_RULE_FILE, \
+    INDEXED_REWRITE_RULE_PATH, CUMULATIVE_TREE_PATH
 
 
 # ============================================================================
@@ -38,6 +39,22 @@ def load_existing_permission_tree() -> Dict[str, Any]:
 
     return tree
 
+def save_final_cumulative_tree():
+    if not CUMULATIVE_TREE_TEMP_PATH.exists():
+        return {}
+
+    CUMULATIVE_TREE_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    shutil.copyfile(
+        CUMULATIVE_TREE_TEMP_PATH,
+        CUMULATIVE_TREE_PATH
+    )
+
+    print("Saved final cumulative tree: ", CUMULATIVE_TREE_PATH)
+    return {}
+
+
+
 def save_extracted_permission_tree( extracted_tree: Dict[str, Any]) -> None:
     """
     Save only the latest extraction.
@@ -54,11 +71,11 @@ def merge_permission_tree( existing_tree: Dict[str, Any], extracted_tree: Dict[s
     Merge the newly extracted permission tree into the
     accumulated permission tree.
     """
-    print( "\n[Merging permission trees]" )
+    print( "\n[ 3.1 Merging permission trees]" )
     merger = PermissionTreeMerger()
     merged_tree = merger.merge( existing_tree, extracted_tree)
-    PermissionTreeWriter.write( merged_tree, str(CUMULATIVE_TREE_PATH))
-    print( "Saved merged tree:", CUMULATIVE_TREE_PATH)
+    PermissionTreeWriter.write( merged_tree, str(CUMULATIVE_TREE_TEMP_PATH))
+    print( "Saved merged tree:", CUMULATIVE_TREE_TEMP_PATH)
     return merged_tree
 
 # ============================================================================
@@ -71,7 +88,7 @@ def compile_canonical_policy(merged_tree: Dict[str, Any]) -> Dict[str, Any]:
     the canonical OPA JSON structure.
     """
 
-    print("\n[Compiling canonical OPA policy]")
+    print("\n[ 5. Compiling canonical OPA policy]")
     compiler = PermissionCompiler(data_mesh_file=str(DATA_MESH_STRUCTURE_PATH),security_groups_file=str(SECURITY_GROUPS_PATH),permission_depth_file=str(PERMISSION_DEPTH_PATH), )
     canonical_policy = compiler.compile(merged_tree )
     return canonical_policy
@@ -84,7 +101,7 @@ def save_canonical_policy( canonical_policy: Dict[str, Any]) -> None:
         docker-compose/opa/data.json
     """
 
-    print( "\n[Writing final canonical OPA policy]" )
+    print( "\n[ 4. Writing final canonical OPA policy]" )
     writer = PolicyWriter()
     writer.write_final_policy( policy=canonical_policy, rego_output_file=str( GENERATED_RULE_PATH ), opa_data_file=str( DATA_JSON_FILE_RULES ))
     print( "Saved:", GENERATED_RULE_PATH)
@@ -130,7 +147,7 @@ def build_permission_policy( extracted_tree: Dict[str, Any]) -> Dict[str, Any]:
     # ------------------------------------------------------------------------
 
     merged_tree = merge_permission_tree( existing_tree, extracted_tree)
-    print( "\n[Merged permission tree]" )
+    print( "\n[ Merged permission tree]" )
     print( json.dumps( merged_tree, indent=2, ensure_ascii=False) )
 
     # ------------------------------------------------------------------------
@@ -146,6 +163,8 @@ def build_permission_policy( extracted_tree: Dict[str, Any]) -> Dict[str, Any]:
     # ------------------------------------------------------------------------
 
     save_canonical_policy( canonical_policy )
+
+    save_final_cumulative_tree()
 
     return canonical_policy
 
@@ -170,7 +189,7 @@ def process_rule(
     # 1. Explanation
     # ========================================================================
 
-    print( "\n[Interpretation]" )
+    print( "\n[ 1. LLM rule rewrite]" )
 
     try:
 
@@ -213,7 +232,7 @@ def process_rule(
     # 2. Extraction
     # ========================================================================
 
-    print( "\n[Extracting entities...]" )
+    print( "\n[ 2. Extracting entities...]" )
 
     try:
         permission_depth = load_json( PERMISSION_DEPTH_PATH )["permission_depth"]
@@ -227,14 +246,14 @@ def process_rule(
         print( "Extraction returned no entities." )
 
         return False, None
-    print( "\n[Extracted permission tree]" )
+    print( "\n[ Extracted permission tree]" )
     print( json.dumps( entities, indent=2, ensure_ascii=False) )
     # ========================================================================
     # 3. Permission-tree → merge → compiler → OPA
     # ========================================================================
 
     try:
-        canonical_policy = ( build_permission_policy( entities ) )
+        canonical_policy = build_permission_policy( entities )
     except Exception as error:
         print( "Permission-policy pipeline failed:", error)
         return False, None, None
@@ -259,14 +278,15 @@ def main():
     print( "=" * 70 )
     print( "OPA POLICY GENERATOR" )
     print( "=" * 70 )
-    print( f"Project root:       {DATA_MESH_DIR}" )
-    print( f"Data mesh:          {DATA_MESH_STRUCTURE_PATH}" )
-    print( f"Security groups:    {SECURITY_GROUPS_PATH}" )
-    print( f"Check actions:      {CHECK_FOR_ACTION_PATH}" )
-    print( f"Latest extraction:  {PERMISSION_TREE_MAP_PATH}" )
-    print( f"Merged tree:        {CUMULATIVE_TREE_PATH}" )
-    print( f"Final OPA policy:   {GENERATED_RULE_PATH}" )
-    print( f"OPA data.json:      {DATA_JSON_FILE_RULES}" )
+    print( f"Project root:          {DATA_MESH_DIR}" )
+    print( f"Data mesh:             {DATA_MESH_STRUCTURE_PATH}" )
+    print( f"Security groups:       {SECURITY_GROUPS_PATH}" )
+    print( f"Check actions:         {CHECK_FOR_ACTION_PATH}" )
+    print( f"Latest extraction:     {PERMISSION_TREE_MAP_PATH}" )
+    print( f"Merged tree:           {CUMULATIVE_TREE_TEMP_PATH}" )
+    print( f"Final cumulative tree: {CUMULATIVE_TREE_PATH}")
+    print( f"Final OPA policy:      {GENERATED_RULE_PATH}" )
+    print( f"OPA data.json:         {DATA_JSON_FILE_RULES}" )
 
     # ========================================================================
     # Load structures

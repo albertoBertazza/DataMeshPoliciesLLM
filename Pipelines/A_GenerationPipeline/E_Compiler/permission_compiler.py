@@ -58,7 +58,7 @@ class PermissionCompiler:
         self.security_groups_file = security_groups_file
         self.permission_depth_file = permission_depth_file
 
-        self.data_mesh = self._load_json(data_mesh_file)
+        self.data_mesh = load_json(data_mesh_file)
         self.security_groups = self._load_security_groups(security_groups_file)
         self.permission_depth = self._load_permission_depth( permission_depth_file )
 
