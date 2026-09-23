@@ -38,9 +38,7 @@ DATA_MESH_DIR = find_project_dir()
 LLM_DIR = DATA_MESH_DIR / "LLM"
 
 A_GENERATION_PIPELINE_PATH = ( DATA_MESH_DIR / "Pipelines" / "A_GenerationPipeline"  )
-B_TEST_GENERATION_PIPELINE_PATH =(DATA_MESH_DIR / "Pipelines" / "B_TestGenerationPipeline" )
-C_EVALUATION_TEST_RESULT_PIPELINE_PATH = (DATA_MESH_DIR / "Pipelines" / "C_EvaluationTestResultPipeline")
-
+B_TEST_GENERATION_PIPELINE_PATH =(DATA_MESH_DIR / "Pipelines" / "B_TestAndGenerationPipeline" )
 
 # --------------------------------------------------------------------------
 # STRUCTURE
@@ -53,7 +51,7 @@ INPUT_STRUCTURE_PATH = os.path.join( STRUCTURE_DIR, "input.json" )
 PERMISSION_DEPTH_PATH = os.path.join( STRUCTURE_DIR, "permission_depth.json" )
 SECURITY_GROUPS_PATH = os.path.join( STRUCTURE_DIR, "security_groups.json" )
 USER_CREDENTIALS_PATH = os.path.join( STRUCTURE_DIR, "user_credentials.json" )
-
+ACTION_SQL_MAPPING_PATH = os.path.join( STRUCTURE_DIR, "action_sql_mapping.json" )
 
 # -------------------------------------------------------------------------
 # OPA file output
@@ -75,6 +73,8 @@ CUMULATIVE_TREE_TEMP_PATH = ( CUMULATIVE_TREE_DIR / "cumulative_tree_temp.json" 
 GENERATED_RULE_DIR = (OUTPUT_GENERATION_DIR / "generated_rules")
 GENERATED_RULE_PATH = (GENERATED_RULE_DIR / "generated_rules.json" )
 
+REWRITTEN_RULE_DIR = (OUTPUT_GENERATION_DIR / "rewritten_rule")
+REWRITTEN_RULE_PATH = (REWRITTEN_RULE_DIR / "rewritten_rule.json" )
 
 # ------------------------------------------------------------------------
 # OUTPUT TEST GENERATION
@@ -82,14 +82,12 @@ GENERATED_RULE_PATH = (GENERATED_RULE_DIR / "generated_rules.json" )
 OUTPUT_TEST_GENERATION_PATH = (B_TEST_GENERATION_PIPELINE_PATH / "output_test_generation")
 OUTPUT_TEST_GENERATION_FILE = (OUTPUT_TEST_GENERATION_PATH / "test_generated.json")
 
-
 # --------------------------------------------------------------------------
 # OUTPUT EVALUATION
 # --------------------------------------------------------------------------
-OUTPUT_TEST_EVALUATION_PATH = ( C_EVALUATION_TEST_RESULT_PIPELINE_PATH / "output_test_evaluation" )
+OUTPUT_TEST_EVALUATION_PATH = ( B_TEST_GENERATION_PIPELINE_PATH / "output_test_evaluation" )
 OUTPUT_TEST_EVALUATION_FILE = (OUTPUT_TEST_EVALUATION_PATH / "test_evaluated.json")
 OUTPUT_TEST_EXECUTION_FILE = (OUTPUT_TEST_EVALUATION_PATH / "test_executed.json")
-
 
 # ------------------------------------------------------------------------------
 # EXAMPLE
@@ -101,13 +99,6 @@ DATABASE_REWRITE_RULE_FILE= (DATABASE_DIR / "RewriteRule"/ "rewrite_rule_example
 INDEXED_DIR =os.path.join(DATA_MESH_DIR , "LLM", "LLMPipeline", "Example", "Indexed")
 INDEXED_REWRITE_RULE_PATH = os.path.join(INDEXED_DIR , "RewriteRule")
 INDEXED_EVALUATION_TEST_PATH = os.path.join(INDEXED_DIR , "EvaluationTest")
-
-
-
-
-
-
-
 
 #-----------------------------------------------------------
 # Benchmarking paths

@@ -209,22 +209,22 @@ def process_rule(
 
     except Exception as error:
         print( "Explanation failed:", error)
-        return False, None, None
+        return False
 
     if not explanation.get( "existSecureGroup", False):
         print( "Invalid security group." )
         print( "llm_feedback:", explanation.get( "llm_feedback", ""))
-        return False, None, None
+        return False
 
     if not explanation.get( "pathExistOnDataMeshStructure", False):
         print( "Resource path does not exist." )
         print( "llm_feedback:", explanation.get( "llm_feedback", ""))
-        return False, None, None
+        return False
 
     if not explanation.get( "actionExist", False):
         print( "Action does not exist." )
         print( "llm_feedback:", explanation.get( "llm_feedback", ""))
-        return False, None, None
+        return False
 
     print( json.dumps( explanation, indent=2, ensure_ascii=False) )
 
@@ -239,13 +239,13 @@ def process_rule(
         entities = build_intermediate_representation( explanation, check_for_action, permission_depth=permission_depth)
     except Exception as error:
         print( "Extraction failed:", error)
-        return False, None, None
+        return False
 
     if entities is None:
 
         print( "Extraction returned no entities." )
 
-        return False, None
+        return False
     print( "\n[ Extracted permission tree]" )
     print( json.dumps( entities, indent=2, ensure_ascii=False) )
     # ========================================================================
@@ -253,12 +253,12 @@ def process_rule(
     # ========================================================================
 
     try:
-        canonical_policy = build_permission_policy( entities )
+        build_permission_policy( entities )
     except Exception as error:
         print( "Permission-policy pipeline failed:", error)
-        return False, None, None
+        return False
 
-    return True, canonical_policy, explanation
+    return True
 
 # ============================================================================
 # LLM initialization
@@ -319,7 +319,7 @@ def main():
         if not rule:
             continue
 
-        success, result, explanation = process_rule(
+        success = process_rule(
             rule_passed=rule,
             index_rewrite_rule=index_rewrite_rule,
             check_for_action=check_for_action,
@@ -340,7 +340,6 @@ def main():
 
         else:
             print( "\nPolicy pipeline failed." )
-            print( f"Explanation: {explanation}" )
 
 # ============================================================================
 # Entry point

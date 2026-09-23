@@ -455,8 +455,7 @@ def run_tests(
     # Load tests
     # ------------------------------------------------------------------------
 
-    with test_file.open(
-        "r",
+    with test_file.open("r",
         encoding="utf-8"
     ) as f:
 

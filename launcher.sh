@@ -50,4 +50,4 @@ done
 bash StructureExtraction/MinioStructureExtraction/data_mesh_extraction.sh --user trino --password trino123 --debug
 
 
-# ./.venv/Scripts/python.exe orchestartor.py
+./.venv/Scripts/python.exe orchestartor.py

@@ -1,0 +1,122 @@
+{
+  "AddColumnAction": {
+    "sql_template": "ALTER TABLE {catalog}.{schema}.{table} ADD COLUMN {column} {column_type};",
+    "resource_level": "table"
+  },
+  "CreateMaterializedViewAction": {
+    "sql_template": "CREATE MATERIALIZED VIEW {catalog}.{schema}.{table}_test_mv AS SELECT * FROM {catalog}.{schema}.{table} LIMIT 5;",
+    "resource_level": "schema"
+  },
+  "CreateSchemaAction": {
+    "sql_template": "CREATE SCHEMA {catalog}.{schema}_test;",
+    "resource_level": "catalog"
+  },
+  "CreateTableAction": {
+    "sql_template": "CREATE TABLE {catalog}.{schema}.{table}_test (id INTEGER);",
+    "resource_level": "schema"
+  },
+  "CreateViewAction": {
+    "sql_template": "CREATE VIEW {catalog}.{schema}.{table}_test_view AS SELECT * FROM {catalog}.{schema}.{table} LIMIT 5;",
+    "resource_level": "schema"
+  },
+  "SelectFromTableAction": {
+    "sql_template": "SELECT * FROM {catalog}.{schema}.{table} LIMIT 5;",
+    "resource_level": "table"
+  },
+  "DeleteFromTableAction": {
+    "sql_template": "DELETE FROM {catalog}.{schema}.{table};",
+    "resource_level": "table"
+  },
+  "DropColumnAction": {
+    "sql_template": "ALTER TABLE {catalog}.{schema}.{table} DROP COLUMN {column};",
+    "resource_level": "table"
+  },
+  "DropMaterializedViewAction": {
+    "sql_template": "DROP MATERIALIZED VIEW {catalog}.{schema}.{table}_test_mv;",
+    "resource_level": "schema"
+  },
+  "DropSchemaAction": {
+    "sql_template": "DROP SCHEMA {catalog}.{schema};",
+    "resource_level": "schema"
+  },
+  "DropTableAction": {
+    "sql_template": "DROP TABLE {catalog}.{schema}.{table};",
+    "resource_level": "table"
+  },
+  "DropViewAction": {
+    "sql_template": "DROP VIEW {catalog}.{schema}.{table}_test_view;",
+    "resource_level": "schema"
+  },
+  "InsertIntoTableAction": {
+    "sql_template": "INSERT INTO {catalog}.{schema}.{table} ({column}) VALUES ({value});",
+    "resource_level": "table"
+  },
+  "RefreshMaterializedViewAction": {
+    "sql_template": "REFRESH MATERIALIZED VIEW {catalog}.{schema}.{table}_test_mv;",
+    "resource_level": "schema"
+  },
+  "RenameColumnAction": {
+    "sql_template": "ALTER TABLE {catalog}.{schema}.{table} RENAME COLUMN {column} TO {new_column};",
+    "resource_level": "table"
+  },
+  "RenameMaterializedViewAction": {
+    "sql_template": "ALTER MATERIALIZED VIEW {catalog}.{schema}.{table}_test_mv RENAME TO {catalog}.{schema}.{table}_renamed_mv;",
+    "resource_level": "schema"
+  },
+  "RenameSchemaAction": {
+    "sql_template": "ALTER SCHEMA {catalog}.{schema} RENAME TO {schema}_renamed;",
+    "resource_level": "schema"
+  },
+  "RenameTableAction": {
+    "sql_template": "ALTER TABLE {catalog}.{schema}.{table} RENAME TO {table}_renamed;",
+    "resource_level": "table"
+  },
+  "RenameViewAction": {
+    "sql_template": "ALTER VIEW {catalog}.{schema}.{table}_test_view RENAME TO {table}_renamed_view;",
+    "resource_level": "schema"
+  },
+  "SetColumnCommentAction": {
+    "sql_template": "COMMENT ON COLUMN {catalog}.{schema}.{table}.{column} IS 'test comment';",
+    "resource_level": "table"
+  },
+  "SetSchemaAuthorizationAction": {
+    "sql_template": "GRANT SELECT ON SCHEMA {catalog}.{schema} TO USER test_user;",
+    "resource_level": "schema"
+  },
+  "SetTableCommentAction": {
+    "sql_template": "COMMENT ON TABLE {catalog}.{schema}.{table} IS 'test comment';",
+    "resource_level": "table"
+  },
+  "SetViewCommentAction": {
+    "sql_template": "COMMENT ON VIEW {catalog}.{schema}.{table}_test_view IS 'test comment';",
+    "resource_level": "schema"
+  },
+  "ShowColumnsAction": {
+    "sql_template": "SHOW COLUMNS FROM {catalog}.{schema}.{table};",
+    "resource_level": "table"
+  },
+  "ShowCreateSchemaAction": {
+    "sql_template": "SHOW CREATE SCHEMA {catalog}.{schema};",
+    "resource_level": "schema"
+  },
+  "ShowCreateTableAction": {
+    "sql_template": "SHOW CREATE TABLE {catalog}.{schema}.{table};",
+    "resource_level": "table"
+  },
+  "ShowSchemasAction": {
+    "sql_template": "SHOW SCHEMAS FROM {catalog};",
+    "resource_level": "catalog"
+  },
+  "ShowTablesAction": {
+    "sql_template": "SHOW TABLES FROM {catalog}.{schema};",
+    "resource_level": "schema"
+  },
+  "TruncateTableAction": {
+    "sql_template": "TRUNCATE TABLE {catalog}.{schema}.{table};",
+    "resource_level": "table"
+  },
+  "UpdateTableAction": {
+    "sql_template": "UPDATE {catalog}.{schema}.{table} SET {column} = {value};",
+    "resource_level": "table"
+  }
+}

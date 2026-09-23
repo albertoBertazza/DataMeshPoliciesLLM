@@ -3,6 +3,7 @@ import re
 import numpy as np
 from LLM.Interface.embedding_call import embedding_call
 from LLM.Interface.llm_call import llm_call
+from Pipelines.costantPath import REWRITTEN_RULE_PATH
 
 # ============================================================================
 # Constants
@@ -889,7 +890,7 @@ def llm_explain( rule, example_index, data_mesh_structure, security_groups, avai
     # Return
     # ------------------------------------------------------------------------
 
-    return {
+    rewritten_rule= {
         "text": text,
         "securityGroup":security_group_result["security_group"],
         "existSecureGroup":  security_group_result["existSecureGroup"],
@@ -903,3 +904,17 @@ def llm_explain( rule, example_index, data_mesh_structure, security_groups, avai
         "expandedResources":expanded_resources,
         "llm_feedback":" ".join(feedback)
     }
+
+    with REWRITTEN_RULE_PATH.open(
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            rewritten_rule,
+            f,
+            indent=4
+        )
+
+
+    return rewritten_rule

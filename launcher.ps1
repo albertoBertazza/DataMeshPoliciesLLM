@@ -57,3 +57,4 @@ bash StructureExtraction/MinioStructureExtraction/data_mesh_extraction.sh `
 
 Write-Host "=== Launcher completed ==="
 
+& $Python orchestartor.py

@@ -43,7 +43,7 @@ target_info := {"res": res, "depth": 4} if {
     res.schemaName != null
 } else := {"res": res, "depth": 1} if {
     res := input.action.resource.catalog
-    res.catalogName != null
+    res.name != null
 } else := {
     "res": {
         "catalogName": null,
@@ -71,7 +71,7 @@ target_path := "root" if {
     target_info.depth == 0
 } else := sprintf(
     "root/%s",
-    [target_info.res.catalogName]
+    [target_info.res.name]
 ) if {
     target_info.depth == 1
 } else := sprintf(

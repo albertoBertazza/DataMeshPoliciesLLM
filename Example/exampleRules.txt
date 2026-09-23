@@ -5,3 +5,10 @@ finance manager can select from table inside schema finance
 finance_manager is not allowed to select from table inside schema finance
 
 hr manager can show column on hr schema
+
+
+hr manager is not allowed to select from table inside the hr schema
+
+hr manager can select from table inside the iceberg catalogs
+
+hr manager can select from table inside the hr schema
