@@ -3,7 +3,7 @@ import subprocess
 import os
 import datetime
 
-from Pipelines.costantPath import OUTPUT_TEST_EXECUTION_FILE, OUTPUT_TEST_EVALUATION_PATH
+from Pipelines.costantPath import OUTPUT_TEST_EXECUTION_FILE, OUTPUT_TEST_EVALUATION_PATH, OUTPUT_TEST_GENERATION_FILE
 
 
 # ---------------------------------------------------------------------------

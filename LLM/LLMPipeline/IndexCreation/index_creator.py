@@ -38,7 +38,7 @@ def save_index(
     embedding_identifier = embedding_url if is_local else embedding_model
 
     payload = {
-        "source_file": source_path,
+        "source_file": str(source_path),
         "source_mtime": os.path.getmtime(source_path),
         "created_at": time.time(),
         "embedding_model": embedding_identifier,

@@ -97,9 +97,9 @@ DATABASE_DIR=(DATA_MESH_DIR / "LLM" / "LLMPipeline" / "Example"/"Datastore")
 DATABASE_EVALUATION_TEST_FILE= (DATABASE_DIR / "EvaluationTest"/ "evaluation_test_examples.json")
 DATABASE_REWRITE_RULE_FILE= (DATABASE_DIR / "RewriteRule"/ "rewrite_rule_examples.json")
 
-INDEXED_DIR =(DATA_MESH_DIR / "LLM" / "LLMPipeline" / "Example"/"Indexed")
-INDEXED_REWRITE_RULE_PATH = (INDEXED_DIR / "RewriteRule")
-INDEXED_EVALUATION_TEST_PATH = (INDEXED_DIR / "EvaluationTest")
+INDEXED_DIR =os.path.join(DATA_MESH_DIR , "LLM", "LLMPipeline", "Example", "Indexed")
+INDEXED_REWRITE_RULE_PATH = os.path.join(INDEXED_DIR , "RewriteRule")
+INDEXED_EVALUATION_TEST_PATH = os.path.join(INDEXED_DIR , "EvaluationTest")
 
 
 

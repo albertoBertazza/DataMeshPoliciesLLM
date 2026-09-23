@@ -4,7 +4,7 @@ from typing import Any, Dict
 from openai import OpenAI
 from Function.jsonHelper import load_json
 from LLM.Interface.activate_local_llm import activate_llm
-from LLM.LLMPipeline.IndexCreation.Rewrite import gen_index_rewrite
+from LLM.LLMPipeline.IndexCreation.Rewrite.gen_index_rewrite import gen_index_rewrite
 from LLM.LLMPipeline.IndexCreation.index_creator import ( reload_indexes)
 from Pipelines.A_GenerationPipeline.A_Extraction.extraction import ( build_intermediate_representation)
 from Pipelines.A_GenerationPipeline.B_Rewrite.nlp_rule_rewrite import ( llm_explain)
