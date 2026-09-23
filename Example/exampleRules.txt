@@ -12,3 +12,11 @@ hr manager is not allowed to select from table inside the hr schema
 hr manager can select from table inside the iceberg catalogs
 
 hr manager can select from table inside the hr schema
+
+
+
+
+ALL ACTION
+
+hr_manager can add column in hr.people
+

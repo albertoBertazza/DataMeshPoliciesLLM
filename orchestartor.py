@@ -1,3 +1,4 @@
+import subprocess
 from Function.jsonHelper import load_json
 from LLM.Interface.activate_local_llm import activate_llm
 from LLM.LLMPipeline.IndexCreation.index_creator import ( reload_indexes,)
@@ -18,7 +19,7 @@ from Pipelines.costantPath import (
     CHAT_URL,
     LOCAL_CHAT_MODEL,
     DATABASE_REWRITE_RULE_FILE,
-    INDEXED_REWRITE_RULE_PATH
+    INDEXED_REWRITE_RULE_PATH, DOCKER_COMPOSE_PATH, MODEL
 )
 
 from reset_rego import delete_files_generated
@@ -48,6 +49,33 @@ activate_llm( LLAMA_DIR, IS_LOCAL, EMBEDDING_URL, LOCAL_EMBEDDING_MODEL, "8081",
 INDEX_REWRITE_RULE = reload_indexes( IS_LOCAL, embedding_url=EMBEDDING_URL, client=CLIENT, embedding_model=EMBEDDING_MODEL, database_path=DATABASE_REWRITE_RULE_FILE,index_path=INDEXED_REWRITE_RULE_PATH,filename="rewrite_rule_example", gen_index_function=gen_index_rewrite)
 
 
+
+def restart_opa() -> None:
+
+    try:
+
+        subprocess.run(
+            [
+                "docker",
+                "compose",
+                "restart",
+                "opa",
+            ],
+            cwd=DOCKER_COMPOSE_PATH,
+            check=True,
+        )
+
+        print(
+            "OPA restarted successfully."
+        )
+
+    except subprocess.CalledProcessError as error:
+
+        print(
+            f"Failed to restart OPA: {error}"
+        )
+
+
 # ==========================================================
 # PIPELINE
 # ==========================================================
@@ -75,28 +103,30 @@ if __name__ == "__main__":
         # 1. GENERATE OPA POLICY
         # ======================================================
 
-        # success = process_rule(
-        #     rule_passed=rule,
-        #     index_rewrite_rule=INDEX_REWRITE_RULE,
-        #     check_for_action=CHECK_FOR_ACTION,
-        #     data_mesh=DATA_MESH,
-        #     security_groups=SECURITY_GROUPS,
-        #     is_local=IS_LOCAL,
-        #     chat_url=CHAT_URL,
-        #     embedding_url=EMBEDDING_URL,
-        #     client=CLIENT,
-        #     model=MODEL,
-        #     embedding_model=EMBEDDING_MODEL,
-        # )
-        #
-        # if not success:
-        #     print( "\nPolicy pipeline failed." )
-        #     continue
+        success = process_rule(
+            rule_passed=rule,
+            index_rewrite_rule=INDEX_REWRITE_RULE,
+            check_for_action=CHECK_FOR_ACTION,
+            data_mesh=DATA_MESH,
+            security_groups=SECURITY_GROUPS,
+            is_local=IS_LOCAL,
+            chat_url=CHAT_URL,
+            embedding_url=EMBEDDING_URL,
+            client=CLIENT,
+            model=MODEL,
+            embedding_model=EMBEDDING_MODEL,
+        )
+
+        if not success:
+            print( "\nPolicy pipeline failed." )
+            continue
 
         print( "\n" + "=" * 70 )
         print( "POLICY PIPELINE COMPLETED" )
         print( "=" * 70 )
 
+
+        restart_opa()
 
 
         # ======================================================

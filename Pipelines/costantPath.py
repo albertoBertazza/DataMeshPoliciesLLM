@@ -35,6 +35,7 @@ def find_project_dir() -> Path:
     raise RuntimeError( "DataMeshPoliciesLLM folder not found." )
 
 DATA_MESH_DIR = find_project_dir()
+DOCKER_COMPOSE_PATH= os.path.join( DATA_MESH_DIR, "docker-compose" )
 LLM_DIR = DATA_MESH_DIR / "LLM"
 
 A_GENERATION_PIPELINE_PATH = ( DATA_MESH_DIR / "Pipelines" / "A_GenerationPipeline"  )
@@ -93,12 +94,10 @@ OUTPUT_TEST_EXECUTION_FILE = (OUTPUT_TEST_EVALUATION_PATH / "test_executed.json"
 # EXAMPLE
 # -------------------------------------------------------------------------------
 DATABASE_DIR=(DATA_MESH_DIR / "LLM" / "LLMPipeline" / "Example"/"Datastore")
-DATABASE_EVALUATION_TEST_FILE= (DATABASE_DIR / "EvaluationTest"/ "evaluation_test_examples.json")
 DATABASE_REWRITE_RULE_FILE= (DATABASE_DIR / "RewriteRule"/ "rewrite_rule_examples.json")
 
 INDEXED_DIR =os.path.join(DATA_MESH_DIR , "LLM", "LLMPipeline", "Example", "Indexed")
 INDEXED_REWRITE_RULE_PATH = os.path.join(INDEXED_DIR , "RewriteRule")
-INDEXED_EVALUATION_TEST_PATH = os.path.join(INDEXED_DIR , "EvaluationTest")
 
 #-----------------------------------------------------------
 # Benchmarking paths

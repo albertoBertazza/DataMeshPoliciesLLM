@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import traceback
 from typing import Any, Dict
 from openai import OpenAI
 from Function.jsonHelper import load_json
@@ -31,6 +32,7 @@ def load_existing_permission_tree() -> Dict[str, Any]:
     If this is the first rule, there is no existing tree yet.
     """
     if not CUMULATIVE_TREE_PATH.exists():
+        print("\nWARN: no cumulative tree saved yet\n")
         return {}
     print( "\n[Loading existing permission tree]" )
     tree = PermissionTreeWriter.load( str(CUMULATIVE_TREE_PATH) )
@@ -256,6 +258,7 @@ def process_rule(
         build_permission_policy( entities )
     except Exception as error:
         print( "Permission-policy pipeline failed:", error)
+        traceback.print_exc()
         return False
 
     return True

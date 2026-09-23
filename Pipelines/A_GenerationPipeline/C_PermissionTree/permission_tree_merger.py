@@ -21,20 +21,35 @@ class PermissionTreeMerger:
 
         new["subject_value"]
     """
+    def merge( self, existing: Dict[str, Any], new: Dict[str, Any] ) -> Dict[str, Any]:
 
-    def merge( self, existing: Dict[str, Any], new: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(existing, dict):
             raise ValueError("existing permission tree must be an object")
+
         if not isinstance(new, dict):
             raise ValueError("new permission tree must be an object")
+
         group = new.get("subject_value")
         if not group:
             raise ValueError("new permission tree is missing subject_value")
+
         result = deepcopy(existing)
         result.setdefault("resource_values", {})
+
         row_filters = new.get("row_filters", [])
         column_masks = new.get("column_masks", [])
+
+        # First merge: initialize the cumulative tree with the
+        # same metadata and normalized resource structure.
+        if not existing:
+            result = { "subject_attribute": new.get("subject_attribute"), "subject_value": group, "resource_type": new.get("resource_type"), "resource_values": {} }
+
+            self._merge_resource_values( result["resource_values"], new.get("resource_values", {}), group=group, row_filters=row_filters, column_masks=column_masks)
+
+            return result
+
         self._merge_resource_values( result["resource_values"], new.get("resource_values", {}), group=group, row_filters=row_filters, column_masks=column_masks)
+
         return result
 
     # ========================================================================
@@ -228,15 +243,35 @@ class PermissionTreeMerger:
     # Normalize a single newly inserted resource
     # ========================================================================
 
-    def _normalize_new_resource( self, resource: Dict[str, Any], group: str, row_filters: List[Any], column_masks: List[Any]) -> None:
-        old_permissions = resource.get("permissions", {})
+    def _normalize_new_resource( self, resource: Dict[str, Any], group: str, row_filters: List[Any], column_masks: List[Any] ) -> None:
+
+        old_permissions = resource.get("permissions")
+
+        # No permissions declared on this resource.
+        if old_permissions is None:
+            resource["permissions"] = { group: { "allow": [], "deny": [], "row_filter": None, "column_masks": {} } }
+            return
+
+        # Existing simple structure:
+        #
+        # "permissions": {
+        #     "allow": [...],
+        #     "deny": [...]
+        # }
+        #
+        # Convert it to the group-based structure.
         if ( isinstance(old_permissions, dict) and ( "allow" in old_permissions or "deny" in old_permissions ) ):
-            group_rule = { "allow": list(old_permissions.get("allow", [])), "deny": list(old_permissions.get("deny", [])), "row_filter": None, "column_masks": {}}
-            resource["permissions"] = { group: group_rule }
-        elif not isinstance(old_permissions, dict):
-            resource["permissions"] = {}
-        elif group not in old_permissions:
-            resource["permissions"][group] = { "allow": [], "deny": [], "row_filter": None, "column_masks": {}}
+            resource["permissions"] = { group: { "allow": list(old_permissions.get("allow", [])), "deny": list(old_permissions.get("deny", [])), "row_filter": None, "column_masks": {} } }
+            return
+
+        # Permissions exists but is not an object.
+        if not isinstance(old_permissions, dict):
+            resource["permissions"] = { group: { "allow": [], "deny": [], "row_filter": None, "column_masks": {} } }
+            return
+
+        # Already in group-based structure.
+        if group not in old_permissions:
+            old_permissions[group] = { "allow": [], "deny": [], "row_filter": None, "column_masks": {} }
 
     # ========================================================================
     # Normalize an entire resource subtree
