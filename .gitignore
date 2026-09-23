@@ -228,3 +228,6 @@ __marimo__/
 /LocalLLMIntelIpex/llama-cpp-ipex-llm-2.3.0b20250424-win
 
 benchmark_comparison
+
+LLM/LLMPipeline/Example/Indexed/**/*.json
+Pipelines/A_GenerationPipeline/output_generation/**/*.json
