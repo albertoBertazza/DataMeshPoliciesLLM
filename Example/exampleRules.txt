@@ -20,3 +20,9 @@ ALL ACTION
 
 hr_manager can add column in hr.people
 
+hr_manager can create materialized view on hr.people
+
+hr_manager can create schema inside iceberg
+
+hr_manager can create table inside hr schema
+

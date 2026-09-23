@@ -269,46 +269,132 @@ class AuthorizationResolver:
     # ACTION
     # =========================================================
 
-    def resolve_action( self, resource_path: str, security_group: str, action: str) -> Dict[str, Any]:
+    def resolve_action(
+            self,
+            resource_path: str,
+            security_group: str,
+            action: str,
+    ) -> Dict[str, Any]:
         """
-        Resolve one action.
+        Resolve one action against the resource target expressed
+        by the authorization rule.
 
         The action is allowed only when every required permission
         is allowed.
 
-        permissionResults:
-            Simple boolean result for compatibility.
+        IMPORTANT:
 
-        permissionDetails:
-            Detailed provenance for every required permission.
+        The resource_path is the depth explicitly expressed by the
+        authorization rule.
+
+        Example:
+
+            Rule resource:
+                root/iceberg
+
+            CreateSchemaAction requires:
+                AccessCatalog
+                CreateSchema
+                ExecuteQuery
+
+            Resolution:
+
+                AccessCatalog -> root/iceberg
+                CreateSchema  -> root/iceberg
+                ExecuteQuery  -> root
+
+        Each permission walks the hierarchy from the supplied
+        target toward root.
         """
-        required_permissions = ( self.action_permissions.get( action ) )
+
+        required_permissions = (
+            self.action_permissions.get(action)
+        )
 
         # -----------------------------------------------------
         # Unknown action
         # -----------------------------------------------------
+
         if required_permissions is None:
-            return { "action": action, "allowed": False, "reason": "unknown_action", "requiredPermissions": [], "permissionResults": {}, "permissionDetails": {}, "row_filter": [], "column_masks": {}}
-        permission_results: Dict[ str, bool] = {}
-        permission_details: Dict[ str, Dict[str, Any]] = {}
+            return {
+                "action": action,
+                "allowed": False,
+                "reason": "unknown_action",
+                "requiredPermissions": [],
+                "permissionResults": {},
+                "permissionDetails": {},
+                "row_filter": None,
+                "column_masks": {},
+            }
 
         # -----------------------------------------------------
-        # Resolve every required permission
+        # Remove duplicate permissions while preserving order.
+        #
+        # Example:
+        #
+        # [
+        #     "AccessCatalog",
+        #     "CreateSchema",
+        #     "ExecuteQuery",
+        #     "CreateSchema"
+        # ]
+        #
+        # becomes:
+        #
+        # [
+        #     "AccessCatalog",
+        #     "CreateSchema",
+        #     "ExecuteQuery"
+        # ]
         # -----------------------------------------------------
+
+        required_permissions = list(
+            dict.fromkeys(required_permissions)
+        )
+
+        permission_results: Dict[str, bool] = {}
+        permission_details: Dict[str, Dict[str, Any]] = {}
+
+        # -----------------------------------------------------
+        # Resolve every required permission.
+        #
+        # IMPORTANT:
+        #
+        # Do NOT resolve against expandedResources.
+        #
+        # The resource_path is the resource explicitly expressed
+        # by the rule.
+        # -----------------------------------------------------
+
         for permission in required_permissions:
-            details = self._permission_details( resource_path=resource_path, security_group=security_group, permission=permission)
-            permission_results[ permission ] = details["allowed"]
-            permission_details[ permission ] = details
+            details = self._permission_details(
+                resource_path=resource_path,
+                security_group=security_group,
+                permission=permission,
+            )
+
+            permission_results[permission] = (
+                details["allowed"]
+            )
+
+            permission_details[permission] = details
 
         # -----------------------------------------------------
         # Resolve obligations
         # -----------------------------------------------------
-        obligations = self.resolve_obligations( resource_path=resource_path, security_group=security_group)
+
+        obligations = self.resolve_obligations(
+            resource_path=resource_path,
+            security_group=security_group,
+        )
 
         # -----------------------------------------------------
         # Action decision
         # -----------------------------------------------------
-        allowed = all( permission_results.values() )
+
+        allowed = all(
+            permission_results.values()
+        )
 
         return {
             "action": action,
@@ -316,142 +402,300 @@ class AuthorizationResolver:
             "requiredPermissions": required_permissions,
             "permissionResults": permission_results,
             "permissionDetails": permission_details,
-            "row_filter": obligations[ "row_filter" ],
-            "column_masks": obligations[ "column_masks" ],
+            "row_filter": obligations["row_filter"],
+            "column_masks": obligations["column_masks"],
         }
 
     # =========================================================
     # REWRITE
     # =========================================================
 
-    def resolve_rewrite(self, rewrite: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def resolve_rewrite(
+            self,
+            rewrite: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
         """
         Resolve one rewritten authorization object.
 
-        expandedResources is authoritative for the concrete
-        resources affected by the rewrite.
+        IMPORTANT RESOURCE SEMANTICS
+        -----------------------------
 
-        expectedDecision records the intended behavior expressed
-        by the rewrite:
-            - ALLOW -> action is listed in rewrite["allowed"]
-            - DENY  -> action is listed in rewrite["deny"]
+        The explicit `resource` from the rewrite defines the
+        authorization/test depth.
 
-        allowed records the actual result obtained by resolving
-        the hierarchical policy.
-        """
-        security_group = rewrite.get("securityGroup")
+        Example:
 
-        # ---------------------------------------------------------
-        # Invalid / unknown security group
-        # ---------------------------------------------------------
-        if not rewrite.get("existSecureGroup", False):
-            return []
-
-        # ---------------------------------------------------------
-        # Invalid action
-        # ---------------------------------------------------------
-        if not rewrite.get("actionExist", False):
-            return []
-
-        results: List[Dict[str, Any]] = []
-        expanded_resources = rewrite.get("expandedResources", [])
-
-        for expanded in expanded_resources:
-
-            resource = {
-                "catalog": expanded.get("catalogName", ""),
-                "schema": expanded.get("schemaName", ""),
-                "table": expanded.get("tableName", ""),
-                "column": expanded.get("columnName", ""),
+            {
+                "catalog": "iceberg",
+                "schema": "",
+                "table": "",
+                "column": ""
             }
 
-            resource_path = self._resource_path(resource)
-            resource_type = self._resource_type(resource)
+        means:
 
-            actions: Dict[str, Any] = {}
+            resourcePath = root/iceberg
+            resourceType = catalog
 
-            # =====================================================
-            # INTENDED ALLOW
-            # =====================================================
+        It must produce ONE resolver target.
 
-            for action in rewrite.get("allowed", []):
-                resolved = self.resolve_action(
-                    resource_path=resource_path,
-                    security_group=security_group,
-                    action=action,
-                )
+        `expandedResources` is NOT used to create authorization
+        decisions.
 
-                # Add the intended behavior from the rewrite.
-                resolved["expectedDecision"] = "ALLOW"
-                resolved["expectedAllowed"] = True
-                resolved["expectationMatches"] = (
-                        resolved["allowed"] is True
-                )
+        expandedResources may contain descendants such as:
 
-                actions[action] = resolved
+            root/iceberg/hr/people
+            root/iceberg/finance/employee_finance
 
-            # =====================================================
-            # INTENDED DENY
-            # =====================================================
+        but these descendants do not become separate authorization
+        targets.
 
-            for action in rewrite.get("deny", []):
+        The permission resolver itself walks from the explicit rule
+        target toward root.
 
-                required_permissions = self.action_permissions.get(
-                    action,
-                    []
-                )
+        Therefore, for a catalog-level rule:
 
-                permission_results: Dict[str, bool] = {}
-                permission_details: Dict[str, Dict[str, Any]] = {}
+            CreateSchemaAction
 
-                for permission in required_permissions:
-                    details = self._permission_details(
-                        resource_path=resource_path,
-                        security_group=security_group,
-                        permission=permission,
-                    )
+        is resolved against:
 
-                    permission_results[permission] = details["allowed"]
-                    permission_details[permission] = details
+            root/iceberg
 
-                actions[action] = {
-                    "action": action,
+        and its permissions can be found at:
 
-                    # Actual policy result.
-                    "allowed": False,
+            AccessCatalog -> root/iceberg
+            CreateSchema  -> root/iceberg
+            ExecuteQuery -> root
 
-                    # Intended result from the rewrite.
-                    "expectedDecision": "DENY",
-                    "expectedAllowed": False,
+        The same principle applies at schema/table/column depth.
+        """
 
-                    # True when the actual result agrees with
-                    # the intended behavior.
-                    "expectationMatches": True,
+        security_group = rewrite.get(
+            "securityGroup"
+        )
 
-                    "requiredPermissions": required_permissions,
-                    "permissionResults": permission_results,
-                    "permissionDetails": permission_details,
+        # -----------------------------------------------------
+        # Invalid / unknown security group
+        # -----------------------------------------------------
 
-                    "row_filter": None,
-                    "column_masks": {},
+        if not rewrite.get(
+                "existSecureGroup",
+                False,
+        ):
+            return []
 
-                    "reason": "explicit_rewrite_deny",
-                }
+        # -----------------------------------------------------
+        # Invalid action
+        # -----------------------------------------------------
 
-            results.append(
-                {
-                    "securityGroup": security_group,
-                    "resource": resource,
-                    "resourcePath": resource_path,
-                    "resourceType": resource_type,
-                    "actions": actions,
-                }
+        if not rewrite.get(
+                "actionExist",
+                False,
+        ):
+            return []
+
+        # =====================================================
+        # IMPORTANT:
+        #
+        # Use the ORIGINAL RESOURCE from the rule.
+        #
+        # Do NOT use expandedResources here.
+        # =====================================================
+
+        rule_resource = rewrite.get(
+            "resource",
+            {}
+        )
+
+        if not isinstance(
+                rule_resource,
+                dict,
+        ):
+            return []
+
+        # -----------------------------------------------------
+        # Make sure the resource has the standard shape.
+        # -----------------------------------------------------
+
+        resource = {
+            "catalog": rule_resource.get(
+                "catalog",
+                "",
+            ),
+            "schema": rule_resource.get(
+                "schema",
+                "",
+            ),
+            "table": rule_resource.get(
+                "table",
+                "",
+            ),
+            "column": rule_resource.get(
+                "column",
+                "",
+            ),
+        }
+
+        # -----------------------------------------------------
+        # Determine the depth explicitly expressed by the rule.
+        #
+        # Example:
+        #
+        # iceberg
+        #     -> catalog
+        #
+        # iceberg/hr
+        #     -> schema
+        #
+        # iceberg/hr/people
+        #     -> table
+        #
+        # iceberg/hr/people/name
+        #     -> column
+        # -----------------------------------------------------
+
+        resource_path = self._resource_path(
+            resource
+        )
+
+        resource_type = self._resource_type(
+            resource
+        )
+
+        actions: Dict[str, Any] = {}
+
+        # =====================================================
+        # INTENDED ALLOW
+        # =====================================================
+
+        for action in rewrite.get(
+                "allowed",
+                [],
+        ):
+            resolved = self.resolve_action(
+                resource_path=resource_path,
+                security_group=security_group,
+                action=action,
             )
 
-        return results
+            # -------------------------------------------------
+            # Add intended behavior from the rewrite.
+            # -------------------------------------------------
+
+            resolved["expectedDecision"] = "ALLOW"
+
+            resolved["expectedAllowed"] = True
+
+            resolved["expectationMatches"] = (
+                    resolved["allowed"] is True
+            )
+
+            actions[action] = resolved
+
+        # =====================================================
+        # INTENDED DENY
+        # =====================================================
+
+        for action in rewrite.get(
+                "deny",
+                [],
+        ):
+
+            required_permissions = (
+                self.action_permissions.get(
+                    action,
+                    [],
+                )
+            )
+
+            # Remove duplicates while preserving order.
+            required_permissions = list(
+                dict.fromkeys(
+                    required_permissions
+                )
+            )
+
+            permission_results: Dict[
+                str,
+                bool,
+            ] = {}
+
+            permission_details: Dict[
+                str,
+                Dict[str, Any],
+            ] = {}
+
+            for permission in required_permissions:
+                details = self._permission_details(
+                    resource_path=resource_path,
+                    security_group=security_group,
+                    permission=permission,
+                )
+
+                permission_results[permission] = (
+                    details["allowed"]
+                )
+
+                permission_details[permission] = (
+                    details
+                )
+
+            actions[action] = {
+                "action": action,
+
+                # Actual policy result is intentionally
+                # represented separately from the rewrite
+                # expectation.
+                "allowed": False,
+
+                "expectedDecision": "DENY",
+                "expectedAllowed": False,
+
+                "expectationMatches": True,
+
+                "requiredPermissions": (
+                    required_permissions
+                ),
+
+                "permissionResults": (
+                    permission_results
+                ),
+
+                "permissionDetails": (
+                    permission_details
+                ),
+
+                "row_filter": None,
+                "column_masks": {},
+
+                "reason": (
+                    "explicit_rewrite_deny"
+                ),
+            }
+
+        # =====================================================
+        # ONE RESULT FOR THE EXPLICIT RULE RESOURCE
+        # =====================================================
+
+        return [
+            {
+                "securityGroup": security_group,
+
+                # This is the resource depth expressed
+                # by the rule.
+                "resource": resource,
+
+                "resourcePath": resource_path,
+
+                "resourceType": resource_type,
+
+                "actions": actions,
+            }
+        ]
 
 
-    # =========================================================
+
+# =========================================================
     # RESOLVE EVERYTHING
     # =========================================================
 

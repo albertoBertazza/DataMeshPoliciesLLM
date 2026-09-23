@@ -5,20 +5,22 @@
 
     "AccessCatalog": 1,
     "FilterCatalogs":  1,
+    "CreateSchema": 1,
 
-    "CreateSchema": 2,
     "DropSchema": 2,
     "RenameSchema": 2,
     "SetSchemaAuthorization": 2,
     "ShowSchemas": 2,
     "FilterSchemas": 2,
+    "CreateMaterializedView": 2,
+    "CreateTable": 2,
+    "CreateView": 2,
 
-    "CreateTable": 3,
-    "CreateView": 3,
-    "CreateMaterializedView": 3,
+
     "DeleteFromTable": 3,
     "DropTable": 3,
     "DropView": 3,
+    "AddColumn": 3,
     "DropMaterializedView": 3,
     "InsertIntoTable": 3,
     "RefreshMaterializedView": 3,
@@ -34,7 +36,6 @@
     "GetRowFilters": 3,
     "FilterTables": 3,
 
-    "AddColumn": 4,
     "DropColumn": 4,
     "RenameColumn": 4,
     "SetColumnComment": 4,
