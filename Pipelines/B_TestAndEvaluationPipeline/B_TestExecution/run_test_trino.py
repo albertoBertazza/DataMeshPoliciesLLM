@@ -1,6 +1,7 @@
 import json
 import subprocess
 import os
+import warnings
 import datetime
 from Pipelines.costantPath import ( OUTPUT_TEST_EXECUTION_FILE, OUTPUT_TEST_EVALUATION_PATH, OUTPUT_TEST_GENERATION_FILE)
 
@@ -92,6 +93,17 @@ def execute_interaction(interaction):
     print("\n--- OPA REQUESTS ---")
     for request in opa_analysis["requests"]:
         print("req_id:", request.get("req_id"), "| Action:",  request.get("action"), "| Result:", request.get("result"), "| Resource:", request.get("resource") )
+
+        result = request.get("result")
+
+        # Only warn about an actual boolean DENY.
+        if result is False:
+            warnings.warn(
+                f"A permission is not allowed: "
+                f"{request.get('action')} "
+                f"Resource: {request.get('resource')}"
+            )
+
         if request.get("filterResources") is not None:
             print( "  FilterResources:", request.get("filterResources") )
     return {
