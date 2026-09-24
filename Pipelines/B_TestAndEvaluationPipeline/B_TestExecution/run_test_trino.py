@@ -2,271 +2,115 @@ import json
 import subprocess
 import os
 import datetime
-
-from Pipelines.costantPath import (
-    OUTPUT_TEST_EXECUTION_FILE,
-    OUTPUT_TEST_EVALUATION_PATH,
-    OUTPUT_TEST_GENERATION_FILE,
-)
-
+from Pipelines.costantPath import ( OUTPUT_TEST_EXECUTION_FILE, OUTPUT_TEST_EVALUATION_PATH, OUTPUT_TEST_GENERATION_FILE)
 
 # ---------------------------------------------------------------------------
 # OPA LOGS
 # ---------------------------------------------------------------------------
 
 def get_opa_logs_since(since):
-    proc = subprocess.run(
-        [
-            "docker",
-            "logs",
-            "--timestamps",
-            "--since",
-            since,
-            "opa",
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-
+    proc = subprocess.run( [ "docker", "logs", "--timestamps", "--since", since, "opa"], capture_output=True, text=True, encoding="utf-8", errors="replace")
     logs = proc.stderr if proc.stderr else proc.stdout
-
     return logs.splitlines()
 
-
 def parse_opa_logs(logs, username):
-
     user_info = {}
     requests = []
-
     pending_requests = {}
-
     for line in logs:
-
         try:
             raw_json = line.split(" ", 1)[1]
             entry = json.loads(raw_json)
-
         except Exception:
             continue
-
         msg = entry.get("msg", "")
         req_id = entry.get("req_id")
 
         # ---------------------------------
         # Trino request
         # ---------------------------------
-
         if msg == "Received request.":
-
             try:
-                req_body = json.loads(
-                    entry.get("req_body", "{}")
-                )
-
-                input_data = req_body.get(
-                    "input",
-                    {}
-                )
-
-                action = input_data.get(
-                    "action",
-                    {}
-                ).get(
-                    "operation"
-                )
-
-                identity = input_data.get(
-                    "context",
-                    {}
-                ).get(
-                    "identity",
-                    {}
-                )
-
+                req_body = json.loads( entry.get("req_body", "{}") )
+                input_data = req_body.get( "input", {} )
+                action_data = input_data.get( "action", {} )
+                action = action_data.get( "operation" )
+                identity = input_data.get( "context", {} ).get( "identity", {} )
                 request_user = identity.get("user")
-
                 if request_user == username:
-
-                    pending_requests[req_id] = {
-                        "action": action
-                    }
-
+                    pending_requests[req_id] = { "req_id": req_id, "action": action, "resource": action_data.get("resource"), "filterResources": action_data.get( "filterResources" )}
             except Exception:
                 pass
-
         # ---------------------------------
         # User info
         # ---------------------------------
-
         if "HTTP RESPONSE:" in msg:
-
             try:
-                response_raw = msg.split(
-                    "HTTP RESPONSE:",
-                    1
-                )[1].strip()
-
+                response_raw = msg.split( "HTTP RESPONSE:", 1 )[1].strip()
                 response = json.loads(response_raw)
-
-                body = response.get(
-                    "body",
-                    {}
-                )
-
+                body = response.get( "body", {} )
                 if body.get("username") == username:
                     user_info = body
-
             except Exception:
                 pass
 
         # ---------------------------------
         # OPA response
         # ---------------------------------
-
         if msg == "Sent response.":
-
             try:
-
                 if req_id in pending_requests:
-
-                    response = json.loads(
-                        entry.get(
-                            "resp_body",
-                            "{}"
-                        )
-                    )
-
-                    pending_requests[req_id]["result"] = response.get(
-                        "result"
-                    )
-
-                    requests.append(
-                        pending_requests.pop(req_id)
-                    )
-
+                    response = json.loads( entry.get( "resp_body", "{}" ) )
+                    pending_requests[req_id]["result"] = response.get( "result" )
+                    requests.append( pending_requests.pop(req_id) )
             except Exception:
                 pass
-
-    return {
-        "user_info": user_info,
-        "requests": requests,
-    }
-
+    return { "user_info": user_info, "requests": requests}
 
 # ---------------------------------------------------------------------------
 # Execute ONE interaction
 # ---------------------------------------------------------------------------
 
 def execute_interaction(interaction):
-
-    print(
-        "\nExecuting:",
-        interaction["query"],
-        "user:",
-        interaction["username"],
-    )
-
+    print( "\nExecuting:", interaction["query"], "user:", interaction["username"])
     # Take the timestamp BEFORE launching Trino.
     # This allows us to collect the OPA requests generated by this query.
-    since = (
-        datetime.datetime.now(datetime.UTC)
-        .isoformat(timespec="milliseconds")
-        .replace("+00:00", "Z")
-    )
-
-    cmd = [
-        "bash",
-        "./Pipelines/B_TestAndEvaluationPipeline/B_TestExecution/Tester/run_query.sh",
-
-        "--user",
-        interaction["username"],
-
-        "--password",
-        interaction["password"],
-
-        "--query",
-        interaction["query"],
-    ]
-
-    proc = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-
+    since = ( datetime.datetime.now(datetime.UTC) .isoformat(timespec="milliseconds") .replace("+00:00", "Z") )
+    cmd = [ "bash", "./Pipelines/B_TestAndEvaluationPipeline/B_TestExecution/Tester/run_query.sh",  "--user", interaction["username"],  "--password", interaction["password"],  "--query", interaction["query"]]
+    proc = subprocess.run( cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     print("\n--- TRINO RESULT ---")
     print("Return code:", proc.returncode)
     print("Allowed:", proc.returncode == 0)
-
     if proc.stdout.strip():
         print("STDOUT:")
         print(proc.stdout.strip())
-
     if proc.stderr.strip():
         print("STDERR:")
         print(proc.stderr.strip())
-
     opa_logs = get_opa_logs_since(since)
-
-    opa_analysis = parse_opa_logs(
-        opa_logs,
-        interaction["username"],
-    )
-
+    opa_analysis = parse_opa_logs( opa_logs, interaction["username"])
     print("\n--- OPA REQUESTS ---")
-
     for request in opa_analysis["requests"]:
-        print(
-            "Action:",
-            request.get("action"),
-            "Result:",
-            request.get("result"),
-        )
-
+        print("req_id:", request.get("req_id"), "| Action:",  request.get("action"), "| Result:", request.get("result"), "| Resource:", request.get("resource") )
+        if request.get("filterResources") is not None:
+            print( "  FilterResources:", request.get("filterResources") )
     return {
-        "input": {
-            "username": interaction["username"],
-            "password": interaction["password"],
-            "query": interaction["query"],
-            "expected_allowed": interaction["allowed"],
-        },
-
+        "input": { "username": interaction["username"], "password": interaction["password"], "query": interaction["query"], "expected_allowed": interaction["allowed"]},
         "output": {
             "actual_allowed": proc.returncode == 0,
-
             "return_code": proc.returncode,
-
-            "trino_error": (
-                proc.stderr.strip()
-                if proc.stderr.strip()
-                else None
-            ),
-
-            "trino_output": (
-                proc.stdout.strip()
-                if proc.stdout.strip()
-                else None
-            ),
-
+            "trino_error": ( proc.stderr.strip() if proc.stderr.strip() else None ),
+            "trino_output": ( proc.stdout.strip() if proc.stdout.strip() else None ),
             "user_info": opa_analysis["user_info"],
-
             "requests": opa_analysis["requests"],
         },
     }
-
 
 # ---------------------------------------------------------------------------
 # Test execution
 # ---------------------------------------------------------------------------
 
-def launch_test(
-    test=None,
-    test_path=OUTPUT_TEST_GENERATION_FILE,
-):
+def launch_test( test=None, test_path=OUTPUT_TEST_GENERATION_FILE):
     """
     Execute either:
 
@@ -284,9 +128,7 @@ def launch_test(
     # -------------------------------------------------------
     # Single test
     # -------------------------------------------------------
-
     if test is not None:
-
         interactions = [test]
 
     # -------------------------------------------------------
@@ -294,87 +136,38 @@ def launch_test(
     # -------------------------------------------------------
 
     else:
-
-        with open(
-            test_path,
-            "r",
-            encoding="utf-8",
-        ) as f:
-
+        with open( test_path, "r", encoding="utf-8") as f:
             tests = json.load(f)
-
         if isinstance(tests, list):
-
             interactions = tests
-
         elif isinstance(tests, dict):
-
-            interactions = tests.get(
-                "output",
-                []
-            )
-
+            interactions = tests.get( "output", [] )
         else:
-
-            raise ValueError(
-                f"Unexpected tests.json format: {type(tests)}"
-            )
+            raise ValueError( f"Unexpected tests.json format: {type(tests)}" )
 
     # -------------------------------------------------------
     # Execute
     # -------------------------------------------------------
-
-    report = {
-        "results": []
-    }
-
+    report = { "results": [] }
     for interaction in interactions:
-
-        result = execute_interaction(
-            interaction
-        )
-
-        report["results"].append(
-            result
-        )
+        result = execute_interaction( interaction )
+        report["results"].append( result )
 
     # -------------------------------------------------------
     # Save only for batch execution
     # -------------------------------------------------------
     print("\nSaving test output \n")
     if test is None:
-
         print("save...")
-        os.makedirs(
-            OUTPUT_TEST_EVALUATION_PATH,
-            exist_ok=True
-        )
-
-        with open(
-            OUTPUT_TEST_EXECUTION_FILE,
-            "w",
-            encoding="utf-8",
-        ) as f:
-
-            json.dump(
-                report,
-                f,
-                indent=4,
-                ensure_ascii=False,
-            )
-
-        print(
-            "\nSaved:",
-            OUTPUT_TEST_EXECUTION_FILE
-        )
-
+        os.makedirs( OUTPUT_TEST_EVALUATION_PATH, exist_ok=True )
+        with open( OUTPUT_TEST_EXECUTION_FILE, "w", encoding="utf-8") as f:
+            json.dump( report, f, indent=4, ensure_ascii=False)
+        print( "\nSaved:", OUTPUT_TEST_EXECUTION_FILE )
     return report
-
 
 # ---------------------------------------------------------------------------
 # Standalone
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-
     launch_test()
