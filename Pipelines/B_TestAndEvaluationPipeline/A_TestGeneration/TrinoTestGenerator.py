@@ -469,6 +469,58 @@ class TrinoTestGenerator:
             return self._add_action_values( action, parent_context, username, test_run_id)
 
         # =====================================================
+        # SHOW CREATE SCHEMA
+        # =====================================================
+
+        if action == "ShowCreateSchemaAction":
+            """
+            Authorization target may be catalog-level:
+
+                iceberg
+
+            but SHOW CREATE SCHEMA requires an existing schema:
+
+                SHOW CREATE SCHEMA iceberg.sales;
+
+            Therefore the schema is selected from the Data Mesh
+            only for SQL generation.
+
+            The original resolver resource remains:
+
+                {
+                    "catalog": "iceberg",
+                    "schema": "",
+                    "table": "",
+                    "column": ""
+                }
+            """
+
+            catalog = resource.get("catalog")
+            if not catalog:
+                return None
+            # If the rule explicitly specified a schema, use it.
+            schema = resource.get("schema")
+            if schema:
+                schema_resource = self._find_schema({"catalog": catalog,"schema": schema,})
+                if schema_resource is None:
+                    return None
+                return {
+                    "catalog": catalog,
+                    "schema": schema,
+                }
+
+            # Otherwise choose an existing schema from the Data Mesh.
+            for candidate in self.resources["schemas"]:
+                if candidate.get("catalog") == catalog:
+                    return {
+                        "catalog": catalog,
+                        "schema": candidate["schema"],
+                    }
+            print( f"[TEST SKIP] No existing schema found for catalog '{catalog}'" )
+
+            return None
+
+        # =====================================================
         # TABLE ACTIONS FROM A SCHEMA RESOURCE
         # =====================================================
 

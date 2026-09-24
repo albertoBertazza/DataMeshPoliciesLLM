@@ -63,3 +63,15 @@ hr_manager can add comment to table in schema sales
 #TODO SetViewCommentAction
 
 hr manager can execute show columns inside schema sales
+
+hr manager can ask to show the create schema function in iceberg
+
+hr manager can ask to show the create table function in iceberg.sales
+
+hr manager can see the list of schemas inside iceberg
+
+hr manager can see the list of table inside iceberg.sales
+
+#TODO TruncateTableAction
+
+hr manager can update an entity inside the iceberg.sales

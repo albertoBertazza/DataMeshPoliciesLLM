@@ -14,6 +14,7 @@
     "CreateMaterializedView": 2,
     "CreateTable": 2,
     "CreateView": 2,
+    "ShowCreateSchema": 2,
 
 
     "DeleteFromTable": 3,
