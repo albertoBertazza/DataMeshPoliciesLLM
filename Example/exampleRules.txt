@@ -75,3 +75,11 @@ hr manager can see the list of table inside iceberg.sales
 #TODO TruncateTableAction
 
 hr manager can update an entity inside the iceberg.sales
+
+
+
+
+# DENY EXAMPLE
+auditor is not allowed to select any table inside the iceberg catalog
+
+auditor is allowed to select any table inside schema sales

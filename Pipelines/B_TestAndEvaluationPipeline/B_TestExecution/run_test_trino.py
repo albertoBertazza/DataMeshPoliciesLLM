@@ -3,6 +3,9 @@ import subprocess
 import os
 import warnings
 import datetime
+
+from werkzeug.debug import console
+
 from Pipelines.costantPath import ( OUTPUT_TEST_EXECUTION_FILE, OUTPUT_TEST_EVALUATION_PATH, OUTPUT_TEST_GENERATION_FILE)
 
 # ---------------------------------------------------------------------------
@@ -95,9 +98,10 @@ def execute_interaction(interaction):
         print("req_id:", request.get("req_id"), "| Action:",  request.get("action"), "| Result:", request.get("result"), "| Resource:", request.get("resource") )
 
         result = request.get("result")
+        should_be_allowed = interaction["allowed"]
 
         # Only warn about an actual boolean DENY.
-        if result is False:
+        if result is False and should_be_allowed:
             warnings.warn(
                 f"A permission is not allowed: "
                 f"{request.get('action')} "

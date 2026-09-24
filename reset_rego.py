@@ -19,11 +19,14 @@ def delete_files_generated():
     #         print(f"Deleted: {rego_file}")
 
 
-
     cumulative_tree=CUMULATIVE_TREE_PATH
-    cumulative_tree.exists()
-    cumulative_tree.unlink()
-    print(f"Deleted: {cumulative_tree}")
+    if cumulative_tree.exists():
+        cumulative_tree.unlink()
+        print(f"Deleted: {cumulative_tree}")
+    else:
+        print(f"Not find any: {CUMULATIVE_TREE_PATH}")
+
+
 
 
 if __name__ == "__main__":

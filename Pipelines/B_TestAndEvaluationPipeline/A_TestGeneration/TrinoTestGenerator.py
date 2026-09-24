@@ -390,11 +390,67 @@ class TrinoTestGenerator:
             return None
 
         # =====================================================
+        # ADD COLUMN
+        # =====================================================
+
+        if action == "AddColumnAction":
+            catalog = resource.get("catalog")
+            schema = resource.get("schema")
+            table = resource.get("table")
+
+            if not catalog or not schema:
+                return None
+
+            # The target table must already exist.
+            if table:
+                table_resource = self._find_table({ "catalog": catalog, "schema": schema, "table": table})
+            else:
+                # Higher-level authorization target:
+                # choose one physical table from the schema.
+                table_resource = self._find_table_in_schema( catalog, schema)
+            if table_resource is None:
+                print( f"[TEST SKIP] No physical table found for AddColumnAction inside '{catalog}.{schema}'")
+                return None
+
+            context = { "catalog": table_resource["catalog"], "schema": table_resource["schema"], "table": table_resource["table"]}
+
+            return self._add_action_values(action, context, username, test_run_id)
+
+        # =====================================================
+        # DELETE FROM TABLE
+        # =====================================================
+
+        if action == "DeleteFromTableAction":
+            catalog = resource.get("catalog")
+            schema = resource.get("schema")
+            table = resource.get("table")
+
+            if not catalog or not schema:
+                return None
+
+            # Exact table target
+            if table:
+                table_resource = self._find_table({ "catalog": catalog, "schema": schema, "table": table})
+            else:
+                # Higher-level authorization target:
+                # choose one physical table from the schema.
+                table_resource = self._find_table_in_schema( catalog, schema)
+
+            if table_resource is None:
+                print( f"[TEST SKIP] No physical table found for " f"DeleteFromTableAction inside '{catalog}.{schema}'" )
+                return None
+
+            context = { "catalog": table_resource["catalog"], "schema": table_resource["schema"], "table": table_resource["table"]}
+
+            return self._add_action_values( action, context, username, test_run_id)
+
+        # =====================================================
         # CREATE SCHEMA
         # =====================================================
 
         if action == "CreateSchemaAction":
             """
+            an example:
             CREATE SCHEMA operates at catalog level.
 
             The schema being created does not need to exist.
@@ -469,6 +525,137 @@ class TrinoTestGenerator:
             return self._add_action_values( action, parent_context, username, test_run_id)
 
         # =====================================================
+        # SHOW TABLES
+        # =====================================================
+
+        if action == "ShowTablesAction":
+            """
+            SHOW TABLES operates at schema level.
+
+            Authorization target:
+                iceberg.sales
+
+            SQL:
+                SHOW TABLES FROM iceberg.sales
+            """
+
+            context = self._build_resource_context(resource, "schema")
+
+            if context is None:
+                return None
+
+            return context
+        # =====================================================
+        # SHOW SCHEMAS
+        # =====================================================
+
+        if action == "ShowSchemasAction":
+            """
+            SHOW SCHEMAS operates at catalog level.
+
+            Authorization target:
+                iceberg
+
+            SQL:
+                SHOW SCHEMAS FROM iceberg
+            """
+
+            context = self._build_resource_context(resource, "catalog")
+
+            if context is None:
+                return None
+
+            return context
+
+        # =====================================================
+        # DROP SCHEMA
+        # =====================================================
+
+        if action == "DropSchemaAction":
+            """
+            an example:
+
+            DROP SCHEMA operates at schema level.
+            The schema must already exist in the Data Mesh.
+            """
+
+            context = self._build_resource_context(resource, "schema")
+
+            if context is None:
+                return None
+
+            return self._add_action_values( action, context, username, test_run_id)
+
+        # =====================================================
+        # DROP TABLE
+        # =====================================================
+
+        if action == "DropTableAction":
+            """
+            an example
+            DROP TABLE operates on an existing table.
+            """
+
+            catalog = resource.get("catalog")
+            schema = resource.get("schema")
+            table = resource.get("table")
+
+            if not catalog or not schema or not table:
+                return None
+
+            table_resource = self._find_table({ "catalog": catalog, "schema": schema, "table": table})
+
+            if table_resource is None:
+                print( f"[TEST SKIP] No physical table found for " f"DropTableAction: '{catalog}.{schema}.{table}'" )
+                return None
+
+            context = { "catalog": table_resource["catalog"], "schema": table_resource["schema"], "table": table_resource["table"]}
+
+            return self._add_action_values( action, context, username, test_run_id)
+
+        # =====================================================
+        # DROP COLUMN
+        # =====================================================
+
+        if action == "DropColumnAction":
+            """
+            an example
+            DROP COLUMN operates on a physical column.
+
+            The resolver authorization target may be table-level.
+            Therefore an existing column is selected from the
+            Data Mesh only for SQL generation.
+            """
+
+            catalog = resource.get("catalog")
+            schema = resource.get("schema")
+            table = resource.get("table")
+
+            if not catalog or not schema or not table:
+                return None
+
+            table_resource = self._find_table({ "catalog": catalog, "schema": schema, "table": table})
+
+            if table_resource is None:
+                print( f"[TEST SKIP] No physical table found for " f"DropColumnAction: '{catalog}.{schema}.{table}'" )
+                return None
+
+            column_resource = None
+
+            for candidate in self.resources["columns"]:
+                if ( candidate.get("catalog") == catalog and candidate.get("schema") == schema and candidate.get("table") == table ):
+                    column_resource = candidate
+                    break
+
+            if column_resource is None:
+                print( f"[TEST SKIP] No physical column found for " f"DropColumnAction: '{catalog}.{schema}.{table}'" )
+                return None
+
+            context = { "catalog": catalog, "schema": schema, "table": table, "column": column_resource["column"]}
+
+            return self._add_action_values( action, context, username, test_run_id)
+
+        # =====================================================
         # SHOW CREATE SCHEMA
         # =====================================================
 
@@ -504,145 +691,148 @@ class TrinoTestGenerator:
                 schema_resource = self._find_schema({"catalog": catalog,"schema": schema,})
                 if schema_resource is None:
                     return None
-                return {
-                    "catalog": catalog,
-                    "schema": schema,
-                }
+                return { "catalog": catalog, "schema": schema}
 
             # Otherwise choose an existing schema from the Data Mesh.
             for candidate in self.resources["schemas"]:
                 if candidate.get("catalog") == catalog:
-                    return {
-                        "catalog": catalog,
-                        "schema": candidate["schema"],
-                    }
+                    return { "catalog": catalog, "schema": candidate["schema"]}
             print( f"[TEST SKIP] No existing schema found for catalog '{catalog}'" )
 
             return None
 
         # =====================================================
-        # TABLE ACTIONS FROM A SCHEMA RESOURCE
+        # TABLE ACTIONS FROM HIGHER-LEVEL RESOURCES
         # =====================================================
 
         if resource_level == "table" and not resource.get("table"):
             """
-            The authorization target is a schema, but the SQL action
-            requires an existing table.
+            The authorization target may be higher than table level.
 
-            Example:
+            Examples:
+
+                catalog:
+                    iceberg
+
+                schema:
+                    iceberg.hr
+
+                table:
+                    iceberg.hr.people
+
+            The resolver resource MUST remain unchanged.
+
+            For SQL generation only, select one existing physical table
+            from the Data Mesh that is inside the authorization scope.
+
+            Therefore:
+
+                resolver resource:
+                    iceberg
+
+                SQL context:
+                    iceberg.<some_schema>.<some_table>
+
+            or:
 
                 resolver resource:
                     iceberg.hr
 
-                SQL:
-                    INSERT INTO iceberg.hr.people (<column>)
-                    VALUES (<value>)
-
-            The table and column are selected from the Data Mesh
-            only for SQL generation.
-
-            The original resolver resource is NOT modified.
+                SQL context:
+                    iceberg.hr.<some_table>
             """
 
             catalog = resource.get("catalog")
             schema = resource.get("schema")
-
-            if not catalog or not schema:
+            if not catalog:
                 return None
+            # -----------------------------------------------------
+            # CATALOG-LEVEL AUTHORIZATION
+            # -----------------------------------------------------
+            #
+            # Example:
+            #
+            #   resource = iceberg
+            #
+            # Find one physical table anywhere inside the catalog.
+            #
+            if not schema:
+                table_resource = None
+                for candidate in self.resources["tables"]:
+                    if candidate.get("catalog") == catalog:
+                        table_resource = candidate
+                        break
+                if table_resource is None:
+                    print( f"[TEST SKIP] No existing table found " f"inside catalog '{catalog}'" )
+                    return None
+                schema = table_resource["schema"]
+                table = table_resource["table"]
 
-            # -------------------------------------------------
-            # Find one existing physical table
-            # -------------------------------------------------
+            # -----------------------------------------------------
+            # SCHEMA-LEVEL AUTHORIZATION
+            # -----------------------------------------------------
+            #
+            # Example:
+            #
+            #   resource = iceberg.hr
+            #
+            # Find one physical table inside that schema.
+            #
+            else:
+                table_resource = self._find_table_in_schema( catalog, schema)
+                if table_resource is None:
+                    print( f"[TEST SKIP] No existing table found for " f"schema '{catalog}.{schema}'" )
+                    return None
+                table = table_resource["table"]
 
-            table_resource = self._find_table_in_schema(
-                catalog,
-                schema,
-            )
-
-            if table_resource is None:
-                print(
-                    f"[TEST SKIP] No existing table found for "
-                    f"schema '{catalog}.{schema}'"
-                )
-                return None
-
-            table = table_resource["table"]
-
-            # -------------------------------------------------
-            # INSERT INTO requires an existing column
-            # -------------------------------------------------
-
+            # -----------------------------------------------------
+            # FIND A COLUMN IF THE ACTION NEEDS ONE
+            # -----------------------------------------------------
+            #
+            # Some table actions such as INSERT need a physical
+            # column. Select one only for SQL generation.
+            #
             column_resource = None
-
             for candidate in self.resources["columns"]:
-                if (
-                        candidate.get("catalog") == catalog
-                        and candidate.get("schema") == schema
-                        and candidate.get("table") == table
-                ):
+                if ( candidate.get("catalog") == catalog and candidate.get("schema") == schema and candidate.get("table") == table ):
                     column_resource = candidate
                     break
-
-            if column_resource is None:
-                print(
-                    f"[TEST SKIP] No existing column found for "
-                    f"table '{catalog}.{schema}.{table}'"
-                )
-                return None
-
-            # -------------------------------------------------
-            # Build SQL context only.
-            #
-            # This does NOT modify the resolver resource.
-            # -------------------------------------------------
-
-            context = {
-                "catalog": catalog,
-                "schema": schema,
-                "table": table,
-                "column": column_resource["column"],
-                "column_type": column_resource.get(
-                    "column_type",
-                    "varchar",
-                ),
-            }
-
-            return self._add_action_values(
-                action,
-                context,
-                username,
-                test_run_id,
-            )
-
-
-        # =====================================================
-        # EXISTING RESOURCE ACTIONS
-        # =====================================================
-        context = self._build_resource_context( resource, resource_level)
-        if context is None:
-            return None
-        return self._add_action_values( action, context, username, test_run_id)
+            # -----------------------------------------------------
+            # BUILD SQL CONTEXT ONLY
+            # -----------------------------------------------------
+            context = { "catalog": catalog, "schema": schema, "table": table}
+            if column_resource is not None:
+                context["column"] = column_resource["column"]
+                context["column_type"] = column_resource.get( "column_type", "varchar")
+            return self._add_action_values( action, context, username, test_run_id)
 
     # =========================================================
     # ACTION -> SQL
     # =========================================================
 
-    def _action_to_query( self, action: str, resource: Dict[str, Any], username: Optional[str] = None, test_run_id: Optional[str] = None) -> Optional[str]:
+    def _action_to_query( self, action: str, resource: Dict[str, Any], username: Optional[str] = None, test_run_id: Optional[str] = None ) -> Optional[str]:
         mapping = self.action_sql_mapping.get(action)
+        print(f"[SQL DEBUG] action={action}")
+        print(f"[SQL DEBUG] mapping={json.dumps(mapping, indent=2)}")
         if mapping is None:
             return None
-        template = mapping.get( "sql_template" )
+        template = mapping.get("sql_template")
+        print(f"[SQL DEBUG] template={template}")
         if not template:
             return None
         context = self._get_context( action, resource, mapping, username, test_run_id)
+        print(f"[SQL DEBUG] context={context}")
         if context is None:
             return None
         try:
-            return template.format( **context )
-        except ( KeyError, ValueError, IndexError) as e:
+            query = template.format(**context)
+            print(f"[SQL DEBUG] query={query}")
+            return query
+
+        except (KeyError, ValueError, IndexError) as e:
             print( f"[SQL ERROR] action='{action}', " f"error={e}" )
-            print( f"[SQL ERROR] template={template}" )
-            print( f"[SQL ERROR] context={context}" )
+            print(f"[SQL ERROR] template={template}")
+            print(f"[SQL ERROR] context={context}")
             return None
 
     # =========================================================

@@ -137,23 +137,23 @@ def start_pipelines(rule):
 
 if __name__ == "__main__":
 
-    # print("=" * 60)
-    # print(" DATA MESH POLICY PIPELINE")
-    # print("=" * 60)
-    #
-    # # Delete all generated .rego files
-    # delete_files_generated()
-    #
-    # # create and test all rule in the original set
-    #
-    # for rule in EXAMPLE_RULES:
-    #     print("=" * 50)
-    #     print(" EXAMPLE RULE " + rule)
-    #     print("=" * 50)
-    #     summary = start_pipelines(rule)
-    #
-    #     if summary.get('success', False):
-    #         throw_error(f"Not matched rule expectation: {rule}")
+    print("=" * 60)
+    print(" DATA MESH POLICY PIPELINE")
+    print("=" * 60)
+
+    # Delete all generated .rego files
+    delete_files_generated()
+
+    # create and test all rule in the original set
+
+    for rule in EXAMPLE_RULES:
+        print("=" * 50)
+        print(" EXAMPLE RULE " + rule)
+        print("=" * 50)
+        summary = start_pipelines(rule)
+
+        if summary.get('success', False):
+            throw_error(f"Not matched rule expectation: {rule}")
 
     while True:
 

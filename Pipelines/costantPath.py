@@ -120,8 +120,23 @@ EXAMPLE_RULES =[
     "hr_manager can create schema inside iceberg",
     "hr_manager can create table inside hr schema",
     "hr_manager can create view on finance.employee_finance",
-    "hr_manager can select from table in procurement schema",
+    "hr_manager can select from table in sales schema",
     "hr_manager can delete from support.support_tickets",
     "hr_manager can drop column inside support.support_tickets",
+    "hr_manager can drop table support.support_tickets",
+    "hr_manager can drop schema support",
+    "hr_manager can insert a new entity inside schema hr",
+    "hr_manager can rename a column inside procurement",
+    "hr_manager can rename table inside procurement schema",
+    "hr_manager can add comment to column in schema sales",
+    "hr_manager can add comment to table in schema sales",
+    "hr manager can execute show columns inside schema sales", # WARNING denied to required internal  SelectFromColumns Resource: iceberg.information_schema
+    "hr manager can ask to show the create schema function in iceberg",
+    "hr manager can ask to show the create table function in iceberg.sales",
+    "hr manager can see the list of schemas inside iceberg",
+    "hr manager can see the list of table inside iceberg.sales",
+    "hr manager can update an entity inside the iceberg.sales",
 
+    "auditor is not allowed to select any table inside the iceberg catalog", # DENY PERMISSION
+    "auditor is allowed to select any table inside schema sales", # ALLOW PERMISSION, but denied at catalog level
 ]
