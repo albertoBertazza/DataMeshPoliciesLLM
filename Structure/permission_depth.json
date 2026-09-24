@@ -8,7 +8,6 @@
     "CreateSchema": 1,
 
     "DropSchema": 2,
-    "RenameSchema": 2,
     "SetSchemaAuthorization": 2,
     "ShowSchemas": 2,
     "FilterSchemas": 2,

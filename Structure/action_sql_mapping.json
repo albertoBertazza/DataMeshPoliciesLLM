@@ -79,11 +79,6 @@
     "resource_level": "schema"
   },
 
-  "RenameSchemaAction": {
-    "sql_template": "ALTER SCHEMA {catalog}.{schema} RENAME TO {renamed_schema};",
-    "resource_level": "schema"
-  },
-
   "RenameTableAction": {
     "sql_template": "ALTER TABLE {catalog}.{schema}.{table} RENAME TO {renamed_table};",
     "resource_level": "table"

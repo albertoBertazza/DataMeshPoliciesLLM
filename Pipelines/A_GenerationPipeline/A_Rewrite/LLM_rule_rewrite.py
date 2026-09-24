@@ -375,6 +375,100 @@ def _normalize_available_actions(available_actions):
                 result.append(action)
     return result
 
+def _normalize_extracted_actions(requested_actions, available_actions):
+    """
+    Normalize common LLM action-extraction mistakes.
+
+    The LLM sometimes puts the canonical action name into `intent`
+    and leaves `action` as null. Repair that only when the value in
+    `intent` is already an exact available action.
+
+    Also normalize known natural-language operation mappings.
+    """
+
+    available = set(available_actions)
+
+    intent_to_action = {
+        # Selection
+        "select": "SelectFromTableAction",
+        "read": "SelectFromTableAction",
+        "query": "SelectFromTableAction",
+
+        # Insert / update / delete
+        "insert": "InsertIntoTableAction",
+        "update": "UpdateTableAction",
+        "delete": "DeleteFromTableAction",
+
+        # Tables / schemas
+        "show tables": "ShowTablesAction",
+        "show schemas": "ShowSchemasAction",
+
+        # Columns
+        "add column": "AddColumnAction",
+
+        # Creation
+        "create table": "CreateTableAction",
+        "create schema": "CreateSchemaAction",
+
+        # Table comments
+        "add comment to table": "SetTableCommentAction",
+        "set comment on table": "SetTableCommentAction",
+        "set table comment": "SetTableCommentAction",
+        "comment on table": "SetTableCommentAction",
+
+        # Column comments
+        "add comment to column": "SetColumnCommentAction",
+        "set comment on column": "SetColumnCommentAction",
+        "set column comment": "SetColumnCommentAction",
+        "comment on column": "SetColumnCommentAction",
+
+        # View comments
+        "add comment to view": "SetViewCommentAction",
+        "set comment on view": "SetViewCommentAction",
+        "set view comment": "SetViewCommentAction",
+        "comment on view": "SetViewCommentAction",
+    }
+
+    normalized = []
+
+    for item in requested_actions:
+        if not isinstance(item, dict):
+            continue
+
+        intent = str(item.get("intent", "")).strip()
+        action = item.get("action")
+        effect = item.get("effect", "allow")
+
+        # ------------------------------------------------------------
+        # Case 1:
+        # LLM put an exact action name into `intent` and left
+        # `action` null.
+        #
+        # Example:
+        #
+        # {
+        #   "intent": "SetTableCommentAction",
+        #   "action": null
+        # }
+        # ------------------------------------------------------------
+        if action is None and intent in available:
+            action = intent
+
+        # ------------------------------------------------------------
+        # Case 2:
+        # LLM correctly gave a natural-language intent but left
+        # action null.
+        # ------------------------------------------------------------
+        if action is None:
+            normalized_intent = intent.lower()
+            mapped_action = intent_to_action.get(normalized_intent)
+            if mapped_action in available:
+                action = mapped_action
+
+        normalized.append({ "intent": intent, "action": action, "effect": effect })
+
+    return normalized
+
 def _validate_actions(requested_actions, available_actions):
     if ( not isinstance(requested_actions, list) or not requested_actions ):
         return { "valid": False, "feedback": ( "No actionable operation could be identified " "from the request." ) }
@@ -702,46 +796,131 @@ def _format_action_examples(examples):
     return ( "\n\n".join(blocks) if blocks else "No examples." )
 
 def _extract_actions( rule, available_actions, is_local, chat_url=None, client=None, model=None, examples=None ):
-    system_prompt = """
-Identify the intended Trino authorization operations and whether
-each operation is allowed or denied.
+    system_prompt = ("""
+        Identify the intended Trino authorization operations and whether
+        each operation is allowed or denied.
 
-Return ONLY:
+        Return ONLY:
 
-{
-  "requested_actions": [
-    {
-      "intent": "",
-      "action": null,
-      "effect": "allow"
-    }
-  ]
-}
+        {
+          "requested_actions": [
+            {
+              "intent": "",
+              "action": null,
+              "effect": "allow"
+            }
+          ]
+        }
 
-Rules:
+        Rules:
 
-1. action MUST exactly match one of Available Actions or null.
-2. Never invent an action.
-3. "select", "read", "query" -> SelectFromColumnsAction
-   when that action exists.
-4. "insert" -> InsertIntoTableAction.
-5. "update" -> UpdateTableColumnsAction.
-6. "delete" -> DeleteFromTableAction.
-7. "show tables" -> ShowTablesAction.
-8. "show schemas" -> ShowSchemasAction.
-9. "add column" -> AddColumnAction.
-10. "create table" -> CreateTableAction.
-11. "create schema" -> CreateSchemaAction.
-12. "deny", "cannot", "not allowed", "forbidden",
-    "prohibited" -> effect="deny".
-13. Otherwise use effect="allow".
-14. One item per operation.
-15. A rule may mix allow and deny.
-16. Return no other fields.
+        1. "intent" MUST describe the operation in natural language.
+        2. "action" MUST contain the exact matching action name from Available Actions.
+        3. Never put an action name into "intent" when the natural-language
+           operation can be described instead.
+        4. If a matching action exists in Available Actions, "action" MUST NOT
+           be null.
+        5. Never invent an action.
+        6. Copy action names exactly from Available Actions.
 
-Examples:
+        Operation mappings:
 
-""" + _format_action_examples(examples)
+        - "select", "read", "query"
+          -> SelectFromTableAction
+
+        - "insert"
+          -> InsertIntoTableAction
+
+        - "update"
+          -> UpdateTableAction
+
+        - "delete"
+          -> DeleteFromTableAction
+
+        - "show tables"
+          -> ShowTablesAction
+
+        - "show schemas"
+          -> ShowSchemasAction
+
+        - "add column"
+          -> AddColumnAction
+
+        - "create table"
+          -> CreateTableAction
+
+        - "create schema"
+          -> CreateSchemaAction
+
+        - "add comment to table"
+          -> SetTableCommentAction
+
+        - "set comment on table"
+          -> SetTableCommentAction
+
+        - "set table comment"
+          -> SetTableCommentAction
+
+        - "comment on table"
+          -> SetTableCommentAction
+
+        - "add comment to column"
+          -> SetColumnCommentAction
+
+        - "set comment on column"
+          -> SetColumnCommentAction
+
+        - "set column comment"
+          -> SetColumnCommentAction
+
+        - "comment on column"
+          -> SetColumnCommentAction
+
+        - "add comment to view"
+          -> SetViewCommentAction
+
+        - "set comment on view"
+          -> SetViewCommentAction
+
+        - "set view comment"
+          -> SetViewCommentAction
+
+        - "comment on view"
+          -> SetViewCommentAction
+
+        7. "deny", "cannot", "not allowed", "forbidden",
+           "prohibited" -> effect="deny".
+
+        8. Otherwise use effect="allow".
+
+        9. One item per operation.
+
+        10. A rule may mix allow and deny.
+
+        11. Return no other fields.
+
+        Examples:
+
+        Example:
+
+        Rule:
+        hr_manager can add comment to table in schema sales
+
+        Return:
+
+        {
+          "requested_actions": [
+            {
+              "intent": "add comment to table",
+              "action": "SetTableCommentAction",
+              "effect": "allow"
+            }
+          ]
+        }
+
+        """
+    )
+    # + _format_action_examples(examples))
     result = _llm_json( system_prompt, ( "Available Actions:\n" + json.dumps( available_actions, ensure_ascii=False, indent=2 ) + "\n\nRule:\n" + rule ), is_local=is_local, chat_url=chat_url, client=client, model=model )
     if set(result.keys()) != {"requested_actions"}:
         raise ValueError( "Action extraction returned invalid JSON." )
@@ -843,6 +1022,9 @@ def llm_explain( rule, example_index, data_mesh_structure, security_groups, avai
     # Actions
     # ------------------------------------------------------------------------
     requested_actions = _extract_actions( rule=rule, available_actions=available_actions, is_local=is_local, chat_url=chat_url, client=client, model=model, examples=examples )
+    print( "[DEBUG] Raw requested_actions:", json.dumps( requested_actions, indent=2, ensure_ascii=False ) )
+    requested_actions = _normalize_extracted_actions( requested_actions=requested_actions, available_actions=available_actions )
+    print( "[DEBUG] Normalized requested_actions:", json.dumps( requested_actions, indent=2, ensure_ascii=False ) )
     action_result = _validate_actions( requested_actions=requested_actions, available_actions=available_actions )
     allowed, deny, conflicts = _split_allowed_deny( requested_actions, available_actions )
 
@@ -905,16 +1087,8 @@ def llm_explain( rule, example_index, data_mesh_structure, security_groups, avai
         "llm_feedback":" ".join(feedback)
     }
 
-    with REWRITTEN_RULE_PATH.open(
-        "w",
-        encoding="utf-8"
-    ) as f:
+    with REWRITTEN_RULE_PATH.open( "w", encoding="utf-8" ) as f:
 
-        json.dump(
-            rewritten_rule,
-            f,
-            indent=4
-        )
-
+        json.dump( rewritten_rule, f, indent=4 )
 
     return rewritten_rule

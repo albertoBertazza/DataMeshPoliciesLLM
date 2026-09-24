@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
-
 class TrinoTestGenerator:
     """
     Generate executable Trino authorization tests from resolved
@@ -65,21 +64,14 @@ class TrinoTestGenerator:
         username + timestamp
     """
 
-    def __init__(
-        self,
-        users_file: str | Path,
-        data_mesh_file: str | Path,
-        action_sql_mapping_file: str | Path,
-    ):
+    def __init__( self, users_file: str | Path, data_mesh_file: str | Path, action_sql_mapping_file: str | Path):
         self.users_file = Path(users_file)
         self.data_mesh_file = Path(data_mesh_file)
         self.action_sql_mapping_file = Path(action_sql_mapping_file)
 
         self.users = self._load_json(self.users_file)
         self.data_mesh = self._load_json(self.data_mesh_file)
-        self.action_sql_mapping = self._load_json(
-            self.action_sql_mapping_file
-        )
+        self.action_sql_mapping = self._load_json( self.action_sql_mapping_file )
 
         self.resources = self._flatten_data_mesh()
 
@@ -97,16 +89,11 @@ class TrinoTestGenerator:
     # =========================================================
 
     @staticmethod
-    def _users_by_group(
-        users: List[Dict[str, Any]]
-    ) -> Dict[str, List[Dict[str, Any]]]:
-
+    def _users_by_group( users: List[Dict[str, Any]] ) -> Dict[str, List[Dict[str, Any]]]:
         result: Dict[str, List[Dict[str, Any]]] = {}
-
         for user in users:
             for group in user.get("groups", []):
                 result.setdefault(group, []).append(user)
-
         return result
 
     # =========================================================
@@ -116,112 +103,45 @@ class TrinoTestGenerator:
     @staticmethod
     def _safe_identifier(value: str) -> str:
         value = str(value)
-
-        value = re.sub(
-            r"[^A-Za-z0-9_]",
-            "_",
-            value,
-        )
-
+        value = re.sub( r"[^A-Za-z0-9_]", "_", value)
         if not value:
             value = "user"
-
         return value
 
     @staticmethod
-    def _create_test_run_id(
-        username: Optional[str] = None
-    ) -> str:
-
-        timestamp = datetime.now().strftime(
-            "%Y%m%d_%H%M%S_%f"
-        )
-
+    def _create_test_run_id( username: Optional[str] = None ) -> str:
+        timestamp = datetime.now().strftime( "%Y%m%d_%H%M%S_%f" )
         if username:
-            safe_username = (
-                TrinoTestGenerator._safe_identifier(username)
-            )
-
+            safe_username = ( TrinoTestGenerator._safe_identifier(username) )
             return f"{safe_username}_{timestamp}"
-
         return timestamp
 
     # =========================================================
     # DATA MESH
     # =========================================================
 
-    def _flatten_data_mesh(
-        self,
-    ) -> Dict[str, List[Dict[str, Any]]]:
-
-        result = {
-            "catalogs": [],
-            "schemas": [],
-            "tables": [],
-            "columns": [],
-        }
-
+    def _flatten_data_mesh( self) -> Dict[str, List[Dict[str, Any]]]:
+        result = { "catalogs": [], "schemas": [], "tables": [], "columns": []}
         for catalog in self.data_mesh.get("catalogs", []):
-
             catalog_name = catalog.get("name")
-
             if not catalog_name:
                 continue
-
-            result["catalogs"].append(
-                {
-                    "catalog": catalog_name
-                }
-            )
-
+            result["catalogs"].append( { "catalog": catalog_name } )
             for schema in catalog.get("schemas", []):
-
                 schema_name = schema.get("name")
-
                 if not schema_name:
                     continue
-
-                result["schemas"].append(
-                    {
-                        "catalog": catalog_name,
-                        "schema": schema_name,
-                    }
-                )
-
+                result["schemas"].append( { "catalog": catalog_name, "schema": schema_name} )
                 for table in schema.get("tables", []):
-
                     table_name = table.get("name")
-
                     if not table_name:
                         continue
-
-                    result["tables"].append(
-                        {
-                            "catalog": catalog_name,
-                            "schema": schema_name,
-                            "table": table_name,
-                        }
-                    )
-
+                    result["tables"].append( { "catalog": catalog_name, "schema": schema_name, "table": table_name} )
                     for column in table.get("columns", []):
-
                         column_name = column.get("name")
-
                         if not column_name:
                             continue
-
-                        result["columns"].append(
-                            {
-                                "catalog": catalog_name,
-                                "schema": schema_name,
-                                "table": table_name,
-                                "column": column_name,
-                                "column_type": column.get(
-                                    "type",
-                                    "varchar",
-                                ),
-                            }
-                        )
+                        result["columns"].append( { "catalog": catalog_name, "schema": schema_name, "table": table_name, "column": column_name, "column_type": column.get( "type", "varchar")} )
 
         return result
 
@@ -230,114 +150,42 @@ class TrinoTestGenerator:
     # =========================================================
 
     @staticmethod
-    def _same_resource(
-        resource: Dict[str, Any],
-        candidate: Dict[str, Any],
-        level: str,
-    ) -> bool:
-
+    def _same_resource( resource: Dict[str, Any], candidate: Dict[str, Any], level: str) -> bool:
         if level == "catalog":
-            return (
-                resource.get("catalog")
-                == candidate.get("catalog")
-            )
-
+            return ( resource.get("catalog") == candidate.get("catalog") )
         if level == "schema":
-            return (
-                resource.get("catalog")
-                == candidate.get("catalog")
-                and resource.get("schema")
-                == candidate.get("schema")
-            )
-
+            return ( resource.get("catalog") == candidate.get("catalog") and resource.get("schema") == candidate.get("schema") )
         if level == "table":
-            return (
-                resource.get("catalog")
-                == candidate.get("catalog")
-                and resource.get("schema")
-                == candidate.get("schema")
-                and resource.get("table")
-                == candidate.get("table")
-            )
-
+            return ( resource.get("catalog") == candidate.get("catalog") and resource.get("schema") == candidate.get("schema") and resource.get("table") == candidate.get("table") )
         if level == "column":
-            return (
-                resource.get("catalog")
-                == candidate.get("catalog")
-                and resource.get("schema")
-                == candidate.get("schema")
-                and resource.get("table")
-                == candidate.get("table")
-                and resource.get("column")
-                == candidate.get("column")
-            )
-
+            return ( resource.get("catalog") == candidate.get("catalog") and resource.get("schema") == candidate.get("schema") and resource.get("table") == candidate.get("table") and resource.get("column") == candidate.get("column") )
         return False
 
     # =========================================================
     # DATA MESH LOOKUP
     # =========================================================
 
-    def _find_catalog(
-        self,
-        resource: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
-
+    def _find_catalog( self, resource: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         for candidate in self.resources["catalogs"]:
-
-            if self._same_resource(
-                resource,
-                candidate,
-                "catalog",
-            ):
+            if self._same_resource( resource, candidate, "catalog"):
                 return candidate
-
         return None
 
-    def _find_schema(
-        self,
-        resource: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
-
+    def _find_schema( self, resource: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         for candidate in self.resources["schemas"]:
-
-            if self._same_resource(
-                resource,
-                candidate,
-                "schema",
-            ):
+            if self._same_resource( resource, candidate, "schema"):
                 return candidate
-
         return None
 
-    def _find_table(
-        self,
-        resource: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
-
+    def _find_table( self, resource: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         for candidate in self.resources["tables"]:
-
-            if self._same_resource(
-                resource,
-                candidate,
-                "table",
-            ):
+            if self._same_resource( resource, candidate, "table"):
                 return candidate
-
         return None
 
-    def _find_column(
-        self,
-        resource: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
-
+    def _find_column( self, resource: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         for candidate in self.resources["columns"]:
-
-            if self._same_resource(
-                resource,
-                candidate,
-                "column",
-            ):
+            if self._same_resource( resource, candidate, "column"):
                 return candidate
 
         return None
@@ -346,11 +194,7 @@ class TrinoTestGenerator:
     # RESOURCE CONTEXT
     # =========================================================
 
-    def _build_resource_context(
-        self,
-        resource: Dict[str, Any],
-        resource_level: str,
-    ) -> Optional[Dict[str, Any]]:
+    def _build_resource_context( self, resource: Dict[str, Any], resource_level: str) -> Optional[Dict[str, Any]]:
         """
         Build the context corresponding to the requested level.
 
@@ -394,90 +238,41 @@ class TrinoTestGenerator:
         # CATALOG
         # -----------------------------------------------------
 
-        if self._find_catalog(
-            {
-                "catalog": catalog
-            }
-        ) is None:
+        if self._find_catalog( { "catalog": catalog } ) is None:
             return None
 
-        context: Dict[str, Any] = {
-            "catalog": catalog
-        }
-
+        context: Dict[str, Any] = { "catalog": catalog }
         # -----------------------------------------------------
         # SCHEMA
         # -----------------------------------------------------
-
-        if resource_level in {
-            "schema",
-            "table",
-            "column",
-        }:
-
+        if resource_level in { "schema", "table", "column"}:
             if not schema:
                 return None
-
-            if self._find_schema(
-                {
-                    "catalog": catalog,
-                    "schema": schema,
-                }
-            ) is None:
+            if self._find_schema( { "catalog": catalog, "schema": schema} ) is None:
                 return None
-
             context["schema"] = schema
 
         # -----------------------------------------------------
         # TABLE
         # -----------------------------------------------------
-
-        if resource_level in {
-            "table",
-            "column",
-        }:
-
+        if resource_level in { "table", "column"}:
             if not table:
                 return None
-
-            if self._find_table(
-                {
-                    "catalog": catalog,
-                    "schema": schema,
-                    "table": table,
-                }
-            ) is None:
+            if self._find_table( { "catalog": catalog, "schema": schema, "table": table} ) is None:
                 return None
-
             context["table"] = table
 
         # -----------------------------------------------------
         # COLUMN
         # -----------------------------------------------------
-
         if resource_level == "column":
-
             if not column:
                 return None
-
-            column_resource = self._find_column(
-                {
-                    "catalog": catalog,
-                    "schema": schema,
-                    "table": table,
-                    "column": column,
-                }
-            )
-
+            column_resource = self._find_column( { "catalog": catalog, "schema": schema, "table": table, "column": column} )
             if column_resource is None:
                 return None
-
             context["column"] = column
-
-            context["column_type"] = (
-                column_resource["column_type"]
-            )
-
+            context["column_type"] = ( column_resource["column_type"] )
         return context
 
     # =========================================================
@@ -485,174 +280,79 @@ class TrinoTestGenerator:
     # =========================================================
 
     @staticmethod
-    def _column_value(
-        column_type: str,
-    ) -> str:
-
+    def _column_value( column_type: str) -> str:
         normalized = column_type.lower()
-
-        if any(
-            x in normalized
-            for x in (
-                "int",
-                "decimal",
-                "double",
-                "real",
-                "float",
-            )
-        ):
+        if any( x in normalized for x in ( "int", "decimal", "double", "real", "float") ):
             return "0"
-
         if "boolean" in normalized:
             return "FALSE"
-
         if "timestamp" in normalized:
-            return (
-                "TIMESTAMP "
-                "'2000-01-01 00:00:00'"
-            )
-
+            return ( "TIMESTAMP " "'2000-01-01 00:00:00'" )
         if "date" in normalized:
             return "DATE '2000-01-01'"
-
         return "'test'"
 
-    def _add_action_values(
-        self,
-        action: str,
-        context: Dict[str, Any],
-        username: Optional[str] = None,
-        test_run_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-
+    def _add_action_values( self, action: str, context: Dict[str, Any], username: Optional[str] = None, test_run_id: Optional[str] = None) -> Dict[str, Any]:
         result = dict(context)
-
         if test_run_id is None:
-            test_run_id = (
-                self._create_test_run_id(username)
-            )
+            test_run_id = ( self._create_test_run_id(username) )
 
         # -----------------------------------------------------
         # COLUMN
         # -----------------------------------------------------
-
         if "column" in result:
-
-            column_type = result.get(
-                "column_type",
-                "varchar",
-            )
-
-            result["value"] = (
-                self._column_value(column_type)
-            )
-
-            result["new_column"] = (
-                f"{result['column']}"
-                f"_renamed_{test_run_id}"
-            )
+            column_type = result.get( "column_type", "varchar")
+            result["value"] = ( self._column_value(column_type) )
+            result["new_column"] = ( f"{result['column']}" f"_renamed_{test_run_id}" )
 
         # -----------------------------------------------------
         # ADD COLUMN
         # -----------------------------------------------------
-
-        if (
-            action == "AddColumnAction"
-            and "table" in result
-        ):
-
-            result["new_column"] = (
-                f"test_added_column_{test_run_id}"
-            )
+        if ( action == "AddColumnAction" and "table" in result ):
+            result["new_column"] = ( f"test_added_column_{test_run_id}" )
 
         # -----------------------------------------------------
         # TABLE
         # -----------------------------------------------------
-
         table = result.get("table")
-
         if table:
-
-            result["test_table"] = (
-                f"{table}_test_{test_run_id}"
-            )
-
-            result["test_view"] = (
-                f"{table}_test_view_{test_run_id}"
-            )
-
-            result["test_materialized_view"] = (
-                f"{table}_test_mv_{test_run_id}"
-            )
-
-            result["renamed_table"] = (
-                f"{table}_renamed_{test_run_id}"
-            )
-
-            result["renamed_view"] = (
-                f"{table}_renamed_view_{test_run_id}"
-            )
-
-            result["renamed_materialized_view"] = (
-                f"{table}_renamed_mv_{test_run_id}"
-            )
+            result["test_table"] = ( f"{table}_test_{test_run_id}" )
+            result["test_view"] = ( f"{table}_test_view_{test_run_id}" )
+            result["test_materialized_view"] = ( f"{table}_test_mv_{test_run_id}" )
+            result["renamed_table"] = ( f"{table}_renamed_{test_run_id}" )
+            result["renamed_view"] = ( f"{table}_renamed_view_{test_run_id}" )
+            result["renamed_materialized_view"] = ( f"{table}_renamed_mv_{test_run_id}" )
 
         # -----------------------------------------------------
         # SCHEMA
         # -----------------------------------------------------
-
         schema = result.get("schema")
-
         if schema:
-
-            result["test_schema"] = (
-                f"{schema}_test_{test_run_id}"
-            )
-
-            result["renamed_schema"] = (
-                f"{schema}_renamed_{test_run_id}"
-            )
-
+            result["test_schema"] = ( f"{schema}_test_{test_run_id}" )
+            result["renamed_schema"] = ( f"{schema}_renamed_{test_run_id}" )
         return result
 
     # =================================
     # Helper find table
     # ================================
 
-    def _find_table_in_schema(
-            self,
-            catalog: str,
-            schema: str,
-    ) -> Optional[Dict[str, Any]]:
+    def _find_table_in_schema( self, catalog: str, schema: str) -> Optional[Dict[str, Any]]:
         """
         Return one existing table from the given schema.
 
         The Data Mesh is authoritative for physically existing
         resources.
         """
-
         for candidate in self.resources["tables"]:
-
-            if (
-                    candidate.get("catalog") == catalog
-                    and candidate.get("schema") == schema
-            ):
+            if ( candidate.get("catalog") == catalog and candidate.get("schema") == schema ):
                 return candidate
-
         return None
 
     # =========================================================
     # SQL CONTEXT
     # =========================================================
 
-    def _get_context(
-        self,
-        action: str,
-        resource: Dict[str, Any],
-        mapping: Dict[str, Any],
-        username: Optional[str] = None,
-        test_run_id: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+    def _get_context( self, action: str, resource: Dict[str, Any], mapping: Dict[str, Any], username: Optional[str] = None, test_run_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         Build the SQL context for an action.
 
@@ -684,9 +384,7 @@ class TrinoTestGenerator:
         required source table is added to the SQL context.
         """
 
-        resource_level = mapping.get(
-            "resource_level"
-        )
+        resource_level = mapping.get( "resource_level" )
 
         if not resource_level:
             return None
@@ -701,31 +399,13 @@ class TrinoTestGenerator:
 
             The schema being created does not need to exist.
             """
-
-            parent_context = (
-                self._build_resource_context(
-                    resource,
-                    "catalog",
-                )
-            )
-
+            parent_context = ( self._build_resource_context( resource, "catalog") )
             if parent_context is None:
                 return None
-
             if test_run_id is None:
-                test_run_id = (
-                    self._create_test_run_id(username)
-                )
-
-            base_schema = (
-                resource.get("schema")
-                or "test_schema"
-            )
-
-            parent_context["test_schema"] = (
-                f"{base_schema}_test_{test_run_id}"
-            )
-
+                test_run_id = ( self._create_test_run_id(username) )
+            base_schema = ( resource.get("schema") or "test_schema" )
+            parent_context["test_schema"] = ( f"{base_schema}_test_{test_run_id}" )
             return parent_context
 
         # =====================================================
@@ -747,38 +427,21 @@ class TrinoTestGenerator:
 
                 iceberg.hr.<test_table>
             """
-
-            parent_context = (
-                self._build_resource_context(
-                    resource,
-                    "schema",
-                )
-            )
-
+            parent_context = ( self._build_resource_context( resource, "schema") )
             if parent_context is None:
                 return None
-
             if test_run_id is None:
-                test_run_id = (
-                    self._create_test_run_id(username)
-                )
-
+                test_run_id = ( self._create_test_run_id(username) )
             # The table does not exist yet, so it cannot come from
             # the Data Mesh. Generate a unique name for the test.
-            parent_context["test_table"] = (
-                f"test_table_{test_run_id}"
-            )
-
+            parent_context["test_table"] = ( f"test_table_{test_run_id}" )
             return parent_context
 
         # =====================================================
         # CREATE VIEW / MATERIALIZED VIEW
         # =====================================================
 
-        if action in {
-            "CreateViewAction",
-            "CreateMaterializedViewAction",
-        }:
+        if action in { "CreateViewAction", "CreateMaterializedViewAction"}:
             """
             CREATE VIEW and CREATE MATERIALIZED VIEW operate at
             schema level but their SELECT statement uses an
@@ -794,48 +457,22 @@ class TrinoTestGenerator:
                     schema  = hr
                     table   = people
             """
-
-            parent_context = (
-                self._build_resource_context(
-                    resource,
-                    "schema",
-                )
-            )
-
+            parent_context = ( self._build_resource_context( resource, "schema") )
             if parent_context is None:
                 return None
-
             table = resource.get("table")
-
             if not table:
                 return None
-
-            if self._find_table(
-                {
-                    "catalog": resource.get("catalog"),
-                    "schema": resource.get("schema"),
-                    "table": table,
-                }
-            ) is None:
+            if self._find_table( { "catalog": resource.get("catalog"), "schema": resource.get("schema"), "table": table} ) is None:
                 return None
-
             parent_context["table"] = table
-
-            return self._add_action_values(
-                action,
-                parent_context,
-                username,
-                test_run_id,
-            )
+            return self._add_action_values( action, parent_context, username, test_run_id)
 
         # =====================================================
         # TABLE ACTIONS FROM A SCHEMA RESOURCE
         # =====================================================
 
-        if (
-                resource_level == "table"
-                and not resource.get("table")
-        ):
+        if resource_level == "table" and not resource.get("table"):
             """
             The authorization target is a schema, but the SQL action
             requires an existing table.
@@ -843,12 +480,16 @@ class TrinoTestGenerator:
             Example:
 
                 resolver resource:
-                    iceberg.procurement
+                    iceberg.hr
 
                 SQL:
-                    SELECT * FROM iceberg.procurement.<table>
+                    INSERT INTO iceberg.hr.people (<column>)
+                    VALUES (<value>)
 
-            Select an existing physical table from the Data Mesh.
+            The table and column are selected from the Data Mesh
+            only for SQL generation.
+
+            The original resolver resource is NOT modified.
             """
 
             catalog = resource.get("catalog")
@@ -857,18 +498,61 @@ class TrinoTestGenerator:
             if not catalog or not schema:
                 return None
 
+            # -------------------------------------------------
+            # Find one existing physical table
+            # -------------------------------------------------
+
             table_resource = self._find_table_in_schema(
                 catalog,
                 schema,
             )
 
             if table_resource is None:
+                print(
+                    f"[TEST SKIP] No existing table found for "
+                    f"schema '{catalog}.{schema}'"
+                )
                 return None
+
+            table = table_resource["table"]
+
+            # -------------------------------------------------
+            # INSERT INTO requires an existing column
+            # -------------------------------------------------
+
+            column_resource = None
+
+            for candidate in self.resources["columns"]:
+                if (
+                        candidate.get("catalog") == catalog
+                        and candidate.get("schema") == schema
+                        and candidate.get("table") == table
+                ):
+                    column_resource = candidate
+                    break
+
+            if column_resource is None:
+                print(
+                    f"[TEST SKIP] No existing column found for "
+                    f"table '{catalog}.{schema}.{table}'"
+                )
+                return None
+
+            # -------------------------------------------------
+            # Build SQL context only.
+            #
+            # This does NOT modify the resolver resource.
+            # -------------------------------------------------
 
             context = {
                 "catalog": catalog,
                 "schema": schema,
-                "table": table_resource["table"],
+                "table": table,
+                "column": column_resource["column"],
+                "column_type": column_resource.get(
+                    "column_type",
+                    "varchar",
+                ),
             }
 
             return self._add_action_values(
@@ -878,95 +562,42 @@ class TrinoTestGenerator:
                 test_run_id,
             )
 
+
         # =====================================================
         # EXISTING RESOURCE ACTIONS
         # =====================================================
-
-        context = self._build_resource_context(
-            resource,
-            resource_level,
-        )
-
+        context = self._build_resource_context( resource, resource_level)
         if context is None:
             return None
-
-        return self._add_action_values(
-            action,
-            context,
-            username,
-            test_run_id,
-        )
+        return self._add_action_values( action, context, username, test_run_id)
 
     # =========================================================
     # ACTION -> SQL
     # =========================================================
 
-    def _action_to_query(
-        self,
-        action: str,
-        resource: Dict[str, Any],
-        username: Optional[str] = None,
-        test_run_id: Optional[str] = None,
-    ) -> Optional[str]:
-
+    def _action_to_query( self, action: str, resource: Dict[str, Any], username: Optional[str] = None, test_run_id: Optional[str] = None) -> Optional[str]:
         mapping = self.action_sql_mapping.get(action)
-
         if mapping is None:
             return None
-
-        template = mapping.get(
-            "sql_template"
-        )
-
+        template = mapping.get( "sql_template" )
         if not template:
             return None
-
-        context = self._get_context(
-            action,
-            resource,
-            mapping,
-            username,
-            test_run_id,
-        )
-
+        context = self._get_context( action, resource, mapping, username, test_run_id)
         if context is None:
             return None
-
         try:
-
-            return template.format(
-                **context
-            )
-
-        except (
-            KeyError,
-            ValueError,
-            IndexError,
-        ) as e:
-
-            print(
-                f"[SQL ERROR] action='{action}', "
-                f"error={e}"
-            )
-
-            print(
-                f"[SQL ERROR] template={template}"
-            )
-
-            print(
-                f"[SQL ERROR] context={context}"
-            )
-
+            return template.format( **context )
+        except ( KeyError, ValueError, IndexError) as e:
+            print( f"[SQL ERROR] action='{action}', " f"error={e}" )
+            print( f"[SQL ERROR] template={template}" )
+            print( f"[SQL ERROR] context={context}" )
             return None
 
     # =========================================================
     # RESOLVER TARGET DEDUPLICATION
     # =========================================================
 
-    def _collapse_resolved_targets(
-        self,
-        resolved_results: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+    def _collapse_resolved_targets( self, resolved_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Defensive deduplication of resolver results.
 
@@ -997,55 +628,20 @@ class TrinoTestGenerator:
         The SQL action mapping's resource_level is deliberately
         ignored for target deduplication.
         """
-
-        unique: Dict[
-            tuple,
-            Dict[str, Any]
-        ] = {}
-
+        unique: Dict[ tuple, Dict[str, Any] ] = {}
         for authorization in resolved_results:
-
-            resource = authorization.get(
-                "resource",
-                {},
-            )
-
-            if not isinstance(
-                resource,
-                dict,
-            ):
+            resource = authorization.get( "resource", {})
+            if not isinstance( resource, dict):
                 resource = {}
-
-            resource_key = (
-                authorization.get(
-                    "securityGroup",
-                    "",
-                ),
-                authorization.get(
-                    "resourcePath",
-                    "",
-                ),
-                tuple(
-                    sorted(
-                        resource.items()
-                    )
-                ),
-            )
-
+            resource_key = ( authorization.get( "securityGroup", ""), authorization.get( "resourcePath", ""), tuple( sorted( resource.items() ) ))
             unique[resource_key] = authorization
-
-        return list(
-            unique.values()
-        )
+        return list( unique.values() )
 
     # =========================================================
     # TEST GENERATION
     # =========================================================
 
-    def generate(
-        self,
-        resolved: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+    def generate( self, resolved: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Generate SQL tests directly from resolver output.
 
@@ -1076,13 +672,7 @@ class TrinoTestGenerator:
         resource_level = schema, but the table `people` is retained
         because it is needed as the source table in the SQL.
         """
-
-        users_by_group = (
-            self._users_by_group(
-                self.users
-            )
-        )
-
+        users_by_group = ( self._users_by_group( self.users ) )
         tests: List[Dict[str, Any]] = []
 
         # -----------------------------------------------------
@@ -1090,202 +680,94 @@ class TrinoTestGenerator:
         #
         # No resource-level normalization occurs here.
         # -----------------------------------------------------
-
-        resolved_targets = (
-            self._collapse_resolved_targets(
-                resolved
-            )
-        )
-
-        print(
-            f"[TEST DEBUG] "
-            f"Resolver entries: {len(resolved)}"
-        )
-
-        print(
-            f"[TEST DEBUG] "
-            f"Test targets after deduplication: "
-            f"{len(resolved_targets)}"
-        )
+        resolved_targets = ( self._collapse_resolved_targets( resolved ) )
+        print( f"[TEST DEBUG] " f"Resolver entries: {len(resolved)}" )
+        print( f"[TEST DEBUG] " f"Test targets after deduplication: " f"{len(resolved_targets)}" )
 
         # =====================================================
         # AUTHORIZATION TARGETS
         # =====================================================
 
         for authorization in resolved_targets:
-
-            security_group = authorization.get(
-                "securityGroup"
-            )
-
-            resource_path = authorization.get(
-                "resourcePath"
-            )
-
-            resource = authorization.get(
-                "resource",
-                {}
-            )
-
-            if not isinstance(
-                resource,
-                dict,
-            ):
+            security_group = authorization.get( "securityGroup" )
+            resource_path = authorization.get( "resourcePath" )
+            resource = authorization.get( "resource", {} )
+            if not isinstance( resource, dict):
                 resource = {}
-
-            actions = authorization.get(
-                "actions",
-                {}
-            )
-
-            users = users_by_group.get(
-                security_group,
-                [],
-            )
+            actions = authorization.get( "actions", {} )
+            users = users_by_group.get( security_group, [])
 
             # =================================================
             # ACTIONS
             # =================================================
-
             for action_name, action_result in actions.items():
-
-                mapping = (
-                    self.action_sql_mapping.get(
-                        action_name,
-                        {}
-                    )
-                )
-
-                resource_level = mapping.get(
-                    "resource_level"
-                )
-
-                print(
-                    f"[TEST DEBUG] "
-                    f"group={security_group}, "
-                    f"users={len(users)}, "
-                    f"action={action_name}, "
-                    f"resource_level={resource_level}, "
-                    f"resource={resource}, "
-                    f"resourcePath={resource_path}"
-                )
-
-                if not isinstance(
-                    action_result,
-                    dict,
-                ):
+                mapping = ( self.action_sql_mapping.get( action_name, {} ) )
+                resource_level = mapping.get( "resource_level" )
+                print( f"[TEST DEBUG] " f"group={security_group}, " f"users={len(users)}, " f"action={action_name}, " f"resource_level={resource_level}, " f"resource={resource}, " f"resourcePath={resource_path}" )
+                if not isinstance( action_result, dict):
                     continue
 
                 # -------------------------------------------------
                 # Expected authorization result
                 # -------------------------------------------------
+                expected_allowed = bool( action_result.get( "allowed", False) )
 
-                expected_allowed = bool(
-                    action_result.get(
-                        "allowed",
-                        False,
-                    )
-                )
+                # =================================================
+                # ONE USER PER SECURITY GROUP
+                # =================================================
 
-                # -------------------------------------------------
-                # Users
-                # -------------------------------------------------
+                users = users_by_group.get( security_group, [])
 
                 if not users:
+                    print( f"[TEST SKIP] No user found for " f"security group " f"'{security_group}'" )
+                    continue
 
-                    print(
-                        f"[TEST SKIP] No user found for "
-                        f"security group "
-                        f"'{security_group}'"
-                    )
+                # -------------------------------------------------
+                # Keep only one representative user.
+                #
+                # Currently this is the first user appearing in
+                # the users file that belongs to this group.
+                # -------------------------------------------------
+                user = users[0]
+                username = user.get( "username" )
+                password = user.get( "password" )
+                if username is None:
+                    print( f"[TEST SKIP] User for group " f"'{security_group}' " f"has no username" )
+                    continue
+                print( f"[TEST DEBUG] " f"Using user='{username}' " f"for security group='{security_group}'" )
+
+                # -------------------------------------------------
+                # Unique test identifier
+                # -------------------------------------------------
+                test_run_id = ( self._create_test_run_id( username ) )
+
+                # -------------------------------------------------
+                # SQL
+                # -------------------------------------------------
+                query = self._action_to_query( action_name, resource, username, test_run_id)
+
+                if query is None:
+                    print( f"[TEST SKIP] Cannot generate SQL " f"for action='{action_name}', " f"resource={resource}" )
 
                     continue
 
-                # =================================================
-                # ONE TEST PER USER
-                # =================================================
+                # -------------------------------------------------
+                # Test
+                # -------------------------------------------------
 
-                for user in users:
-
-                    username = user.get(
-                        "username"
-                    )
-
-                    password = user.get(
-                        "password"
-                    )
-
-                    if username is None:
-
-                        print(
-                            f"[TEST SKIP] User for group "
-                            f"'{security_group}' "
-                            f"has no username"
-                        )
-
-                        continue
-
-                    # -------------------------------------------------
-                    # Unique test identifier
-                    # -------------------------------------------------
-
-                    test_run_id = (
-                        self._create_test_run_id(
-                            username
-                        )
-                    )
-
-                    # -------------------------------------------------
-                    # SQL
-                    # -------------------------------------------------
-
-                    query = self._action_to_query(
-                        action_name,
-                        resource,
-                        username,
-                        test_run_id,
-                    )
-
-                    if query is None:
-
-                        print(
-                            f"[TEST SKIP] Cannot generate SQL "
-                            f"for action='{action_name}', "
-                            f"resource={resource}"
-                        )
-
-                        continue
-
-                    # -------------------------------------------------
-                    # Test
-                    # -------------------------------------------------
-
-                    tests.append(
-                        {
-                            "securityGroup": (
-                                security_group
-                            ),
-
-                            "resourcePath": (
-                                resource_path
-                            ),
-
-                            # Preserve the resolver resource
-                            # exactly as returned.
-                            "resource": resource,
-
-                            "action": action_name,
-
-                            "query": query,
-
-                            "username": username,
-
-                            "password": password,
-
-                            "allowed": expected_allowed,
-                        }
-                    )
-
+                tests.append(
+                    {
+                        "securityGroup": security_group,
+                        "resourcePath": resource_path,
+                        # Preserve the resolver resource exactly.
+                        "resource": resource,
+                        "action": action_name,
+                        "query": query,
+                        "username": username,
+                        "password": password,
+                        "allowed": expected_allowed,
+                    }
+                )
         # =====================================================
         # OUTPUT
         # =====================================================
@@ -1294,13 +776,7 @@ class TrinoTestGenerator:
         print("TEST GENERATION")
         print("=" * 60)
 
-        print(
-            json.dumps(
-                tests,
-                indent=2,
-                ensure_ascii=False,
-            )
-        )
+        print( json.dumps( tests, indent=2, ensure_ascii=False) )
 
         return tests
 
@@ -1308,35 +784,12 @@ class TrinoTestGenerator:
     # SAVE
     # =========================================================
 
-    def save(
-        self,
-        resolved: List[Dict[str, Any]],
-        output_file: str | Path,
-    ) -> List[Dict[str, Any]]:
+    def save( self, resolved: List[Dict[str, Any]], output_file: str | Path) -> List[Dict[str, Any]]:
+        tests = self.generate( resolved )
+        output_file = Path( output_file )
+        output_file.parent.mkdir( parents=True, exist_ok=True)
+        with output_file.open( "w", encoding="utf-8") as f:
 
-        tests = self.generate(
-            resolved
-        )
-
-        output_file = Path(
-            output_file
-        )
-
-        output_file.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        with output_file.open(
-            "w",
-            encoding="utf-8",
-        ) as f:
-
-            json.dump(
-                tests,
-                f,
-                indent=2,
-                ensure_ascii=False,
-            )
+            json.dump( tests, f, indent=2, ensure_ascii=False)
 
         return tests

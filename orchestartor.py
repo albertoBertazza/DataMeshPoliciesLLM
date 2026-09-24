@@ -1,8 +1,11 @@
 import subprocess
+
+from numpy.f2py.auxfuncs import throw_error
+
 from Function.jsonHelper import load_json
 from LLM.Interface.activate_local_llm import activate_llm
-from LLM.LLMPipeline.IndexCreation.index_creator import ( reload_indexes,)
-from LLM.LLMPipeline.IndexCreation.Rewrite import (gen_index_rewrite,)
+from LLM.LLMPipeline.IndexCreation.Rewrite.gen_index_rewrite import gen_index_rewrite
+from LLM.LLMPipeline.IndexCreation.index_creator import ( reload_indexes)
 from Pipelines.A_GenerationPipeline.generation import ( process_rule)
 from Pipelines.B_TestAndEvaluationPipeline.C_TestEvaluation.evaluate_test import ( testEvaluation)
 
@@ -19,7 +22,7 @@ from Pipelines.costantPath import (
     CHAT_URL,
     LOCAL_CHAT_MODEL,
     DATABASE_REWRITE_RULE_FILE,
-    INDEXED_REWRITE_RULE_PATH, DOCKER_COMPOSE_PATH, MODEL
+    INDEXED_REWRITE_RULE_PATH, DOCKER_COMPOSE_PATH, MODEL, EXAMPLE_RULES
 )
 
 from reset_rego import delete_files_generated
@@ -80,14 +83,77 @@ def restart_opa() -> None:
 # PIPELINE
 # ==========================================================
 
+
+def start_pipelines(rule):
+    # ======================================================
+    # 1. GENERATE OPA POLICY
+    # ======================================================
+
+    success = process_rule(
+        rule_passed=rule,
+        index_rewrite_rule=INDEX_REWRITE_RULE,
+        check_for_action=CHECK_FOR_ACTION,
+        data_mesh=DATA_MESH,
+        security_groups=SECURITY_GROUPS,
+        is_local=IS_LOCAL,
+        chat_url=CHAT_URL,
+        embedding_url=EMBEDDING_URL,
+        client=CLIENT,
+        model=MODEL,
+        embedding_model=EMBEDDING_MODEL,
+    )
+
+    if not success:
+        print("\nPolicy pipeline failed.")
+        return
+
+    print("\n" + "=" * 70)
+    print("POLICY PIPELINE COMPLETED")
+    print("=" * 70)
+
+    restart_opa()
+
+    # ======================================================
+    # 4. RESOLVE + GENERATE + EXECUTE + EVALUATE
+    # ======================================================
+    evaluation_report = testEvaluation()
+
+    # ======================================================
+    # 5. PRINT SUMMARY
+    # ======================================================
+
+    summary = evaluation_report.get("summary", {}, )
+    print("\n" + "=" * 70)
+    print("AUTHORIZATION EVALUATION")
+    print("=" * 70)
+    print(f"Total tests:  {summary.get('total', 0)}")
+    print(f"Passed:       {summary.get('passed', 0)}")
+    print(f"Failed:       {summary.get('failed', 0)}")
+    print(f"Success:      {summary.get('success', False)}")
+    print("=" * 70)
+    return summary
+
+
+
 if __name__ == "__main__":
 
-    print("=" * 60)
-    print(" DATA MESH POLICY PIPELINE")
-    print("=" * 60)
-
-    # Delete all generated .rego files
-    delete_files_generated()
+    # print("=" * 60)
+    # print(" DATA MESH POLICY PIPELINE")
+    # print("=" * 60)
+    #
+    # # Delete all generated .rego files
+    # delete_files_generated()
+    #
+    # # create and test all rule in the original set
+    #
+    # for rule in EXAMPLE_RULES:
+    #     print("=" * 50)
+    #     print(" EXAMPLE RULE " + rule)
+    #     print("=" * 50)
+    #     summary = start_pipelines(rule)
+    #
+    #     if summary.get('success', False):
+    #         throw_error(f"Not matched rule expectation: {rule}")
 
     while True:
 
@@ -99,51 +165,5 @@ if __name__ == "__main__":
         if not rule:
             continue
 
-        # ======================================================
-        # 1. GENERATE OPA POLICY
-        # ======================================================
+        start_pipelines(rule)
 
-        success = process_rule(
-            rule_passed=rule,
-            index_rewrite_rule=INDEX_REWRITE_RULE,
-            check_for_action=CHECK_FOR_ACTION,
-            data_mesh=DATA_MESH,
-            security_groups=SECURITY_GROUPS,
-            is_local=IS_LOCAL,
-            chat_url=CHAT_URL,
-            embedding_url=EMBEDDING_URL,
-            client=CLIENT,
-            model=MODEL,
-            embedding_model=EMBEDDING_MODEL,
-        )
-
-        if not success:
-            print( "\nPolicy pipeline failed." )
-            continue
-
-        print( "\n" + "=" * 70 )
-        print( "POLICY PIPELINE COMPLETED" )
-        print( "=" * 70 )
-
-
-        restart_opa()
-
-
-        # ======================================================
-        # 4. RESOLVE + GENERATE + EXECUTE + EVALUATE
-        # ======================================================
-        evaluation_report = testEvaluation()
-
-        # ======================================================
-        # 5. PRINT SUMMARY
-        # ======================================================
-
-        summary = evaluation_report.get("summary",{}, )
-        print( "\n" + "=" * 70 )
-        print("AUTHORIZATION EVALUATION")
-        print(  "=" * 70)
-        print(f"Total tests:  {summary.get('total', 0)}")
-        print(f"Passed:       {summary.get('passed', 0)}")
-        print( f"Failed:       {summary.get('failed', 0)}")
-        print(f"Success:      {summary.get('success', False)}"  )
-        print(  "=" * 70 )

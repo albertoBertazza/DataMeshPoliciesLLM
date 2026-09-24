@@ -97,11 +97,6 @@
     "ExecuteQuery",
     "RenameMaterializedView"
   ],
-  "RenameSchemaAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "RenameSchema"
-  ],
   "RenameTableAction": [
     "AccessCatalog",
     "ExecuteQuery",
@@ -116,10 +111,6 @@
     "AccessCatalog",
     "ExecuteQuery",
     "SetColumnComment"
-  ],
-  "SetSchemaAuthorizationAction": [
-    "ExecuteQuery",
-    "SetSchemaAuthorization"
   ],
   "SetTableCommentAction": [
     "AccessCatalog",

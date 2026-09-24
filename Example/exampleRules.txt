@@ -29,3 +29,37 @@ hr_manager can create table inside hr schema
 hr_manager can create view on finance.employee_finance
 
 hr_manager can select from table in procurement schema
+
+hr_manager can delete from support.support_tickets
+
+hr_manager can drop column inside support.support_tickets
+
+#TODO DropMaterializedViewAction
+
+hr_manager can drop table support.support_tickets
+
+hr_manager can drop schema support
+
+#TODO DropViewAction
+
+hr_manager can insert a new entity inside schema hr
+
+#TODO RefreshMaterializedViewAction
+
+hr_manager can rename a column inside procurement
+
+#TODO RenameMaterializedViewAction
+
+hr_manager can rename table inside procurement schema
+
+# NOT SUPPORTED BY HIVE METASTORE: hr_manager can rename schema name, only of schema procurement
+
+#TODO: RenameViewAction
+
+hr_manager can add comment to column in schema sales
+
+hr_manager can add comment to table in schema sales
+
+#TODO SetViewCommentAction
+
+hr manager can execute show columns inside schema sales

@@ -121,4 +121,7 @@ EXAMPLE_RULES =[
     "hr_manager can create table inside hr schema",
     "hr_manager can create view on finance.employee_finance",
     "hr_manager can select from table in procurement schema",
+    "hr_manager can delete from support.support_tickets",
+    "hr_manager can drop column inside support.support_tickets",
+
 ]
