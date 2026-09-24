@@ -344,7 +344,7 @@ batch contains i if {
         with input.action.operation as "AccessCatalog"
         with input.action.resource as {
             "catalog": {
-                "catalogName": raw_resource.catalog.name
+                "name": raw_resource.catalog.name
             }
         }
 }
@@ -359,9 +359,10 @@ batch contains i if {
     input.action.operation == "FilterSchemas"
 
     some i
-
     raw_resource := input.action.filterResources[i]
 
+    # A schema is visible when ShowSchemas is allowed
+    # on that schema.
     allow
         with input.action.operation as "ShowSchemas"
         with input.action.resource as raw_resource
@@ -425,3 +426,10 @@ batch contains i if {
             }
         }
 }
+
+#debug_target := {
+#    "operation": input.action.operation,
+#    "target_info": target_info,
+#    "target_path": target_path,
+#    "matching_rules": [r | r := matching_rules[_]]
+#}
