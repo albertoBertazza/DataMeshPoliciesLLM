@@ -190,8 +190,18 @@ permission_allowed(perm) if {
 # Action authorization
 # ------------------------------------------------------------
 
+# CHECK ALL THE PERMISSIONS
+# STATEFUL EXPRESSION
 allow if {
-    permission_allowed(input.action.operation)
+    req_perms := data.checkForAction[input.action.operation]
+
+    denied_perms := [
+        p |
+        some p in req_perms
+        not permission_allowed(p)
+    ]
+
+    count(denied_perms) == 0
 }
 
 allow if {

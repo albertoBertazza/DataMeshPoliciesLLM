@@ -1,0 +1,13 @@
+services:
+  opa-stateful:
+    image: openpolicyagent/opa:latest
+    container_name: opa-stateful
+    ports:
+      - "8182:8182"
+    volumes:
+      - ./opa:/policy
+    command:
+      - "run"
+      - "--server"
+      - "--addr=0.0.0.0:8182"
+      - "/policy"

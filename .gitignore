@@ -231,3 +231,5 @@ benchmark_comparison
 
 LLM/LLMPipeline/Example/Indexed/**/*.json
 Pipelines/A_GenerationPipeline/output_generation/**/*.json
+Analysis/output/*.json
+Analysis/output/**

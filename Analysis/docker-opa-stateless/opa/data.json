@@ -1,0 +1,51 @@
+{
+  "version": "2.0-opa",
+  "rules": {
+    "root": {
+      "auditor": {
+        "rule_id": "rule_root_auditor",
+        "group": "auditor",
+        "resource_type": "root",
+        "permissions": {
+          "allow": [
+            "AccessCatalog",
+            "AddColumn",
+            "CreateMaterializedView",
+            "CreateSchema",
+            "CreateTable",
+            "CreateView",
+            "DeleteFromTable",
+            "DropColumn",
+            "DropMaterializedView",
+            "DropSchema",
+            "DropTable",
+            "DropView",
+            "ExecuteQuery",
+            "GetColumnMask",
+            "GetRowFilters",
+            "InsertIntoTable",
+            "RefreshMaterializedView",
+            "RenameColumn",
+            "RenameMaterializedView",
+            "RenameTable",
+            "RenameView",
+            "SelectFromColumns",
+            "SetColumnComment",
+            "SetTableComment",
+            "SetViewComment",
+            "ShowColumns",
+            "ShowCreateSchema",
+            "ShowCreateTable",
+            "ShowSchemas",
+            "ShowTables",
+            "TruncateTable",
+            "UpdateTableColumns"
+          ],
+          "deny": []
+        },
+        "row_filter": null,
+        "column_masks": {}
+      }
+    }
+  }
+}

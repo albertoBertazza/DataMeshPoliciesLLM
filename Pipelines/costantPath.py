@@ -99,19 +99,6 @@ DATABASE_REWRITE_RULE_FILE= (DATABASE_DIR / "RewriteRule"/ "rewrite_rule_example
 INDEXED_DIR =os.path.join(DATA_MESH_DIR , "LLM", "LLMPipeline", "Example", "Indexed")
 INDEXED_REWRITE_RULE_PATH = os.path.join(INDEXED_DIR , "RewriteRule")
 
-#-----------------------------------------------------------
-# Benchmarking paths
-#-----------------------------------------------------------
-BASE_DIR = Path(__file__).resolve().parent
-DOCKER_COMPOSE_TRINO_DIR = BASE_DIR / "docker-compose"
-DOCKER_COMPOSE_OPA_DIR = BASE_DIR / "StatelessRuleArchitecture" / "docker-opa-stateless"
-
-# ============================================================================
-# Configuration
-# ============================================================================
-SOURCE_FILE = BASE_DIR / "policyReference.rego"
-TARGET_DIRECTORIES = [ BASE_DIR / "docker-compose" / "opa", BASE_DIR / "StatelessRuleArchitecture" / "docker-opa-stateless" / "opa"]
-
 
 
 EXAMPLE_RULES =[
@@ -140,3 +127,34 @@ EXAMPLE_RULES =[
     "auditor is not allowed to select any table inside the iceberg catalog", # DENY PERMISSION
     "auditor is allowed to select any table inside schema sales", # ALLOW PERMISSION, but denied at catalog level
 ]
+
+
+
+# =================================================================
+# STATELESS STATEFUL ANALYSIS
+# =================================================================
+
+ANALYSIS_DIR= os.path.join(DATA_MESH_DIR ,  "Analysis")
+ANALYSIS_OUTPUT = os.path.join(ANALYSIS_DIR , "output")
+
+OUTPUT_STATEFUL_PATH = os.path.join(ANALYSIS_OUTPUT , "output_stateful.json")
+OUTPUT_STATELESS_PATH = os.path.join(ANALYSIS_OUTPUT , "output_stateless.json")
+OUTPUT_BENCHMARK_DIR = os.path.join(ANALYSIS_OUTPUT , "benchmark")
+
+STATEFUL_OPA_DOCKER_DIR = os.path.join(ANALYSIS_DIR , "docker-opa-stateful")
+STATELESS_OPA_DOCKER_DIR = os.path.join(ANALYSIS_DIR , "docker-opa-stateless")
+
+OPA_STATEFUL_DIR= os.path.join(STATEFUL_OPA_DOCKER_DIR , "opa")
+OPA_STATELESS_DIR = os.path.join(STATELESS_OPA_DOCKER_DIR , "opa")
+
+DATA_STATEFUL_PATH = os.path.join(OPA_STATEFUL_DIR , "data.json")
+DATA_STATELESS_PATH = os.path.join(OPA_STATELESS_DIR , "data.json")
+
+DATA_JSON_EXAMPLE_ANALYSIS = os.path.join(ANALYSIS_DIR , "data.json")
+
+
+STATEFUL_PORT = 8182
+STATELESS_PORT = 8183
+
+OPA_URL_STATELESS = f"http://localhost:{STATELESS_PORT}/v1/data/trino/authz/allow"
+OPA_URL_STATEFUL = f"http://localhost:{STATEFUL_PORT}/v1/data/trino/authz/allow"
