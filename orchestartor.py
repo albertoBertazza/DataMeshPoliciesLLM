@@ -1,5 +1,6 @@
 import subprocess
 
+import questionary
 from numpy.f2py.auxfuncs import throw_error
 
 from Function.jsonHelper import load_json
@@ -141,19 +142,30 @@ if __name__ == "__main__":
     print(" DATA MESH POLICY PIPELINE")
     print("=" * 60)
 
-    # Delete all generated .rego files
-    delete_files_generated()
+    answer = input("Do you wanna launch test? [y/N]: ").strip().lower()
 
-    # create and test all rule in the original set
-
-    for rule in EXAMPLE_RULES:
-        print("=" * 50)
-        print(" EXAMPLE RULE " + rule)
-        print("=" * 50)
-        summary = start_pipelines(rule)
-
-        if summary.get('success', False):
-            throw_error(f"Not matched rule expectation: {rule}")
+    if answer == "y":
+        print("Launching test...")
+        # Delete all generated .rego files
+        delete_files_generated()
+        # create and test all rule in the original set
+        for rule in EXAMPLE_RULES:
+            print("=" * 50)
+            print(" EXAMPLE RULE " + rule)
+            print("=" * 50)
+            summary = start_pipelines(rule)
+            if summary.get('success', False):
+                throw_error(f"Not matched rule expectation: {rule}")
+        # rebuild data mesh
+        subprocess.run([
+            "bash",
+            "StructureExtraction/MinioStructureExtraction/data_mesh_extraction.sh",
+            "--user",
+            "trino",
+            "--password",
+            "trino123",
+            "--debug",
+        ], check=True)
 
     while True:
 
