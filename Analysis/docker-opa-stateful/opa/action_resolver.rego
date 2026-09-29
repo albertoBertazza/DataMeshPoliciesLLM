@@ -204,9 +204,10 @@ allow if {
     count(denied_perms) == 0
 }
 
-allow if {
-    is_admin
-}
+# NO BACKDOOR: i need in test to evaluate only permission allowed by data.json
+# allow if {
+#     is_admin
+# }
 
 
 # ------------------------------------------------------------

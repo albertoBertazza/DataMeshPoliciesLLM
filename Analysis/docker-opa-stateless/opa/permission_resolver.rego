@@ -194,9 +194,10 @@ allow if {
     permission_allowed(input.action.operation)
 }
 
-allow if {
-    is_admin
-}
+# NO BACKDOOR: i need in test to evaluate only permission allowed by data.json
+# allow if {
+#     is_admin
+# }
 
 
 # ------------------------------------------------------------
