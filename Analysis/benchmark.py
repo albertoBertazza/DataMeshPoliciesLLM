@@ -1,49 +1,42 @@
+
 import json
 import statistics
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 
-from Pipelines.costantPath import OUTPUT_STATEFUL_PATH, OUTPUT_STATELESS_PATH, OUTPUT_BENCHMARK_DIR
+from Pipelines.costantPath import (
+    OUTPUT_STATEFUL_PATH,
+    OUTPUT_STATELESS_PATH,
+    OUTPUT_BENCHMARK_DIR,
+)
 
-
-# ==============================================================
-# BENCHMARK
-# ==============================================================
 
 class OPABenchmark:
     """
-    Analyze the results produced by the stateful and stateless
-    OPA analysis.
+    Benchmark Stateful vs Stateless authorization.
 
-    The benchmark compares:
+    Stateful:
+        One OPA request for the complete action.
 
-        Stateful:
-            action -> one OPA request
+    Stateless:
+        One OPA request per required permission.
+        Evaluation short-circuits at the first denied permission.
 
-        Stateless:
-            action -> permission 1 -> permission 2 -> ...
-            until a permission fails or all permissions succeed.
+    Logical test:
+        (testId, repetition)
 
-    Metrics:
+    For each logical test:
+        - calls = number of executed OPA requests
+        - total HTTP time = sum of executed OPA request times
+        - decision = DENY if the first executed denied permission is found;
+                     otherwise ALLOW
+        - passed = final decision == expectedAllowed
 
-        - number of logical tests
-        - number of OPA executions
-        - correct decisions
-        - mismatches
-        - accuracy
-        - HTTP latency
-        - OPA evaluation time
-        - OPA compilation time
-        - OPA handler time
-        - latency percentiles
-        - executions per logical test
+    This makes Stateful and Stateless directly comparable at the same
+    x-axis position.
     """
-
-    # ==========================================================
-    # INIT
-    # ==========================================================
 
     def __init__(
         self,
@@ -54,83 +47,65 @@ class OPABenchmark:
         self.stateful_file = Path(stateful_file)
         self.stateless_file = Path(stateless_file)
         self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.output_dir.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        self.stateful = self._load(
-            self.stateful_file
-        )
-
-        self.stateless = self._load(
-            self.stateless_file
-        )
+        self.stateful = self._load(self.stateful_file)
+        self.stateless = self._load(self.stateless_file)
 
     # ==========================================================
     # LOAD
     # ==========================================================
 
     @staticmethod
-    def _load(
-        path: Path,
-    ) -> List[Dict[str, Any]]:
-
-        with path.open(
-            "r",
-            encoding="utf-8",
-        ) as file:
-
+    def _load(path: Path) -> List[Dict[str, Any]]:
+        with path.open("r", encoding="utf-8") as file:
             data = json.load(file)
 
         if not isinstance(data, list):
-            raise ValueError(
-                f"Benchmark file must contain a JSON list: {path}"
-            )
+            raise ValueError(f"Benchmark file must contain a JSON list: {path}")
 
         return data
 
     # ==========================================================
-    # NUMERIC VALUES
+    # HELPERS
     # ==========================================================
 
     @staticmethod
-    def _values(
-        results: List[Dict[str, Any]],
-        field: str,
-    ) -> List[float]:
-
-        values = []
-
-        for result in results:
-
-            value = result.get(field)
-
-            if value is None:
-                continue
-
-            try:
-                values.append(float(value))
-
-            except (
-                TypeError,
-                ValueError,
-            ):
-                continue
-
-        return values
-
-    # ==========================================================
-    # PERCENTILE
-    # ==========================================================
+    def _test_key(result: Dict[str, Any]) -> Tuple[Any, Any]:
+        return (
+            result.get("testId"),
+            result.get("repetition"),
+        )
 
     @staticmethod
-    def _percentile(
-        values: List[float],
-        percentile: float,
-    ) -> Optional[float]:
+    def _executed(result: Dict[str, Any]) -> bool:
+        """
+        A stateless row is an executed OPA request when it has timing data.
 
+        This also handles explicitly skipped rows produced by the runner:
+        skipped rows have no HTTP timing.
+        """
+        return result.get("httpLatencyNs") is not None
+
+    @staticmethod
+    def _ns(value: Any) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    @staticmethod
+    def _format_ns(value: Optional[float]) -> str:
+        if value is None:
+            return "N/A"
+        if value >= 1_000_000:
+            return f"{value / 1_000_000:.3f} ms"
+        if value >= 1_000:
+            return f"{value / 1_000:.3f} µs"
+        return f"{value:.0f} ns"
+
+    @staticmethod
+    def _percentile(values: List[float], percentile: float) -> Optional[float]:
         if not values:
             return None
 
@@ -139,10 +114,7 @@ class OPABenchmark:
         if len(values) == 1:
             return values[0]
 
-        position = (
-            percentile / 100
-        ) * (len(values) - 1)
-
+        position = (percentile / 100) * (len(values) - 1)
         lower = int(position)
         upper = lower + 1
 
@@ -150,27 +122,10 @@ class OPABenchmark:
             return values[-1]
 
         weight = position - lower
+        return values[lower] + weight * (values[upper] - values[lower])
 
-        return (
-            values[lower]
-            + weight
-            * (
-                values[upper]
-                - values[lower]
-            )
-        )
-
-    # ==========================================================
-    # STATISTICS
-    # ==========================================================
-
-    def _statistics(
-        self,
-        values: List[float],
-    ) -> Dict[str, Optional[float]]:
-
+    def _statistics(self, values: List[float]) -> Dict[str, Optional[float]]:
         if not values:
-
             return {
                 "count": 0,
                 "mean": None,
@@ -185,815 +140,829 @@ class OPABenchmark:
             "count": len(values),
             "mean": statistics.mean(values),
             "median": statistics.median(values),
-            "p95": self._percentile(
-                values,
-                95,
-            ),
-            "p99": self._percentile(
-                values,
-                99,
-            ),
+            "p95": self._percentile(values, 95),
+            "p99": self._percentile(values, 99),
             "min": min(values),
             "max": max(values),
         }
 
     # ==========================================================
-    # LOGICAL TESTS
+    # LOGICAL TEST AGGREGATION
+    # ==========================================================
+
+    def _aggregate_stateful(self) -> List[Dict[str, Any]]:
+        """
+        Stateful already contains one row per logical test.
+        """
+        rows = []
+
+        for result in self.stateful:
+            rows.append({
+                "testId": result.get("testId"),
+                "repetition": result.get("repetition"),
+                "securityGroup": result.get("securityGroup"),
+                "action": result.get("action"),
+                "expectedAllowed": bool(result.get("expectedAllowed")),
+                "decision": bool(result.get("opaActual")),
+                "passed": result.get("matches") is True,
+                "calls": 1,
+                "totalHttpLatencyNs": self._ns(result.get("httpLatencyNs")),
+                "rows": [result],
+            })
+
+        return rows
+
+    def _aggregate_stateless(self) -> List[Dict[str, Any]]:
+        """
+        Aggregate all permission requests belonging to one logical test.
+
+        IMPORTANT:
+        - Sort by permissionIndex.
+        - Ignore skipped rows with no HTTP timing.
+        - The first executed False is the logical DENY.
+        - If no executed False exists, the logical result is ALLOW.
+        - Total latency is the sum of executed permission requests.
+        """
+        groups: Dict[Tuple[Any, Any], List[Dict[str, Any]]] = {}
+
+        for result in self.stateless:
+            key = self._test_key(result)
+            groups.setdefault(key, []).append(result)
+
+        aggregated = []
+
+        for key, rows in groups.items():
+            rows = sorted(
+                rows,
+                key=lambda r: (
+                    r.get("permissionIndex")
+                    if r.get("permissionIndex") is not None
+                    else 10**9
+                ),
+            )
+
+            executed = [r for r in rows if self._executed(r)]
+
+            if not executed:
+                # Keep the logical test visible, but it cannot be timed.
+                expected = bool(rows[0].get("expectedAllowed"))
+                decision = False
+                total_latency = 0.0
+                calls = 0
+            else:
+                expected = bool(executed[0].get("expectedAllowed"))
+
+                first_denied = next(
+                    (r for r in executed if r.get("opaActual") is False),
+                    None,
+                )
+
+                if first_denied is not None:
+                    decision = False
+                else:
+                    decision = True
+
+                total_latency = sum(
+                    self._ns(r.get("httpLatencyNs"))
+                    for r in executed
+                )
+                calls = len(executed)
+
+            aggregated.append({
+                "testId": key[0],
+                "repetition": key[1],
+                "securityGroup": rows[0].get("securityGroup"),
+                "action": rows[0].get("action"),
+                "expectedAllowed": expected,
+                "decision": decision,
+                "passed": decision == expected,
+                "calls": calls,
+                "totalHttpLatencyNs": total_latency,
+                "rows": rows,
+            })
+
+        # Stable ordering: test first, repetition second.
+        aggregated.sort(
+            key=lambda r: (
+                r["testId"] if r["testId"] is not None else 10**9,
+                r["repetition"] if r["repetition"] is not None else 10**9,
+            )
+        )
+
+        return aggregated
+
+    def _paired_tests(self) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """
+        Put Stateful and Stateless logical tests in the same x-axis order.
+
+        Pairing is done by (testId, repetition).
+        """
+        stateful = {
+            self._test_key(row): row
+            for row in self._aggregate_stateful()
+        }
+        stateless = {
+            self._test_key(row): row
+            for row in self._aggregate_stateless()
+        }
+
+        keys = sorted(
+            set(stateful) | set(stateless),
+            key=lambda k: (
+                k[0] if k[0] is not None else 10**9,
+                k[1] if k[1] is not None else 10**9,
+            ),
+        )
+
+        return (
+            [stateful[k] for k in keys if k in stateful],
+            [stateless[k] for k in keys if k in stateless],
+        )
+
+    # ==========================================================
+    # SUMMARY
+    # ==========================================================
+
+    def _mode_summary(self, tests: List[Dict[str, Any]]) -> Dict[str, Any]:
+        passed = sum(1 for t in tests if t["passed"])
+        total = len(tests)
+
+        times = [
+            t["totalHttpLatencyNs"]
+            for t in tests
+            if t["calls"] > 0
+        ]
+
+        calls = [t["calls"] for t in tests]
+
+        return {
+            "logicalTests": total,
+            "passedTests": passed,
+            "failedTests": total - passed,
+            "accuracy": passed / total if total else 0.0,
+            "totalOpaExecutions": sum(calls),
+            "averageCallsPerTest": statistics.mean(calls) if calls else 0.0,
+            "minCalls": min(calls) if calls else 0,
+            "maxCalls": max(calls) if calls else 0,
+            "totalHttpLatencyNs": self._statistics(times),
+        }
+
+    def summary(self) -> Dict[str, Any]:
+        stateful = self._aggregate_stateful()
+        stateless = self._aggregate_stateless()
+
+        return {
+            "stateful": self._mode_summary(stateful),
+            "stateless": self._mode_summary(stateless),
+        }
+
+    # ==========================================================
+    # ACTION TIME STATISTICS
     # ==========================================================
 
     @staticmethod
-    def _logical_tests(
-        results: List[Dict[str, Any]],
-    ) -> int:
+    def _action_statistics(
+            tests: List[Dict[str, Any]],
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Min / average / max total test time for each action.
+        """
+        grouped: Dict[str, List[float]] = {}
 
-        return len({
-            result.get("testId")
-            for result in results
-            if result.get("testId") is not None
-        })
-
-    # ==========================================================
-    # BASIC METRICS
-    # ==========================================================
-
-    def _basic_metrics(
-        self,
-        results: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-
-        executions = len(results)
-
-        correct = sum(
-            1
-            for result in results
-            if result.get("matches") is True
-        )
-
-        mismatches = (
-            executions - correct
-        )
-
-        accuracy = (
-            correct / executions
-            if executions
-            else 0.0
-        )
-
-        logical_tests = (
-            self._logical_tests(results)
-        )
-
-        executions_per_test = (
-            executions / logical_tests
-            if logical_tests
-            else 0.0
-        )
+        for test in tests:
+            action = test.get("action") or "UNKNOWN"
+            if test["calls"] == 0:
+                continue
+            grouped.setdefault(action, []).append(
+                test["totalHttpLatencyNs"]
+            )
 
         return {
-            "logicalTests": logical_tests,
-            "opaExecutions": executions,
-            "correctDecisions": correct,
-            "mismatches": mismatches,
-            "accuracy": accuracy,
-            "executionsPerLogicalTest": (
-                executions_per_test
-            ),
+            action: {
+                "count": len(values),
+                "minNs": min(values),
+                "avgNs": statistics.mean(values),
+                "maxNs": max(values),
+            }
+            for action, values in sorted(grouped.items())
+        }
+
+    def _permission_statistics(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Stateless permission-level min / average / max HTTP latency.
+
+        Skipped permissions are excluded because they did not execute.
+        """
+        grouped: Dict[str, List[float]] = {}
+
+        for result in self.stateless:
+            if not self._executed(result):
+                continue
+
+            permission = result.get("operation") or "UNKNOWN"
+            grouped.setdefault(permission, []).append(
+                self._ns(result.get("httpLatencyNs"))
+            )
+
+        return {
+            permission: {
+                "count": len(values),
+                "minNs": min(values),
+                "avgNs": statistics.mean(values),
+                "maxNs": max(values),
+            }
+            for permission, values in sorted(grouped.items())
+        }
+
+    def detailed_statistics(self) -> Dict[str, Any]:
+        stateful = self._aggregate_stateful()
+        stateless = self._aggregate_stateless()
+
+        return {
+            "statefulByAction": self._action_statistics(stateful),
+            "statelessByAction": self._action_statistics(stateless),
+            "statelessByPermission": self._permission_statistics(),
         }
 
     # ==========================================================
-    # COMPLETE METRICS
-    # ==========================================================
-
-    def _calculate_metrics(
-        self,
-        results: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-
-        metrics = self._basic_metrics(
-            results
-        )
-
-        # ------------------------------------------------------
-        # Latency
-        # ------------------------------------------------------
-
-        http_latency = self._values(
-            results,
-            "httpLatencyNs",
-        )
-
-        opa_eval = self._values(
-            results,
-            "opaEvalNs",
-        )
-
-        opa_compile = self._values(
-            results,
-            "opaCompileNs",
-        )
-
-        opa_handler = self._values(
-            results,
-            "opaHandlerNs",
-        )
-
-        metrics["httpLatencyNs"] = (
-            self._statistics(
-                http_latency
-            )
-        )
-
-        metrics["opaEvalNs"] = (
-            self._statistics(
-                opa_eval
-            )
-        )
-
-        metrics["opaCompileNs"] = (
-            self._statistics(
-                opa_compile
-            )
-        )
-
-        metrics["opaHandlerNs"] = (
-            self._statistics(
-                opa_handler
-            )
-        )
-
-        return metrics
-
-    # ==========================================================
-    # PUBLIC SUMMARY
-    # ==========================================================
-
-    def summary(self) -> Dict[str, Any]:
-
-        return {
-            "stateful": self._calculate_metrics(
-                self.stateful
-            ),
-            "stateless": self._calculate_metrics(
-                self.stateless
-            ),
-        }
-
-    # ==========================================================
-    # PRINT SUMMARY
+    # PRINT
     # ==========================================================
 
     def print_summary(self) -> None:
-
         summary = self.summary()
 
         print()
-        print("=" * 80)
+        print("=" * 90)
         print("OPA BENCHMARK")
-        print("=" * 80)
+        print("=" * 90)
 
-        for mode in (
-            "stateful",
-            "stateless",
-        ):
-
-            metrics = summary[mode]
+        for mode in ("stateful", "stateless"):
+            m = summary[mode]
 
             print()
-            print(
-                f"{mode.upper()}"
-            )
-            print("-" * 80)
+            print(mode.upper())
+            print("-" * 90)
+            print(f"Logical tests:          {m['logicalTests']}")
+            print(f"Passed:                 {m['passedTests']}")
+            print(f"Failed:                 {m['failedTests']}")
+            print(f"Accuracy:               {m['accuracy']:.2%}")
+            print(f"OPA executions:         {m['totalOpaExecutions']}")
+            print(f"Average calls/test:     {m['averageCallsPerTest']:.2f}")
+            print(f"Min calls/test:         {m['minCalls']}")
+            print(f"Max calls/test:         {m['maxCalls']}")
 
-            print(
-                f"Logical tests:          "
-                f"{metrics['logicalTests']}"
-            )
-
-            print(
-                f"OPA executions:         "
-                f"{metrics['opaExecutions']}"
-            )
-
-            print(
-                f"Correct decisions:      "
-                f"{metrics['correctDecisions']}"
-            )
-
-            print(
-                f"Mismatches:             "
-                f"{metrics['mismatches']}"
-            )
-
-            print(
-                f"Accuracy:               "
-                f"{metrics['accuracy']:.2%}"
-            )
-
-            print(
-                f"Executions/test:        "
-                f"{metrics['executionsPerLogicalTest']:.2f}"
-            )
-
-            # --------------------------------------------------
-            # HTTP
-            # --------------------------------------------------
-
-            http = metrics[
-                "httpLatencyNs"
-            ]
-
+            latency = m["totalHttpLatencyNs"]
             print()
-            print("HTTP latency:")
+            print("Total HTTP time per logical test:")
+            print(f"  Average:              {self._format_ns(latency['mean'])}")
+            print(f"  Median:               {self._format_ns(latency['median'])}")
+            print(f"  P95:                  {self._format_ns(latency['p95'])}")
+            print(f"  P99:                  {self._format_ns(latency['p99'])}")
+            print(f"  Min:                  {self._format_ns(latency['min'])}")
+            print(f"  Max:                  {self._format_ns(latency['max'])}")
 
-            print(
-                f"  Mean:                 "
-                f"{self._format_ns(http['mean'])}"
-            )
+    def print_detailed_statistics(self) -> None:
+        details = self.detailed_statistics()
 
-            print(
-                f"  Median:               "
-                f"{self._format_ns(http['median'])}"
-            )
-
-            print(
-                f"  P95:                  "
-                f"{self._format_ns(http['p95'])}"
-            )
-
-            print(
-                f"  P99:                  "
-                f"{self._format_ns(http['p99'])}"
-            )
-
-            # --------------------------------------------------
-            # OPA evaluation
-            # --------------------------------------------------
-
-            evaluation = metrics[
-                "opaEvalNs"
-            ]
-
+        def print_table(title: str, data: Dict[str, Dict[str, Any]]) -> None:
             print()
-            print("OPA evaluation:")
-
+            print("=" * 110)
+            print(title)
+            print("=" * 110)
             print(
-                f"  Mean:                 "
-                f"{self._format_ns(evaluation['mean'])}"
+                f"{'Name':45}"
+                f"{'Count':>10}"
+                f"{'Min':>18}"
+                f"{'Avg':>18}"
+                f"{'Max':>18}"
             )
+            print("-" * 110)
 
-            print(
-                f"  Median:               "
-                f"{self._format_ns(evaluation['median'])}"
-            )
+            for name, values in data.items():
+                print(
+                    f"{name[:45]:45}"
+                    f"{values['count']:>10}"
+                    f"{self._format_ns(values['minNs']):>18}"
+                    f"{self._format_ns(values['avgNs']):>18}"
+                    f"{self._format_ns(values['maxNs']):>18}"
+                )
 
-            print(
-                f"  P95:                  "
-                f"{self._format_ns(evaluation['p95'])}"
-            )
-
-            # --------------------------------------------------
-            # Handler
-            # --------------------------------------------------
-
-            handler = metrics[
-                "opaHandlerNs"
-            ]
-
-            print()
-            print("OPA handler:")
-
-            print(
-                f"  Mean:                 "
-                f"{self._format_ns(handler['mean'])}"
-            )
-
-    # ==========================================================
-    # FORMAT
-    # ==========================================================
-
-    @staticmethod
-    def _format_ns(
-        value: Optional[float],
-    ) -> str:
-
-        if value is None:
-            return "N/A"
-
-        if value >= 1_000_000:
-
-            return (
-                f"{value / 1_000_000:.3f} ms"
-            )
-
-        if value >= 1_000:
-
-            return (
-                f"{value / 1_000:.3f} µs"
-            )
-
-        return f"{value:.0f} ns"
-
-    # ==========================================================
-    # GRAPH 1
-    # LATENCY
-    # ==========================================================
-
-    def plot_latency(
-        self,
-        field: str = "httpLatencyNs",
-        title: str = "OPA HTTP Latency",
-    ) -> None:
-
-        stateful = self._values(
-            self.stateful,
-            field,
+        print_table(
+            "STATEFUL — TOTAL TIME BY ACTION",
+            details["statefulByAction"],
+        )
+        print_table(
+            "STATELESS — TOTAL TIME BY ACTION",
+            details["statelessByAction"],
+        )
+        print_table(
+            "STATELESS — TIME BY PERMISSION",
+            details["statelessByPermission"],
         )
 
-        stateless = self._values(
-            self.stateless,
-            field,
-        )
+
+    # ==========================================================
+    # GRAPH 1 + 2 + 3
+    # ==========================================================
+
+    def plot_test_comparison(self) -> None:
+        """
+        One figure with three vertically aligned graphs:
+
+        1. Number of OPA calls per logical test.
+        2. Total HTTP time per logical test.
+        3. Passed / failed per logical test.
+
+        Stateful and Stateless use exactly the same x-axis positions.
+
+        The x-axis label contains:
+            testId/repetition
+            action
+        """
+        stateful, stateless = self._paired_tests()
 
         if not stateful and not stateless:
             return
 
-        plt.figure(
-            figsize=(10, 6)
-        )
-
-        if stateful:
-            plt.plot(
-                range(1, len(stateful) + 1),
-                [
-                    x / 1_000_000
-                    for x in stateful
-                ],
-                label="Stateful",
-            )
-
-        if stateless:
-            plt.plot(
-                range(1, len(stateless) + 1),
-                [
-                    x / 1_000_000
-                    for x in stateless
-                ],
-                label="Stateless",
-            )
-
-        plt.xlabel(
-            "OPA execution"
-        )
-
-        plt.ylabel(
-            "Latency (ms)"
-        )
-
-        plt.title(title)
-
-        plt.legend()
-
-        plt.grid(
-            True,
-            alpha=0.3,
-        )
-
-        plt.tight_layout()
-
-        output = (
-            self.output_dir
-            / f"{field}_comparison.png"
-        )
-
-        plt.savefig(
-            output,
-            dpi=300,
-        )
-
-        plt.close()
-
-    # ==========================================================
-    # GRAPH 2
-    # LATENCY DISTRIBUTION
-    # ==========================================================
-
-    def plot_latency_distribution(
-        self,
-    ) -> None:
-
-        stateful = [
-            x / 1_000_000
-            for x in self._values(
-                self.stateful,
-                "httpLatencyNs",
-            )
-        ]
-
-        stateless = [
-            x / 1_000_000
-            for x in self._values(
-                self.stateless,
-                "httpLatencyNs",
-            )
-        ]
-
-        if not stateful and not stateless:
-            return
-
-        plt.figure(
-            figsize=(10, 6)
-        )
-
-        plt.boxplot(
-            [
-                stateful,
-                stateless,
-            ],
-            tick_labels=[
-                "Stateful",
-                "Stateless",
-            ],
-        )
-
-        plt.ylabel(
-            "HTTP latency (ms)"
-        )
-
-        plt.title(
-            "OPA HTTP Latency Distribution"
-        )
-
-        plt.grid(
-            True,
-            axis="y",
-            alpha=0.3,
-        )
-
-        plt.tight_layout()
-
-        output = (
-            self.output_dir
-            / "latency_distribution.png"
-        )
-
-        plt.savefig(
-            output,
-            dpi=300,
-        )
-
-        plt.close()
-
-    # ==========================================================
-    # GRAPH 3
-    # OPA INTERNAL TIMES
-    # ==========================================================
-
-    def plot_internal_metrics(
-        self,
-    ) -> None:
-
-        metric_fields = {
-            "OPA evaluation": "opaEvalNs",
-            "OPA compilation": "opaCompileNs",
-            "OPA handler": "opaHandlerNs",
+        stateful_map = {
+            self._test_key(t): t for t in stateful
+        }
+        stateless_map = {
+            self._test_key(t): t for t in stateless
         }
 
-        stateful_means = []
-        stateless_means = []
-        labels = []
-
-        for label, field in metric_fields.items():
-
-            stateful = self._values(
-                self.stateful,
-                field,
-            )
-
-            stateless = self._values(
-                self.stateless,
-                field,
-            )
-
-            if not stateful and not stateless:
-                continue
-
-            labels.append(label)
-
-            stateful_means.append(
-                statistics.mean(
-                    stateful
-                ) / 1_000_000
-                if stateful
-                else 0
-            )
-
-            stateless_means.append(
-                statistics.mean(
-                    stateless
-                ) / 1_000_000
-                if stateless
-                else 0
-            )
-
-        if not labels:
-            return
-
-        x = range(len(labels))
-
-        width = 0.35
-
-        plt.figure(
-            figsize=(10, 6)
+        keys = sorted(
+            set(stateful_map) | set(stateless_map),
+            key=lambda k: (
+                k[0] if k[0] is not None else 10 ** 9,
+                k[1] if k[1] is not None else 10 ** 9,
+            ),
         )
 
-        plt.bar(
-            [
-                i - width / 2
-                for i in x
-            ],
-            stateful_means,
-            width,
+        x = list(range(1, len(keys) + 1))
+
+        stateful_calls = [
+            stateful_map[k]["calls"] if k in stateful_map else None
+            for k in keys
+        ]
+
+        stateless_calls = [
+            stateless_map[k]["calls"] if k in stateless_map else None
+            for k in keys
+        ]
+
+        stateful_time = [
+            (
+                stateful_map[k]["totalHttpLatencyNs"] / 1_000_000
+                if k in stateful_map
+                else None
+            )
+            for k in keys
+        ]
+
+        stateless_time = [
+            (
+                stateless_map[k]["totalHttpLatencyNs"] / 1_000_000
+                if k in stateless_map
+                else None
+            )
+            for k in keys
+        ]
+
+        stateful_passed = [
+            1 if stateful_map[k]["passed"] else 0
+            if k in stateful_map
+            else None
+            for k in keys
+        ]
+
+        stateless_passed = [
+            1 if stateless_map[k]["passed"] else 0
+            if k in stateless_map
+            else None
+            for k in keys
+        ]
+
+        fig, axes = plt.subplots(
+            3,
+            1,
+            figsize=(16, 14),
+            sharex=True,
+        )
+
+        # ------------------------------------------------------
+        # Calls
+        # ------------------------------------------------------
+        axes[0].plot(
+            x,
+            stateful_calls,
+            marker="o",
             label="Stateful",
         )
 
-        plt.bar(
-            [
-                i + width / 2
-                for i in x
-            ],
-            stateless_means,
-            width,
+        axes[0].plot(
+            x,
+            stateless_calls,
+            marker="o",
             label="Stateless",
         )
 
-        plt.xticks(
-            list(x),
+        axes[0].set_ylabel("OPA calls")
+        axes[0].set_title("OPA Calls per Logical Test")
+        axes[0].legend()
+        axes[0].grid(True, alpha=0.3)
+
+        # ------------------------------------------------------
+        # Total time
+        # ------------------------------------------------------
+        axes[1].plot(
+            x,
+            stateful_time,
+            marker="o",
+            label="Stateful",
+        )
+
+        axes[1].plot(
+            x,
+            stateless_time,
+            marker="o",
+            label="Stateless",
+        )
+
+        axes[1].set_ylabel("Total HTTP time (ms)")
+        axes[1].set_title("Total OPA HTTP Time per Logical Test")
+        axes[1].legend()
+        axes[1].grid(True, alpha=0.3)
+
+        # ------------------------------------------------------
+        # Passed / failed
+        # ------------------------------------------------------
+        axes[2].plot(
+            x,
+            stateful_passed,
+            marker="o",
+            label="Stateful",
+        )
+
+        axes[2].plot(
+            x,
+            stateless_passed,
+            marker="o",
+            label="Stateless",
+        )
+
+        axes[2].set_yticks([0, 1])
+        axes[2].set_yticklabels(["Failed", "Passed"])
+        axes[2].set_ylabel("Result")
+        axes[2].set_xlabel("Logical test")
+        axes[2].set_title("Authorization Result")
+        axes[2].legend()
+        axes[2].grid(True, alpha=0.3)
+
+        axes[2].set_xticks(x)
+
+        # Add ACTION to every test label.
+        labels = []
+
+        for key in keys:
+            test_id, repetition = key
+
+            test = (
+                    stateful_map.get(key)
+                    or stateless_map.get(key)
+            )
+
+            action = test.get("action", "UNKNOWN")
+
+            labels.append(
+                f"{test_id}/{repetition}\n{action}"
+            )
+
+        axes[2].set_xticklabels(
             labels,
-            rotation=20,
+            rotation=45,
+            ha="right",
         )
 
-        plt.ylabel(
-            "Mean time (ms)"
+        fig.tight_layout()
+
+        output = self.output_dir / "test_comparison.png"
+        fig.savefig(output, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
+
+    # ==========================================================
+    # ACTION STATISTICS GRAPH
+    # ==========================================================
+
+    def plot_action_time_statistics(self) -> None:
+        """
+        Stateful vs Stateless action total-time statistics.
+
+        One subplot is created for each action.
+
+        Inside each action subplot:
+            - Min
+            - Average
+            - Max
+
+        are represented as stacked columns.
+
+        For every statistic there are two columns:
+            Stateful
+            Stateless
+
+        The graph therefore allows direct comparison of Stateful
+        and Stateless for every action and every statistic.
+        """
+
+        details = self.detailed_statistics()
+
+        actions = sorted(
+            set(details["statefulByAction"])
+            | set(details["statelessByAction"])
         )
 
-        plt.title(
-            "OPA Internal Performance"
+        if not actions:
+            return
+
+        # ------------------------------------------------------
+        # Create one subplot for every action
+        # ------------------------------------------------------
+
+        n_actions = len(actions)
+
+        fig, axes = plt.subplots(
+            n_actions,
+            1,
+            figsize=(14, max(5, 4 * n_actions)),
+            squeeze=False,
         )
 
-        plt.legend()
+        axes = axes.flatten()
 
-        plt.grid(
+        statistics_names = ["Min", "Average", "Max"]
+
+        # ------------------------------------------------------
+        # One subplot per action
+        # ------------------------------------------------------
+
+        for axis, action in zip(axes, actions):
+            stateful_data = details["statefulByAction"].get(action)
+            stateless_data = details["statelessByAction"].get(action)
+
+            stateful_values = [
+                stateful_data["minNs"] / 1_000_000
+                if stateful_data else 0,
+                stateful_data["avgNs"] / 1_000_000
+                if stateful_data else 0,
+                stateful_data["maxNs"] / 1_000_000
+                if stateful_data else 0,
+            ]
+
+            stateless_values = [
+                stateless_data["minNs"] / 1_000_000
+                if stateless_data else 0,
+                stateless_data["avgNs"] / 1_000_000
+                if stateless_data else 0,
+                stateless_data["maxNs"] / 1_000_000
+                if stateless_data else 0,
+            ]
+
+            x = list(range(len(statistics_names)))
+
+            width = 0.35
+
+            # --------------------------------------------------
+            # Stateful stacked column
+            # --------------------------------------------------
+
+            axis.bar(
+                [
+                    value - width / 2
+                    for value in x
+                ],
+                stateful_values,
+                width=width,
+                label="Stateful",
+            )
+
+            # --------------------------------------------------
+            # Stateless stacked column
+            # --------------------------------------------------
+
+            axis.bar(
+                [
+                    value + width / 2
+                    for value in x
+                ],
+                stateless_values,
+                width=width,
+                label="Stateless",
+            )
+
+            # --------------------------------------------------
+            # Formatting
+            # --------------------------------------------------
+
+            axis.set_xticks(x)
+            axis.set_xticklabels(statistics_names)
+
+            axis.set_ylabel("Time (ms)")
+            axis.set_title(action)
+
+            axis.grid(
+                True,
+                axis="y",
+                alpha=0.3,
+            )
+
+            axis.legend()
+
+        fig.suptitle(
+            "Stateful vs Stateless — Total HTTP Time by Action",
+            fontsize=16,
+        )
+
+        fig.supxlabel("Statistic")
+
+        fig.tight_layout(
+            rect=(0, 0, 1, 0.97)
+        )
+
+        output = self.output_dir / "action_time_statistics.png"
+
+        fig.savefig(
+            output,
+            dpi=300,
+            bbox_inches="tight",
+        )
+
+        plt.close(fig)
+
+    # ==========================================================
+    # PERMISSION STATISTICS GRAPH
+    # ==========================================================
+
+    def plot_permission_time_statistics(self) -> None:
+        """
+        Stateless permission-level min / average / max HTTP latency.
+
+        All statistics are merged into one line chart.
+
+        X-axis:
+            Permission
+
+        Lines:
+            Minimum
+            Average
+            Maximum
+        """
+
+        data = self.detailed_statistics()["statelessByPermission"]
+
+        if not data:
+            return
+
+        permissions = list(data.keys())
+        x = list(range(len(permissions)))
+
+        min_values = [
+            data[p]["minNs"] / 1_000_000
+            for p in permissions
+        ]
+
+        avg_values = [
+            data[p]["avgNs"] / 1_000_000
+            for p in permissions
+        ]
+
+        max_values = [
+            data[p]["maxNs"] / 1_000_000
+            for p in permissions
+        ]
+
+        # ------------------------------------------------------
+        # Single line chart
+        # ------------------------------------------------------
+
+        fig, ax = plt.subplots(
+            figsize=(16, 9),
+        )
+
+        ax.plot(
+            x,
+            min_values,
+            marker="o",
+            linewidth=2,
+            label="Minimum",
+        )
+
+        ax.plot(
+            x,
+            avg_values,
+            marker="o",
+            linewidth=2,
+            label="Average",
+        )
+
+        ax.plot(
+            x,
+            max_values,
+            marker="o",
+            linewidth=2,
+            label="Maximum",
+        )
+
+        # ------------------------------------------------------
+        # Formatting
+        # ------------------------------------------------------
+
+        ax.set_xticks(x)
+
+        ax.set_xticklabels(
+            permissions,
+            rotation=45,
+            ha="right",
+        )
+
+        ax.set_xlabel("Permission")
+        ax.set_ylabel("HTTP time (ms)")
+
+        ax.set_title(
+            "Stateless — Min / Average / Max HTTP Time by Permission"
+        )
+
+        ax.grid(
             True,
-            axis="y",
             alpha=0.3,
         )
 
-        plt.tight_layout()
+        ax.legend()
 
-        output = (
-            self.output_dir
-            / "internal_metrics.png"
-        )
+        fig.tight_layout()
 
-        plt.savefig(
+        output = self.output_dir / "permission_time_statistics.png"
+
+        fig.savefig(
             output,
             dpi=300,
+            bbox_inches="tight",
         )
 
-        plt.close()
+        plt.close(fig)
+
+
 
     # ==========================================================
-    # GRAPH 4
-    # CORRECTNESS
+    # SAVE RESULTS
     # ==========================================================
 
-    def plot_correctness(
-        self,
-    ) -> None:
-
-        stateful = self._basic_metrics(
-            self.stateful
-        )
-
-        stateless = self._basic_metrics(
-            self.stateless
-        )
-
-        labels = [
-            "Stateful",
-            "Stateless",
-        ]
-
-        correct = [
-            stateful["correctDecisions"],
-            stateless["correctDecisions"],
-        ]
-
-        mismatches = [
-            stateful["mismatches"],
-            stateless["mismatches"],
-        ]
-
-        x = range(
-            len(labels)
-        )
-
-        width = 0.35
-
-        plt.figure(
-            figsize=(9, 6)
-        )
-
-        plt.bar(
-            [
-                i - width / 2
-                for i in x
-            ],
-            correct,
-            width,
-            label="Correct",
-        )
-
-        plt.bar(
-            [
-                i + width / 2
-                for i in x
-            ],
-            mismatches,
-            width,
-            label="Mismatch",
-        )
-
-        plt.xticks(
-            list(x),
-            labels,
-        )
-
-        plt.ylabel(
-            "Number of executions"
-        )
-
-        plt.title(
-            "Authorization Correctness"
-        )
-
-        plt.legend()
-
-        plt.grid(
-            True,
-            axis="y",
-            alpha=0.3,
-        )
-
-        plt.tight_layout()
-
-        output = (
-            self.output_dir
-            / "correctness.png"
-        )
-
-        plt.savefig(
-            output,
-            dpi=300,
-        )
-
-        plt.close()
-
-    # ==========================================================
-    # GRAPH 5
-    # EXECUTIONS PER LOGICAL TEST
-    # ==========================================================
-
-    def plot_execution_overhead(
-        self,
-    ) -> None:
-
-        stateful = self._basic_metrics(
-            self.stateful
-        )
-
-        stateless = self._basic_metrics(
-            self.stateless
-        )
-
-        labels = [
-            "Stateful",
-            "Stateless",
-        ]
-
-        values = [
-            stateful[
-                "executionsPerLogicalTest"
-            ],
-            stateless[
-                "executionsPerLogicalTest"
-            ],
-        ]
-
-        plt.figure(
-            figsize=(8, 6)
-        )
-
-        plt.bar(
-            labels,
-            values,
-        )
-
-        plt.ylabel(
-            "OPA executions / logical test"
-        )
-
-        plt.title(
-            "Authorization Execution Overhead"
-        )
-
-        plt.grid(
-            True,
-            axis="y",
-            alpha=0.3,
-        )
-
-        plt.tight_layout()
-
-        output = (
-            self.output_dir
-            / "execution_overhead.png"
-        )
-
-        plt.savefig(
-            output,
-            dpi=300,
-        )
-
-        plt.close()
-
-    # ==========================================================
-    # SAVE SUMMARY
-    # ==========================================================
-
-    def save_summary(
-        self,
-    ) -> Path:
-
+    def save_summary(self) -> Path:
         summary = self.summary()
 
-        output = (
-            self.output_dir
-            / "benchmark_summary.json"
-        )
+        output = self.output_dir / "benchmark_summary.json"
 
-        with output.open(
-            "w",
-            encoding="utf-8",
-        ) as file:
+        with output.open("w", encoding="utf-8") as file:
+            json.dump(summary, file, indent=2)
 
-            json.dump(
-                summary,
-                file,
-                indent=2,
-            )
+        return output
+
+    def save_detailed_statistics(self) -> Path:
+        details = self.detailed_statistics()
+
+        output = self.output_dir / "benchmark_time_statistics.json"
+
+        with output.open("w", encoding="utf-8") as file:
+            json.dump(details, file, indent=2)
 
         return output
 
     # ==========================================================
-    # RUN EVERYTHING
+    # RUN
     # ==========================================================
 
     def run(self) -> None:
-
         self.print_summary()
+        self.print_detailed_statistics()
 
         self.save_summary()
+        self.save_detailed_statistics()
 
-        self.plot_latency()
-
-        self.plot_latency_distribution()
-
-        self.plot_internal_metrics()
-
-        self.plot_correctness()
-
-        self.plot_execution_overhead()
+        self.plot_test_comparison()
+        self.plot_action_time_statistics()
+        self.plot_permission_time_statistics()
 
         print()
-        print(
-            f"Benchmark results written to:"
-        )
-        print(
-            self.output_dir
-        )
+        print("Benchmark results written to:")
+        print(self.output_dir)
 
-
-# ==============================================================
-# MAIN
-# ==============================================================
 
 if __name__ == "__main__":
-
     benchmark = OPABenchmark(
-        stateful_file=(str(OUTPUT_STATEFUL_PATH)),
-        stateless_file=(str(OUTPUT_STATELESS_PATH)),
-        output_dir=(str(OUTPUT_BENCHMARK_DIR))
+        stateful_file=str(OUTPUT_STATEFUL_PATH),
+        stateless_file=str(OUTPUT_STATELESS_PATH),
+        output_dir=str(OUTPUT_BENCHMARK_DIR),
     )
 
     benchmark.run()
