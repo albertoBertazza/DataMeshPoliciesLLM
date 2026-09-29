@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 
+from DrawGraph.draw_permission_in_action import plot_action_permission_euler
 from Pipelines.costantPath import (
     OUTPUT_STATEFUL_PATH,
     OUTPUT_STATELESS_PATH,
@@ -966,3 +967,19 @@ if __name__ == "__main__":
     )
 
     benchmark.run()
+
+    plot_action_permission_euler(
+        "Analysis/docker-opa-stateful/opa/checkForAction.json",
+        actions=[
+            "AddColumnAction",
+            "CreateMaterializedViewAction",
+            "CreateSchemaAction",
+            "CreateTableAction",
+            "CreateViewAction",
+            "SelectFromTableAction",
+            "DeleteFromTableAction",
+            "DropColumnAction",
+
+        ],
+        output_file="Analysis/output/action_permission_euler.png",
+    )
