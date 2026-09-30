@@ -2,11 +2,8 @@ from typing import Dict, Any
 import json
 from Pipelines.A_GenerationPipeline.A_Rewrite.LLM_rule_rewrite import llm_explain
 from Pipelines.B_TestAndEvaluationPipeline.A_TestGeneration.Resolver.authorization_resolver import AuthorizationResolver
-from Pipelines.costantPath import REWRITTEN_RULE_PATH, GENERATED_RULE_PATH, CHECK_FOR_ACTION_PATH, \
-    DATA_MESH_STRUCTURE_PATH, ACTION_SQL_MAPPING_PATH, USER_CREDENTIALS_PATH, IS_LOCAL, CHAT_URL, EMBEDDING_URL, CLIENT, \
-    MODEL, EMBEDDING_MODEL
+from Pipelines.costantPath import REWRITTEN_RULE_PATH, GENERATED_RULE_PATH, CHECK_FOR_ACTION_PATH, DATA_MESH_STRUCTURE_PATH, ACTION_SQL_MAPPING_PATH, USER_CREDENTIALS_PATH, IS_LOCAL, CHAT_URL, EMBEDDING_URL, CLIENT, MODEL, EMBEDDING_MODEL
 from orchestartor import INDEX_REWRITE_RULE, CHECK_FOR_ACTION, DATA_MESH, SECURITY_GROUPS
-
 
 def check_action_allowed(
     rule_passed: str,
@@ -83,8 +80,6 @@ def check_action_allowed(
         # =========================================================
         resolved = resolver.resolve()
     return None
-
-
 
 if __name__ == "__main__":
     while True:

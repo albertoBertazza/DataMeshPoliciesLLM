@@ -1,16 +1,11 @@
 import subprocess
-from typing import assert_never
-
-import questionary
 from numpy.f2py.auxfuncs import throw_error
-
 from Function.jsonHelper import load_json
 from LLM.Interface.activate_local_llm import activate_llm
 from LLM.LLMPipeline.IndexCreation.Rewrite.gen_index_rewrite import gen_index_rewrite
 from LLM.LLMPipeline.IndexCreation.index_creator import ( reload_indexes)
 from Pipelines.A_GenerationPipeline.generation import ( process_rule)
 from Pipelines.B_TestAndEvaluationPipeline.C_TestEvaluation.evaluate_test import ( testEvaluation)
-
 from Pipelines.costantPath import (
     CHECK_FOR_ACTION_PATH,
     SECURITY_GROUPS_PATH,
@@ -26,13 +21,11 @@ from Pipelines.costantPath import (
     DATABASE_REWRITE_RULE_FILE,
     INDEXED_REWRITE_RULE_PATH, DOCKER_COMPOSE_PATH, MODEL, EXAMPLE_RULES
 )
-
 from reset_rego import delete_files_generated
 
 # ==========================================================
 # LOAD STRUCTURE
 # ==========================================================
-
 CHECK_FOR_ACTION = load_json( CHECK_FOR_ACTION_PATH )
 SECURITY_GROUPS = load_json( SECURITY_GROUPS_PATH )
 DATA_MESH = load_json( DATA_MESH_STRUCTURE_PATH )
@@ -42,55 +35,29 @@ DATA_MESH = load_json( DATA_MESH_STRUCTURE_PATH )
 # ==========================================================
 
 activate_llm(LLAMA_DIR, IS_LOCAL, CHAT_URL, LOCAL_CHAT_MODEL, "8080")
-
 activate_llm( LLAMA_DIR, IS_LOCAL, EMBEDDING_URL, LOCAL_EMBEDDING_MODEL, "8081", other_params=" --embedding")
 
 # ==========================================================
 # INDEXES
 # ==========================================================
 
-
-
 INDEX_REWRITE_RULE = reload_indexes( IS_LOCAL, embedding_url=EMBEDDING_URL, client=CLIENT, embedding_model=EMBEDDING_MODEL, database_path=DATABASE_REWRITE_RULE_FILE,index_path=INDEXED_REWRITE_RULE_PATH,filename="rewrite_rule_example", gen_index_function=gen_index_rewrite)
 
-
-
 def restart_opa() -> None:
-
     try:
-
-        subprocess.run(
-            [
-                "docker",
-                "compose",
-                "restart",
-                "opa",
-            ],
-            cwd=DOCKER_COMPOSE_PATH,
-            check=True,
-        )
-
-        print(
-            "OPA restarted successfully."
-        )
-
+        subprocess.run( [ "docker", "compose", "restart", "opa"], cwd=DOCKER_COMPOSE_PATH, check=True)
+        print( "OPA restarted successfully." )
     except subprocess.CalledProcessError as error:
-
-        print(
-            f"Failed to restart OPA: {error}"
-        )
-
+        print( f"Failed to restart OPA: {error}" )
 
 # ==========================================================
 # PIPELINE
 # ==========================================================
 
-
 def start_pipelines(rule_user, skip_user_check):
     # ======================================================
     # 1. GENERATE OPA POLICY
     # ======================================================
-
     success = process_rule(
         rule_passed=rule_user,
         index_rewrite_rule=INDEX_REWRITE_RULE,
@@ -105,35 +72,23 @@ def start_pipelines(rule_user, skip_user_check):
         embedding_model=EMBEDDING_MODEL,
         skip_user_check=skip_user_check
     )
-
     if not success:
         print("\n❌ Policy pipeline failed.")
-
-        return {
-            "total": 0,
-            "passed": 0,
-            "failed": 0,
-            "success": False,
-        }
-
+        return { "total": 0, "passed": 0, "failed": 0, "success": False}
     print("\n" + "=" * 70)
     print("✅ POLICY PIPELINE COMPLETED")
     print("=" * 70)
-
     restart_opa()
 
     # ======================================================
     # 4. RESOLVE + GENERATE + EXECUTE + EVALUATE
     # ======================================================
-
     evaluation_report = testEvaluation()
 
     # ======================================================
     # 5. PRINT SUMMARY
     # ======================================================
-
     summary = evaluation_report.get("summary", {})
-
     print("\n" + "=" * 70)
     print("🔐 AUTHORIZATION EVALUATION")
     print("=" * 70)
@@ -142,50 +97,36 @@ def start_pipelines(rule_user, skip_user_check):
     print(f"❌ Failed:       {summary.get('failed', 0)}")
     print(f"📊 Success:      {summary.get('success', False)}")
     print("=" * 70)
-
     return summary
 
-
-
 if __name__ == "__main__":
-
     print("=" * 60)
     print(" DATA MESH POLICY PIPELINE")
     print("=" * 60)
-
     answer = ""
-
     while answer != "y" and answer != "n":
         answer = input("Do you wanna launch test? [y/n]: ").strip().lower()
         print("answer:", answer)
 
     if answer == "y":
         print("🚀 Launching test...")
-
         # Delete all generated .rego files
         delete_files_generated()
-
         total_tests = 0
         total_passed = 0
         total_failed = 0
 
         # Create and test all rules in the original set
         for rule in EXAMPLE_RULES:
-
             print("=" * 50)
             print("📋 EXAMPLE RULE " + rule)
             print("=" * 50)
-
             summary = start_pipelines(rule, True)
-
             total_tests += summary.get("total", 0)
             total_passed += summary.get("passed", 0)
             total_failed += summary.get("failed", 0)
-
             if not summary.get("success", False):
-                throw_error(
-                    f"❌ Not matched rule expectation: {rule}"
-                )
+                throw_error( f"❌ Not matched rule expectation: {rule}" )
 
         # ==================================================
         # FINAL SUMMARY FOR ALL EXAMPLE RULES
@@ -198,31 +139,15 @@ if __name__ == "__main__":
         print(f"✅ Passed:       {total_passed}")
         print(f"❌ Failed:       {total_failed}")
         print("=" * 70)
-
         # Rebuild data mesh
         print("\n🔄 Rebuilding Data Mesh...")
-
-        subprocess.run([
-            "bash",
-            "StructureExtraction/MinioStructureExtraction/data_mesh_extraction.sh",
-            "--user",
-            "trino",
-            "--password",
-            "trino123",
-            "--debug",
-        ], check=True)
-
+        subprocess.run([ "bash", "StructureExtraction/MinioStructureExtraction/data_mesh_extraction.sh", "--user", "trino", "--password", "trino123", "--debug"], check=True)
         print("✅ Data Mesh rebuilt successfully.")
 
     while True:
-
         rule = input( "\nRule: " ).strip()
-
         if rule.lower() in ( "exit", "quit"):
             break
-
         if not rule:
             continue
-
         start_pipelines(rule, False)
-

@@ -375,11 +375,7 @@ def _normalize_available_actions(available_actions):
                 result.append(action)
     return result
 
-
-def _normalize_extracted_actions(
-    requested_actions,
-    available_actions,
-):
+def _normalize_extracted_actions( requested_actions, available_actions):
     """
     Normalize common LLM action-extraction mistakes.
 
@@ -409,7 +405,6 @@ def _normalize_extracted_actions(
 
     The complete natural-language intent is preserved.
     """
-
     available = set(available_actions)
 
     # ------------------------------------------------------------------
@@ -608,66 +603,35 @@ def _normalize_extracted_actions(
     #
     # The longest phrases are checked first.
     # ------------------------------------------------------------------
-    contains_mappings = sorted(
-        exact_mappings.items(),
-        key=lambda item: len(item[0]),
-        reverse=True,
-    )
-
+    contains_mappings = sorted( exact_mappings.items(), key=lambda item: len(item[0]), reverse=True)
     normalized = []
-
     for item in requested_actions:
-
         if not isinstance(item, dict):
             continue
-
-        intent = str(
-            item.get("intent", "")
-        ).strip()
-
+        intent = str( item.get("intent", "") ).strip()
         action = item.get("action")
-
-        effect = item.get(
-            "effect",
-            "allow",
-        )
-
-        normalized_intent = re.sub(
-            r"\s+",
-            " ",
-            intent.lower().strip(),
-        )
+        effect = item.get( "effect", "allow")
+        normalized_intent = re.sub( r"\s+", " ", intent.lower().strip())
 
         # --------------------------------------------------------------
         # 1. If LLM already returned a valid canonical action,
         #    ALWAYS preserve it.
         # --------------------------------------------------------------
         if action in available:
-            normalized.append(
-                {
-                    "intent": intent,
-                    "action": action,
-                    "effect": effect,
-                }
-            )
+            normalized.append( { "intent": intent, "action": action, "effect": effect} )
             continue
 
         # --------------------------------------------------------------
         # 2. Sometimes the LLM puts the canonical action in `intent`.
         # --------------------------------------------------------------
-        if (
-            action is None
-            and intent in available
-        ):
+        if ( action is None and intent in available ):
             action = intent
 
         # --------------------------------------------------------------
         # 3. Exact natural-language mapping.
         # --------------------------------------------------------------
         if action is None:
-            action = exact_mappings.get(
-                normalized_intent
-            )
+            action = exact_mappings.get( normalized_intent )
 
         # --------------------------------------------------------------
         # 4. Contained phrase mapping.
@@ -686,22 +650,12 @@ def _normalize_extracted_actions(
         # --------------------------------------------------------------
         if action is None:
             for phrase, mapped_action in contains_mappings:
-
                 if phrase not in normalized_intent:
                     continue
-
                 if mapped_action in available:
                     action = mapped_action
                     break
-
-        normalized.append(
-            {
-                "intent": intent,
-                "action": action,
-                "effect": effect,
-            }
-        )
-
+        normalized.append( { "intent": intent, "action": action, "effect": effect} )
     return normalized
 
 def _validate_actions(requested_actions, available_actions):
@@ -1323,7 +1277,5 @@ def llm_explain( rule, example_index, data_mesh_structure, security_groups, avai
     }
 
     with REWRITTEN_RULE_PATH.open( "w", encoding="utf-8" ) as f:
-
         json.dump( rewritten_rule, f, indent=4 )
-
     return rewritten_rule

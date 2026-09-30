@@ -17,9 +17,7 @@ from Pipelines.A_GenerationPipeline.D_PolicyWriter.policy_writer import ( Policy
 from Pipelines.costantPath import LLAMA_DIR, IS_LOCAL, CHAT_URL, LOCAL_CHAT_MODEL, EMBEDDING_URL, LOCAL_EMBEDDING_MODEL, \
     EMBEDDING_MODEL, MODEL, PERMISSION_TREE_MAP_PATH, \
     SECURITY_GROUPS_PATH, DATA_MESH_STRUCTURE_PATH, PERMISSION_DEPTH_PATH, CHECK_FOR_ACTION_PATH, DATA_MESH_DIR, \
-    CUMULATIVE_TREE_TEMP_PATH, GENERATED_RULE_PATH, DATA_JSON_FILE_RULES, DATABASE_REWRITE_RULE_FILE, \
-    INDEXED_REWRITE_RULE_PATH, CUMULATIVE_TREE_PATH
-
+        CUMULATIVE_TREE_TEMP_PATH, GENERATED_RULE_PATH, DATA_JSON_FILE_RULES, DATABASE_REWRITE_RULE_FILE, INDEXED_REWRITE_RULE_PATH, CUMULATIVE_TREE_PATH
 
 # ============================================================================
 # Permission-tree helpers
@@ -38,24 +36,15 @@ def load_existing_permission_tree() -> Dict[str, Any]:
     tree = PermissionTreeWriter.load( str(CUMULATIVE_TREE_PATH) )
     if not isinstance(tree, dict):
         raise ValueError( "tree_permission must contain a JSON object." )
-
     return tree
 
 def save_final_cumulative_tree():
     if not CUMULATIVE_TREE_TEMP_PATH.exists():
         return {}
-
     CUMULATIVE_TREE_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-    shutil.copyfile(
-        CUMULATIVE_TREE_TEMP_PATH,
-        CUMULATIVE_TREE_PATH
-    )
-
+    shutil.copyfile( CUMULATIVE_TREE_TEMP_PATH, CUMULATIVE_TREE_PATH )
     print("Saved final cumulative tree: ", CUMULATIVE_TREE_PATH)
     return {}
-
-
 
 def save_extracted_permission_tree( extracted_tree: Dict[str, Any]) -> None:
     """
@@ -135,19 +124,16 @@ def build_permission_policy( extracted_tree: Dict[str, Any]) -> Dict[str, Any]:
     # ------------------------------------------------------------------------
     # 1. Save latest extraction
     # ------------------------------------------------------------------------
-
     save_extracted_permission_tree( extracted_tree )
 
     # ------------------------------------------------------------------------
     # 2. Load accumulated tree
     # ------------------------------------------------------------------------
-
     existing_tree = ( load_existing_permission_tree() )
 
     # ------------------------------------------------------------------------
     # 3. Merge
     # ------------------------------------------------------------------------
-
     merged_tree = merge_permission_tree( existing_tree, extracted_tree)
     print( "\n[ Merged permission tree]" )
     print( json.dumps( merged_tree, indent=2, ensure_ascii=False) )
@@ -155,7 +141,6 @@ def build_permission_policy( extracted_tree: Dict[str, Any]) -> Dict[str, Any]:
     # ------------------------------------------------------------------------
     # 4. Compile
     # ------------------------------------------------------------------------
-
     canonical_policy = compile_canonical_policy( merged_tree )
     print( "\n[Canonical OPA policy]" )
     print( json.dumps( canonical_policy, indent=2, ensure_ascii=False) )
@@ -163,11 +148,8 @@ def build_permission_policy( extracted_tree: Dict[str, Any]) -> Dict[str, Any]:
     # ------------------------------------------------------------------------
     # 5. Write final policy
     # ------------------------------------------------------------------------
-
     save_canonical_policy( canonical_policy )
-
     save_final_cumulative_tree()
-
     return canonical_policy
 
 # ============================================================================
@@ -236,7 +218,6 @@ def process_rule(
         print("# Do you mean? ")
         print("#\t"+explanation.get( "text", ""))
         print("#" + "=" * 60)
-
 
         answer = ""
         while answer != "y" and answer != "n":
@@ -309,7 +290,6 @@ def main():
     # ========================================================================
     # Load structures
     # ========================================================================
-
     check_for_action = load_json( CHECK_FOR_ACTION_PATH )
     security_groups = load_json( SECURITY_GROUPS_PATH )
     data_mesh = load_json( DATA_MESH_STRUCTURE_PATH )
@@ -317,13 +297,11 @@ def main():
     # ========================================================================
     # Initialize LLM
     # ========================================================================
-
     client = initialize_llm()
 
     # ========================================================================
     # Load indexes
     # ========================================================================
-
     index_rewrite_rule = reload_indexes( IS_LOCAL, embedding_url=EMBEDDING_URL, client=client, embedding_model=EMBEDDING_MODEL, database_path=DATABASE_REWRITE_RULE_FILE,index_path=INDEXED_REWRITE_RULE_PATH,filename="rewrite_rule_example", gen_index_function=gen_index_rewrite)
 
     # ========================================================================
