@@ -26,7 +26,7 @@ docker compose up -d
 
 Set-Location ..
 
-Write-Host " ⏳ Waiting for trino-init to finish..."
+Write-Host "  Waiting for trino-init to finish..."
 
 while ($true) {
     $status = docker inspect -f '{{.State.Status}}' trino-init
@@ -46,7 +46,7 @@ while ($true) {
     }
 
     Start-Sleep -Seconds 5
-    Write-Host " ⏳ Waiting for trino-init to finish..."
+    Write-Host "  Waiting for trino-init to finish..."
 }
 
 Write-Host "=== Extract Data Mesh structure ==="

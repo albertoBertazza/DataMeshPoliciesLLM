@@ -625,6 +625,102 @@ class TrinoTestGenerator:
             return context
 
         # =====================================================
+        # RENAME VIEW
+        # =====================================================
+
+        if action == "RenameViewAction":
+
+            catalog = resource.get("catalog")
+            schema = resource.get("schema")
+
+            if not catalog or not schema:
+                return None
+
+            # The resolver target is schema-level, so there is
+            # no view name in the resource. Find an existing
+            # physical VIEW inside the schema.
+            view_resource = None
+
+            for candidate in self.resources["tables"]:
+
+                if ( candidate.get("catalog") == catalog and candidate.get("schema") == schema and candidate.get("type") == "view" ):
+                    view_resource = candidate
+                    break
+
+            if view_resource is None:
+                print( f"[TEST SKIP] No physical view found " f"for RenameViewAction inside " f"'{catalog}.{schema}'" )
+
+                return None
+
+            if test_run_id is None:
+                test_run_id = self._create_test_run_id(username)
+
+            view_name = view_resource["table"]
+
+            context = {
+                "catalog": catalog,
+                "schema": schema,
+
+                # Template already adds catalog.schema here.
+                "test_view": view_name,
+
+                # Trino requires the destination relation to be
+                # schema-qualified when no session schema is set.
+                "renamed_view": ( f"{catalog}.{schema}." f"{view_name}_renamed_{test_run_id}" ),
+            }
+
+            print( f"[TEST DEBUG] RenameViewAction: " f"using physical view " f"'{catalog}.{schema}.{view_name}'" )
+
+            return context
+
+        # =====================================================
+        # RENAME MATERIALIZED VIEW
+        # =====================================================
+
+        if action == "RenameMaterializedViewAction":
+
+            catalog = resource.get("catalog")
+            schema = resource.get("schema")
+
+            if not catalog or not schema:
+                return None
+
+            # The resolver target is schema-level, so the
+            # materialized view name is not present in the resource.
+            # Find an existing physical materialized view in the schema.
+            materialized_view_resource = None
+
+            for candidate in self.resources["tables"]:
+                if ( candidate.get("catalog") == catalog and candidate.get("schema") == schema and candidate.get("type") == "materialized view" ):
+                    materialized_view_resource = candidate
+                    break
+
+            if materialized_view_resource is None:
+                print( f"[TEST SKIP] No physical materialized view found " f"for RenameMaterializedViewAction inside " f"'{catalog}.{schema}'" )
+
+                return None
+
+            if test_run_id is None:
+                test_run_id = self._create_test_run_id(username)
+
+            materialized_view_name = materialized_view_resource["table"]
+
+            context = {
+                "catalog": catalog,
+                "schema": schema,
+
+                # Template already adds catalog.schema.
+                "test_materialized_view": materialized_view_name,
+
+                # Template also adds catalog.schema to the destination.
+                "renamed_materialized_view": ( f"{materialized_view_name}_renamed_{test_run_id}" ),
+            }
+
+            print( f"[TEST DEBUG] RenameMaterializedViewAction: " f"using physical materialized view " f"'{catalog}.{schema}.{materialized_view_name}'" )
+
+            return context
+
+        # =====================================================
         # SHOW SCHEMAS
         # =====================================================
 
@@ -634,6 +730,186 @@ class TrinoTestGenerator:
 
             if context is None:
                 return None
+
+            return context
+
+        # =====================================================
+        # SET VIEW COMMENT
+        # =====================================================
+
+        if action == "SetViewCommentAction":
+
+            catalog = resource.get("catalog")
+            schema = resource.get("schema")
+
+            if not catalog or not schema:
+                return None
+
+            # The resolver target is schema-level, so the view name
+            # is not present in the resource. Find an existing
+            # physical VIEW inside the schema.
+            view_resource = None
+
+            for candidate in self.resources["tables"]:
+
+                if ( candidate.get("catalog") == catalog and candidate.get("schema") == schema and candidate.get("type") == "view" ):
+                    view_resource = candidate
+                    break
+
+            if view_resource is None:
+                print( f"[TEST SKIP] No physical view found " f"for SetViewCommentAction inside " f"'{catalog}.{schema}'" )
+
+                return None
+
+            if test_run_id is None:
+                test_run_id = self._create_test_run_id(username)
+
+            view_name = view_resource["table"]
+
+            context = {
+                "catalog": catalog,
+                "schema": schema,
+
+                # The template already adds catalog.schema.
+                "test_view": view_name,
+            }
+
+            print( f"[TEST DEBUG] SetViewCommentAction: " f"using physical view " f"'{catalog}.{schema}.{view_name}'" )
+
+            return context
+
+        # =====================================================
+        # REFRESH MATERIALIZED VIEW
+        # =====================================================
+
+        if action == "RefreshMaterializedViewAction":
+
+            catalog = resource.get("catalog")
+            schema = resource.get("schema")
+
+            if not catalog or not schema:
+                return None
+
+            # The resolver target is schema-level, so the
+            # materialized view name is not present in the resource.
+            # Find an existing physical materialized view in the schema.
+            materialized_view_resource = None
+
+            for candidate in self.resources["tables"]:
+
+                if ( candidate.get("catalog") == catalog and candidate.get("schema") == schema and candidate.get("type") == "materialized view" ):
+                    materialized_view_resource = candidate
+                    break
+
+            if materialized_view_resource is None:
+                print( f"[TEST SKIP] No physical materialized view found " f"for RefreshMaterializedViewAction inside " f"'{catalog}.{schema}'" )
+
+                return None
+
+            if test_run_id is None:
+                test_run_id = self._create_test_run_id(username)
+
+            materialized_view_name = materialized_view_resource["table"]
+
+            context = {
+                "catalog": catalog,
+                "schema": schema,
+
+                # The template already adds catalog.schema.
+                "test_materialized_view": materialized_view_name,
+            }
+
+            print( f"[TEST DEBUG] RefreshMaterializedViewAction: " f"using physical materialized view " f"'{catalog}.{schema}.{materialized_view_name}'" )
+
+            return context
+
+        # =====================================================
+        # DROP MATERIALIZED VIEW
+        # =====================================================
+
+        if action == "DropMaterializedViewAction":
+
+            catalog = resource.get("catalog")
+            schema = resource.get("schema")
+
+            if not catalog or not schema:
+                return None
+
+            # The resolver target is schema-level, so the
+            # materialized view name is not present in the resource.
+            # Find an existing physical materialized view in the schema.
+            materialized_view_resource = None
+
+            for candidate in self.resources["tables"]:
+
+                if ( candidate.get("catalog") == catalog and candidate.get("schema") == schema and candidate.get("type") == "materialized view" ):
+                    materialized_view_resource = candidate
+                    break
+
+            if materialized_view_resource is None:
+                print( f"[TEST SKIP] No physical materialized view found " f"for DropMaterializedViewAction inside " f"'{catalog}.{schema}'" )
+
+                return None
+
+            if test_run_id is None:
+                test_run_id = self._create_test_run_id(username)
+
+            materialized_view_name = materialized_view_resource["table"]
+
+            context = {
+                "catalog": catalog,
+                "schema": schema,
+
+                # The template already adds catalog.schema.
+                "test_materialized_view": materialized_view_name,
+            }
+
+            print( f"[TEST DEBUG] DropMaterializedViewAction: " f"using physical materialized view " f"'{catalog}.{schema}.{materialized_view_name}'" )
+
+            return context
+
+        # =====================================================
+        # DROP VIEW
+        # =====================================================
+
+        if action == "DropViewAction":
+
+            catalog = resource.get("catalog")
+            schema = resource.get("schema")
+
+            if not catalog or not schema:
+                return None
+
+            # The resolver target is schema-level, so the view name
+            # is not present in the resource. Find an existing
+            # physical VIEW inside the schema.
+            view_resource = None
+
+            for candidate in self.resources["tables"]:
+
+                if ( candidate.get("catalog") == catalog and candidate.get("schema") == schema and candidate.get("type") == "view" ):
+                    view_resource = candidate
+                    break
+
+            if view_resource is None:
+                print( f"[TEST SKIP] No physical view found " f"for DropViewAction inside " f"'{catalog}.{schema}'" )
+
+                return None
+
+            if test_run_id is None:
+                test_run_id = self._create_test_run_id(username)
+
+            view_name = view_resource["table"]
+
+            context = {
+                "catalog": catalog,
+                "schema": schema,
+
+                # The template already adds catalog.schema.
+                "test_view": view_name,
+            }
+
+            print( f"[TEST DEBUG] DropViewAction: " f"using physical view " f"'{catalog}.{schema}.{view_name}'" )
 
             return context
 
@@ -1008,9 +1284,7 @@ class TrinoTestGenerator:
         print("=" * 60)
         print("TEST GENERATION")
         print("=" * 60)
-
         print( json.dumps( tests, indent=2, ensure_ascii=False) )
-
         return tests
 
     # =========================================================

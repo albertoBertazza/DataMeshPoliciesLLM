@@ -107,11 +107,17 @@ def start_pipelines(rule_user, skip_user_check):
     )
 
     if not success:
-        print("\nPolicy pipeline failed.")
-        return
+        print("\n❌ Policy pipeline failed.")
+
+        return {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "success": False,
+        }
 
     print("\n" + "=" * 70)
-    print("POLICY PIPELINE COMPLETED")
+    print("✅ POLICY PIPELINE COMPLETED")
     print("=" * 70)
 
     restart_opa()
@@ -119,21 +125,24 @@ def start_pipelines(rule_user, skip_user_check):
     # ======================================================
     # 4. RESOLVE + GENERATE + EXECUTE + EVALUATE
     # ======================================================
+
     evaluation_report = testEvaluation()
 
     # ======================================================
     # 5. PRINT SUMMARY
     # ======================================================
 
-    summary = evaluation_report.get("summary", {}, )
+    summary = evaluation_report.get("summary", {})
+
     print("\n" + "=" * 70)
-    print("AUTHORIZATION EVALUATION")
+    print("🔐 AUTHORIZATION EVALUATION")
     print("=" * 70)
-    print(f"Total tests:  {summary.get('total', 0)}")
-    print(f"Passed:       {summary.get('passed', 0)}")
-    print(f"Failed:       {summary.get('failed', 0)}")
-    print(f"Success:      {summary.get('success', False)}")
+    print(f"🧪 Total tests:  {summary.get('total', 0)}")
+    print(f"✅ Passed:       {summary.get('passed', 0)}")
+    print(f"❌ Failed:       {summary.get('failed', 0)}")
+    print(f"📊 Success:      {summary.get('success', False)}")
     print("=" * 70)
+
     return summary
 
 
@@ -151,18 +160,48 @@ if __name__ == "__main__":
         print("answer:", answer)
 
     if answer == "y":
-        print("Launching test...")
+        print("🚀 Launching test...")
+
         # Delete all generated .rego files
         delete_files_generated()
-        # create and test all rule in the original set
+
+        total_tests = 0
+        total_passed = 0
+        total_failed = 0
+
+        # Create and test all rules in the original set
         for rule in EXAMPLE_RULES:
+
             print("=" * 50)
-            print(" EXAMPLE RULE " + rule)
+            print("📋 EXAMPLE RULE " + rule)
             print("=" * 50)
+
             summary = start_pipelines(rule, True)
-            if summary.get('success', False):
-                throw_error(f"Not matched rule expectation: {rule}")
-        # rebuild data mesh
+
+            total_tests += summary.get("total", 0)
+            total_passed += summary.get("passed", 0)
+            total_failed += summary.get("failed", 0)
+
+            if not summary.get("success", False):
+                throw_error(
+                    f"❌ Not matched rule expectation: {rule}"
+                )
+
+        # ==================================================
+        # FINAL SUMMARY FOR ALL EXAMPLE RULES
+        # ==================================================
+
+        print("\n" + "=" * 70)
+        print("🏁 FINAL TEST SUMMARY")
+        print("=" * 70)
+        print(f"🧪 Total tests:  {total_tests}")
+        print(f"✅ Passed:       {total_passed}")
+        print(f"❌ Failed:       {total_failed}")
+        print("=" * 70)
+
+        # Rebuild data mesh
+        print("\n🔄 Rebuilding Data Mesh...")
+
         subprocess.run([
             "bash",
             "StructureExtraction/MinioStructureExtraction/data_mesh_extraction.sh",
@@ -172,6 +211,8 @@ if __name__ == "__main__":
             "trino123",
             "--debug",
         ], check=True)
+
+        print("✅ Data Mesh rebuilt successfully.")
 
     while True:
 

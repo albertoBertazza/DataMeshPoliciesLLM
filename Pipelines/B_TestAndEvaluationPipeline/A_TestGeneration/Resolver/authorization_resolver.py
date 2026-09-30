@@ -2,6 +2,9 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
+from Pipelines.B_TestAndEvaluationPipeline.A_TestGeneration.Resolver.draw_tree import print_permission_tree
+
+
 class AuthorizationResolver:
     """
     Resolve rewritten authorization rules against the hierarchical
@@ -695,7 +698,7 @@ class AuthorizationResolver:
 
 
 
-# =========================================================
+    # =========================================================
     # RESOLVE EVERYTHING
     # =========================================================
 
@@ -733,7 +736,8 @@ class AuthorizationResolver:
         print("="*60)
         print("RESOLVER OUTPUT")
         print("="*60)
-        print(json.dumps( results, indent=2, ensure_ascii=False ))
+        #print(json.dumps( results, indent=2, ensure_ascii=False ))
+        print_permission_tree(results)
 
         return results
 

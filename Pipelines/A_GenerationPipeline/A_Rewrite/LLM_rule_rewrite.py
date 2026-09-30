@@ -375,97 +375,332 @@ def _normalize_available_actions(available_actions):
                 result.append(action)
     return result
 
-def _normalize_extracted_actions(requested_actions, available_actions):
+
+def _normalize_extracted_actions(
+    requested_actions,
+    available_actions,
+):
     """
     Normalize common LLM action-extraction mistakes.
 
-    The LLM sometimes puts the canonical action name into `intent`
-    and leaves `action` as null. Repair that only when the value in
-    `intent` is already an exact available action.
+    The LLM may:
+    - return the canonical action directly;
+    - put the canonical action name into `intent`;
+    - leave `action` as null;
+    - return a natural-language intent containing additional
+      resource/context information.
 
-    Also normalize known natural-language operation mappings.
+    Examples:
+
+        "update table"
+            -> UpdateTableAction
+
+        "update table in schema finance"
+            -> UpdateTableAction
+
+        "select from table inside finance"
+            -> SelectFromTableAction
+
+        "delete rows from table in finance"
+            -> DeleteFromTableAction
+
+        "drop table in schema finance"
+            -> DropTableAction
+
+    The complete natural-language intent is preserved.
     """
 
     available = set(available_actions)
 
-    intent_to_action = {
-        # Selection
+    # ------------------------------------------------------------------
+    # Exact natural-language mappings
+    # ------------------------------------------------------------------
+    exact_mappings = {
+        # SELECT
         "select": "SelectFromTableAction",
+        "select from table": "SelectFromTableAction",
+        "select from a table": "SelectFromTableAction",
         "read": "SelectFromTableAction",
+        "read table": "SelectFromTableAction",
+        "read from table": "SelectFromTableAction",
         "query": "SelectFromTableAction",
+        "query table": "SelectFromTableAction",
 
-        # Insert / update / delete
+        # INSERT
         "insert": "InsertIntoTableAction",
+        "insert into table": "InsertIntoTableAction",
+        "insert into a table": "InsertIntoTableAction",
+        "insert data into table": "InsertIntoTableAction",
+        "insert rows": "InsertIntoTableAction",
+        "add rows to table": "InsertIntoTableAction",
+
+        # UPDATE
         "update": "UpdateTableAction",
+        "update table": "UpdateTableAction",
+        "update a table": "UpdateTableAction",
+        "update rows": "UpdateTableAction",
+        "update table columns": "UpdateTableAction",
+        "modify table data": "UpdateTableAction",
+        "modify rows in table": "UpdateTableAction",
+
+        # DELETE ROWS
         "delete": "DeleteFromTableAction",
+        "delete rows": "DeleteFromTableAction",
+        "delete rows from table": "DeleteFromTableAction",
+        "delete table rows": "DeleteFromTableAction",
+        "remove rows from table": "DeleteFromTableAction",
+        "remove rows": "DeleteFromTableAction",
 
-        # Tables / schemas
-        "show tables": "ShowTablesAction",
-        "show schemas": "ShowSchemasAction",
+        # TRUNCATE
+        "truncate": "TruncateTableAction",
+        "truncate table": "TruncateTableAction",
+        "truncate a table": "TruncateTableAction",
+        "empty table": "TruncateTableAction",
+        "clear table": "TruncateTableAction",
+        "remove all rows from table": "TruncateTableAction",
+        "delete all rows from table": "TruncateTableAction",
 
-        # Columns
-        "add column": "AddColumnAction",
-
-        # Creation
+        # CREATE
         "create table": "CreateTableAction",
-        "create schema": "CreateSchemaAction",
+        "create a table": "CreateTableAction",
+        "creating table": "CreateTableAction",
+        "make a table": "CreateTableAction",
 
-        # Table comments
+        "create schema": "CreateSchemaAction",
+        "create a schema": "CreateSchemaAction",
+        "creating schema": "CreateSchemaAction",
+        "make a schema": "CreateSchemaAction",
+
+        "create view": "CreateViewAction",
+        "create a view": "CreateViewAction",
+        "creating view": "CreateViewAction",
+        "make a view": "CreateViewAction",
+
+        "create materialized view": "CreateMaterializedViewAction",
+        "create a materialized view": "CreateMaterializedViewAction",
+        "creating materialized view": "CreateMaterializedViewAction",
+        "make a materialized view": "CreateMaterializedViewAction",
+
+        # DROP
+        "drop table": "DropTableAction",
+        "drop a table": "DropTableAction",
+        "delete table": "DropTableAction",
+        "delete a table": "DropTableAction",
+        "remove table": "DropTableAction",
+        "remove a table": "DropTableAction",
+
+        "drop view": "DropViewAction",
+        "drop a view": "DropViewAction",
+        "delete view": "DropViewAction",
+        "delete a view": "DropViewAction",
+        "remove view": "DropViewAction",
+
+        "drop materialized view": "DropMaterializedViewAction",
+        "drop a materialized view": "DropMaterializedViewAction",
+        "delete materialized view": "DropMaterializedViewAction",
+        "delete a materialized view": "DropMaterializedViewAction",
+        "remove materialized view": "DropMaterializedViewAction",
+
+        "drop schema": "DropSchemaAction",
+        "drop a schema": "DropSchemaAction",
+        "delete schema": "DropSchemaAction",
+        "delete a schema": "DropSchemaAction",
+        "remove schema": "DropSchemaAction",
+
+        # COLUMNS
+        "add column": "AddColumnAction",
+        "add a column": "AddColumnAction",
+        "adding column": "AddColumnAction",
+
+        "drop column": "DropColumnAction",
+        "drop a column": "DropColumnAction",
+        "delete column": "DropColumnAction",
+        "delete a column": "DropColumnAction",
+        "remove column": "DropColumnAction",
+        "remove a column": "DropColumnAction",
+
+        "rename column": "RenameColumnAction",
+        "rename a column": "RenameColumnAction",
+        "change column name": "RenameColumnAction",
+
+        # RENAME TABLE
+        "rename table": "RenameTableAction",
+        "rename a table": "RenameTableAction",
+        "change table name": "RenameTableAction",
+
+        # RENAME VIEW
+        "rename view": "RenameViewAction",
+        "rename a view": "RenameViewAction",
+        "change view name": "RenameViewAction",
+
+        # RENAME MATERIALIZED VIEW
+        "rename materialized view": "RenameMaterializedViewAction",
+        "rename a materialized view": "RenameMaterializedViewAction",
+        "change materialized view name": "RenameMaterializedViewAction",
+
+        # MATERIALIZED VIEW
+        "refresh materialized view": "RefreshMaterializedViewAction",
+        "refresh a materialized view": "RefreshMaterializedViewAction",
+        "refresh materialized views": "RefreshMaterializedViewAction",
+
+        # TABLE COMMENTS
         "add comment to table": "SetTableCommentAction",
         "set comment on table": "SetTableCommentAction",
         "set table comment": "SetTableCommentAction",
         "comment on table": "SetTableCommentAction",
 
-        # Column comments
+        # COLUMN COMMENTS
         "add comment to column": "SetColumnCommentAction",
         "set comment on column": "SetColumnCommentAction",
         "set column comment": "SetColumnCommentAction",
         "comment on column": "SetColumnCommentAction",
 
-        # View comments
+        # VIEW COMMENTS
         "add comment to view": "SetViewCommentAction",
         "set comment on view": "SetViewCommentAction",
         "set view comment": "SetViewCommentAction",
         "comment on view": "SetViewCommentAction",
+
+        # SHOW TABLES
+        "show tables": "ShowTablesAction",
+        "show table": "ShowTablesAction",
+        "list tables": "ShowTablesAction",
+        "list table": "ShowTablesAction",
+        "show available tables": "ShowTablesAction",
+        "list available tables": "ShowTablesAction",
+
+        # SHOW SCHEMAS
+        "show schemas": "ShowSchemasAction",
+        "show schema": "ShowSchemasAction",
+        "list schemas": "ShowSchemasAction",
+        "list schema": "ShowSchemasAction",
+        "show available schemas": "ShowSchemasAction",
+        "list available schemas": "ShowSchemasAction",
+
+        # SHOW COLUMNS
+        "show columns": "ShowColumnsAction",
+        "show table columns": "ShowColumnsAction",
+        "list columns": "ShowColumnsAction",
+        "list table columns": "ShowColumnsAction",
+        "view columns": "ShowColumnsAction",
+
+        # SHOW CREATE TABLE
+        "show create table": "ShowCreateTableAction",
+        "show table definition": "ShowCreateTableAction",
+        "show table ddl": "ShowCreateTableAction",
+        "get table definition": "ShowCreateTableAction",
+
+        # SHOW CREATE SCHEMA
+        "show create schema": "ShowCreateSchemaAction",
+        "show schema definition": "ShowCreateSchemaAction",
+        "show schema ddl": "ShowCreateSchemaAction",
+        "get schema definition": "ShowCreateSchemaAction",
     }
+
+    # ------------------------------------------------------------------
+    # Context-aware mappings.
+    #
+    # These are checked as phrases contained in the intent, allowing:
+    #
+    #   "update table in schema finance"
+    #   "update a table inside finance"
+    #   "select from table inside hr"
+    #
+    # The longest phrases are checked first.
+    # ------------------------------------------------------------------
+    contains_mappings = sorted(
+        exact_mappings.items(),
+        key=lambda item: len(item[0]),
+        reverse=True,
+    )
 
     normalized = []
 
     for item in requested_actions:
+
         if not isinstance(item, dict):
             continue
 
-        intent = str(item.get("intent", "")).strip()
-        action = item.get("action")
-        effect = item.get("effect", "allow")
+        intent = str(
+            item.get("intent", "")
+        ).strip()
 
-        # ------------------------------------------------------------
-        # Case 1:
-        # LLM put an exact action name into `intent` and left
-        # `action` null.
+        action = item.get("action")
+
+        effect = item.get(
+            "effect",
+            "allow",
+        )
+
+        normalized_intent = re.sub(
+            r"\s+",
+            " ",
+            intent.lower().strip(),
+        )
+
+        # --------------------------------------------------------------
+        # 1. If LLM already returned a valid canonical action,
+        #    ALWAYS preserve it.
+        # --------------------------------------------------------------
+        if action in available:
+            normalized.append(
+                {
+                    "intent": intent,
+                    "action": action,
+                    "effect": effect,
+                }
+            )
+            continue
+
+        # --------------------------------------------------------------
+        # 2. Sometimes the LLM puts the canonical action in `intent`.
+        # --------------------------------------------------------------
+        if (
+            action is None
+            and intent in available
+        ):
+            action = intent
+
+        # --------------------------------------------------------------
+        # 3. Exact natural-language mapping.
+        # --------------------------------------------------------------
+        if action is None:
+            action = exact_mappings.get(
+                normalized_intent
+            )
+
+        # --------------------------------------------------------------
+        # 4. Contained phrase mapping.
         #
         # Example:
         #
-        # {
-        #   "intent": "SetTableCommentAction",
-        #   "action": null
-        # }
-        # ------------------------------------------------------------
-        if action is None and intent in available:
-            action = intent
-
-        # ------------------------------------------------------------
-        # Case 2:
-        # LLM correctly gave a natural-language intent but left
-        # action null.
-        # ------------------------------------------------------------
+        # "update table in schema finance"
+        #
+        # contains:
+        #
+        # "update table"
+        #
+        # therefore:
+        #
+        # UpdateTableAction
+        # --------------------------------------------------------------
         if action is None:
-            normalized_intent = intent.lower()
-            mapped_action = intent_to_action.get(normalized_intent)
-            if mapped_action in available:
-                action = mapped_action
+            for phrase, mapped_action in contains_mappings:
 
-        normalized.append({ "intent": intent, "action": action, "effect": effect })
+                if phrase not in normalized_intent:
+                    continue
+
+                if mapped_action in available:
+                    action = mapped_action
+                    break
+
+        normalized.append(
+            {
+                "intent": intent,
+                "action": action,
+                "effect": effect,
+            }
+        )
 
     return normalized
 

@@ -126,6 +126,15 @@ EXAMPLE_RULES =[
 
     "auditor is not allowed to select any table inside the iceberg catalog", # DENY PERMISSION
     "auditor is allowed to select any table inside schema sales", # ALLOW PERMISSION, but denied at catalog level
+
+    "hr manager can truncate table inside iceberg.sales",
+
+    "hr manager can comment view inside sales schema", # OPERATION ON VIEW AND MATERIALIZED VIEW
+    "hr manager can rename view inside iceberg.sales",
+    "hr manager can rename materialized view inside iceberg.sales",
+    "hr manager can refresh materialized view inside inventory schema",
+    "hr manager can drop materialized view inside inventory schema",
+    "hr manager can drop view inside inventory schema",
 ]
 
 

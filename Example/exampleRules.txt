@@ -42,7 +42,7 @@ hr_manager can insert a new entity inside schema hr
 
 hr_manager can rename a column inside procurement
 
-#TODO RenameMaterializedViewAction
+
 
 hr_manager can rename table inside procurement schema
 
@@ -66,22 +66,18 @@ hr manager can see the list of table inside iceberg.sales
 
 hr manager can update an entity inside the iceberg.sales
 
-#TODO TruncateTableAction
 hr manager can truncate table inside iceberg.sales
 
-#TODO: RenameViewAction
-hr manager can rename view inside iceberg.sales
-
-#TODO SetViewCommentAction
 hr manager can comment view inside sales schema
 
-#TODO RefreshMaterializedViewAction
+hr manager can rename view inside iceberg.sales
+
+hr manager can rename materialized view inside iceberg.sales
+
 hr manager can refresh materialized view inside inventory schema
 
-#TODO DropMaterializedViewAction
 hr manager can drop materialized view inside inventory schema
 
-#TODO DropViewAction
 hr manager can drop view inside inventory schema
 
 
