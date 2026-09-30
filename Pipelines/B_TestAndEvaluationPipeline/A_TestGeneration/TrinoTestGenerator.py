@@ -853,7 +853,7 @@ class TrinoTestGenerator:
             if not isinstance(resource, dict):
                 resource = {}
             actions = authorization.get( "actions", {})
-            users = users_by_group.get( "security_group", [])
+            users = users_by_group.get( security_group, [])
 
             # =================================================
             # ACTIONS
@@ -869,7 +869,7 @@ class TrinoTestGenerator:
                 # =================================================
                 # ONE USER PER SECURITY GROUP
                 # =================================================
-                users = users_by_group.get( "security_group", [])
+                users = users_by_group.get( security_group, [])
                 if not users:
                     print( f"[TEST SKIP] No user found " f"for security group " f"'{security_group}'" )
                     continue
