@@ -186,6 +186,7 @@ def process_rule(
     client=None,
     model: str = '',
     embedding_model: str = '',
+    skip_user_check: bool = False
 ):
     # ========================================================================
     # 1. Explanation
@@ -229,6 +230,18 @@ def process_rule(
         return False
 
     print( json.dumps( explanation, indent=2, ensure_ascii=False) )
+
+    if not skip_user_check:
+        print("*"*60)
+        print("* Do you mean? ")
+        print(explanation.text)
+
+        answer = ""
+        while answer != "y" and answer != "n":
+            answer = input("Do you wanna accept this interpretation? [y/n]: ").strip().lower()
+
+        if answer == "n":
+            return False
 
     # ========================================================================
     # 2. Extraction
@@ -334,6 +347,7 @@ def main():
             client=client,
             model=MODEL,
             embedding_model=EMBEDDING_MODEL,
+            skip_user_check=False
         )
 
         if success:

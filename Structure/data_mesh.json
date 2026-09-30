@@ -46,80 +46,6 @@
                   "type": "integer"
                 }
               ]
-            },
-            {
-              "name": "employee_finance_test_view_hr_20260928_151953_352057",
-              "columns": [
-                {
-                  "name": "employee_id",
-                  "type": "varchar"
-                },
-                {
-                  "name": "department",
-                  "type": "varchar"
-                },
-                {
-                  "name": "annual_salary",
-                  "type": "integer"
-                },
-                {
-                  "name": "bonus",
-                  "type": "integer"
-                },
-                {
-                  "name": "benefits",
-                  "type": "integer"
-                },
-                {
-                  "name": "total_cost",
-                  "type": "integer"
-                },
-                {
-                  "name": "annual_revenue_generated",
-                  "type": "integer"
-                },
-                {
-                  "name": "profit_contribution",
-                  "type": "integer"
-                }
-              ]
-            },
-            {
-              "name": "employee_finance_test_view_hr_20260928_160912_417430",
-              "columns": [
-                {
-                  "name": "employee_id",
-                  "type": "varchar"
-                },
-                {
-                  "name": "department",
-                  "type": "varchar"
-                },
-                {
-                  "name": "annual_salary",
-                  "type": "integer"
-                },
-                {
-                  "name": "bonus",
-                  "type": "integer"
-                },
-                {
-                  "name": "benefits",
-                  "type": "integer"
-                },
-                {
-                  "name": "total_cost",
-                  "type": "integer"
-                },
-                {
-                  "name": "annual_revenue_generated",
-                  "type": "integer"
-                },
-                {
-                  "name": "profit_contribution",
-                  "type": "integer"
-                }
-              ]
             }
           ]
         },
@@ -164,126 +90,6 @@
                 {
                   "name": "job_title",
                   "type": "varchar"
-                },
-                {
-                  "name": "test_added_column_hr_20260928_151916_905407",
-                  "type": "varchar"
-                },
-                {
-                  "name": "test_added_column_hr_20260928_160831_597658",
-                  "type": "varchar"
-                }
-              ]
-            },
-            {
-              "name": "people_test_mv_hr_20260928_151926_576075",
-              "columns": [
-                {
-                  "name": "employee_index",
-                  "type": "integer"
-                },
-                {
-                  "name": "user_id",
-                  "type": "varchar"
-                },
-                {
-                  "name": "first_name",
-                  "type": "varchar"
-                },
-                {
-                  "name": "last_name",
-                  "type": "varchar"
-                },
-                {
-                  "name": "sex",
-                  "type": "varchar"
-                },
-                {
-                  "name": "email",
-                  "type": "varchar"
-                },
-                {
-                  "name": "phone",
-                  "type": "varchar"
-                },
-                {
-                  "name": "date_of_birth",
-                  "type": "date"
-                },
-                {
-                  "name": "job_title",
-                  "type": "varchar"
-                },
-                {
-                  "name": "test_added_column_hr_20260928_151916_905407",
-                  "type": "varchar"
-                }
-              ]
-            },
-            {
-              "name": "people_test_mv_hr_20260928_160841_738034",
-              "columns": [
-                {
-                  "name": "employee_index",
-                  "type": "integer"
-                },
-                {
-                  "name": "user_id",
-                  "type": "varchar"
-                },
-                {
-                  "name": "first_name",
-                  "type": "varchar"
-                },
-                {
-                  "name": "last_name",
-                  "type": "varchar"
-                },
-                {
-                  "name": "sex",
-                  "type": "varchar"
-                },
-                {
-                  "name": "email",
-                  "type": "varchar"
-                },
-                {
-                  "name": "phone",
-                  "type": "varchar"
-                },
-                {
-                  "name": "date_of_birth",
-                  "type": "date"
-                },
-                {
-                  "name": "job_title",
-                  "type": "varchar"
-                },
-                {
-                  "name": "test_added_column_hr_20260928_151916_905407",
-                  "type": "varchar"
-                },
-                {
-                  "name": "test_added_column_hr_20260928_160831_597658",
-                  "type": "varchar"
-                }
-              ]
-            },
-            {
-              "name": "test_table_hr_20260928_151944_162282",
-              "columns": [
-                {
-                  "name": "id",
-                  "type": "integer"
-                }
-              ]
-            },
-            {
-              "name": "test_table_hr_20260928_160900_090150",
-              "columns": [
-                {
-                  "name": "id",
-                  "type": "integer"
                 }
               ]
             }
@@ -292,6 +98,80 @@
         {
           "name": "inventory",
           "tables": [
+            {
+              "name": "available_products",
+              "columns": [
+                {
+                  "name": "product_index",
+                  "type": "integer"
+                },
+                {
+                  "name": "name",
+                  "type": "varchar"
+                },
+                {
+                  "name": "brand",
+                  "type": "varchar"
+                },
+                {
+                  "name": "category",
+                  "type": "varchar"
+                },
+                {
+                  "name": "price",
+                  "type": "double"
+                },
+                {
+                  "name": "currency",
+                  "type": "varchar"
+                },
+                {
+                  "name": "stock",
+                  "type": "integer"
+                },
+                {
+                  "name": "color",
+                  "type": "varchar"
+                },
+                {
+                  "name": "size",
+                  "type": "varchar"
+                }
+              ]
+            },
+            {
+              "name": "inventory_summary",
+              "columns": [
+                {
+                  "name": "category",
+                  "type": "varchar"
+                },
+                {
+                  "name": "brand",
+                  "type": "varchar"
+                },
+                {
+                  "name": "product_count",
+                  "type": "bigint"
+                },
+                {
+                  "name": "total_stock",
+                  "type": "bigint"
+                },
+                {
+                  "name": "average_price",
+                  "type": "double"
+                },
+                {
+                  "name": "minimum_price",
+                  "type": "double"
+                },
+                {
+                  "name": "maximum_price",
+                  "type": "double"
+                }
+              ]
+            },
             {
               "name": "products",
               "columns": [
@@ -355,10 +235,10 @@
           "name": "procurement",
           "tables": [
             {
-              "name": "product_catalog_renamed_hr_20260928_152138_673767",
+              "name": "product_catalog",
               "columns": [
                 {
-                  "name": "product_index_renamed_hr_20260928_152121_746743",
+                  "name": "product_index",
                   "type": "integer"
                 },
                 {
@@ -416,12 +296,38 @@
           ]
         },
         {
-          "name": "test_schema_test_hr_20260928_151935_366940",
-          "tables": []
-        },
-        {
-          "name": "test_schema_test_hr_20260928_160850_897861",
-          "tables": []
+          "name": "support",
+          "tables": [
+            {
+              "name": "support_tickets",
+              "columns": [
+                {
+                  "name": "ticket_index",
+                  "type": "integer"
+                },
+                {
+                  "name": "ticket_id",
+                  "type": "varchar"
+                },
+                {
+                  "name": "customer_plan",
+                  "type": "varchar"
+                },
+                {
+                  "name": "ticket_subject",
+                  "type": "varchar"
+                },
+                {
+                  "name": "ticket_text",
+                  "type": "varchar"
+                },
+                {
+                  "name": "priority_hint",
+                  "type": "varchar"
+                }
+              ]
+            }
+          ]
         }
       ]
     }

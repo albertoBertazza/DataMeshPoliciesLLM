@@ -1,4 +1,5 @@
 import subprocess
+from typing import assert_never
 
 import questionary
 from numpy.f2py.auxfuncs import throw_error
@@ -85,13 +86,13 @@ def restart_opa() -> None:
 # ==========================================================
 
 
-def start_pipelines(rule):
+def start_pipelines(rule_user, skip_user_check):
     # ======================================================
     # 1. GENERATE OPA POLICY
     # ======================================================
 
     success = process_rule(
-        rule_passed=rule,
+        rule_passed=rule_user,
         index_rewrite_rule=INDEX_REWRITE_RULE,
         check_for_action=CHECK_FOR_ACTION,
         data_mesh=DATA_MESH,
@@ -102,6 +103,7 @@ def start_pipelines(rule):
         client=CLIENT,
         model=MODEL,
         embedding_model=EMBEDDING_MODEL,
+        skip_user_check=skip_user_check
     )
 
     if not success:
@@ -142,7 +144,11 @@ if __name__ == "__main__":
     print(" DATA MESH POLICY PIPELINE")
     print("=" * 60)
 
-    answer = input("Do you wanna launch test? [y/N]: ").strip().lower()
+    answer = ""
+
+    while answer != "y" and answer != "n":
+        answer = input("Do you wanna launch test? [y/n]: ").strip().lower()
+        print("answer:", answer)
 
     if answer == "y":
         print("Launching test...")
@@ -153,7 +159,7 @@ if __name__ == "__main__":
             print("=" * 50)
             print(" EXAMPLE RULE " + rule)
             print("=" * 50)
-            summary = start_pipelines(rule)
+            summary = start_pipelines(rule, True)
             if summary.get('success', False):
                 throw_error(f"Not matched rule expectation: {rule}")
         # rebuild data mesh
@@ -177,5 +183,5 @@ if __name__ == "__main__":
         if not rule:
             continue
 
-        start_pipelines(rule)
+        start_pipelines(rule, False)
 

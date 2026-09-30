@@ -59,4 +59,7 @@ run_trino /init/05-procurement.sql
 run_trino /init/06-sales.sql
 run_trino /init/07-support.sql
 
+
+run_trino /init/99-materialized_view_example.sql
+
 echo "INIT COMPLETE"
