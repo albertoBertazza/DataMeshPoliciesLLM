@@ -232,9 +232,11 @@ def process_rule(
     print( json.dumps( explanation, indent=2, ensure_ascii=False) )
 
     if not skip_user_check:
-        print("*"*60)
-        print("* Do you mean? ")
-        print(explanation.text)
+        print("#" + "=" * 60)
+        print("# Do you mean? ")
+        print("#\t"+explanation.get( "text", ""))
+        print("#" + "=" * 60)
+
 
         answer = ""
         while answer != "y" and answer != "n":

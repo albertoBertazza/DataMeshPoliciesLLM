@@ -12,6 +12,7 @@
           "tables": [
             {
               "name": "employee_finance",
+              "type": "table",
               "columns": [
                 {
                   "name": "employee_id",
@@ -54,6 +55,7 @@
           "tables": [
             {
               "name": "people",
+              "type": "table",
               "columns": [
                 {
                   "name": "employee_index",
@@ -100,6 +102,7 @@
           "tables": [
             {
               "name": "available_products",
+              "type": "view",
               "columns": [
                 {
                   "name": "product_index",
@@ -141,6 +144,7 @@
             },
             {
               "name": "inventory_summary",
+              "type": "materialized view",
               "columns": [
                 {
                   "name": "category",
@@ -174,6 +178,7 @@
             },
             {
               "name": "products",
+              "type": "table",
               "columns": [
                 {
                   "name": "product_index",
@@ -236,6 +241,7 @@
           "tables": [
             {
               "name": "product_catalog",
+              "type": "table",
               "columns": [
                 {
                   "name": "product_index",
@@ -273,7 +279,52 @@
           "name": "sales",
           "tables": [
             {
+              "name": "available_offers",
+              "type": "view",
+              "columns": [
+                {
+                  "name": "offer_index",
+                  "type": "integer"
+                },
+                {
+                  "name": "ean",
+                  "type": "varchar"
+                },
+                {
+                  "name": "stock",
+                  "type": "integer"
+                },
+                {
+                  "name": "price",
+                  "type": "double"
+                }
+              ]
+            },
+            {
+              "name": "offer_price_summary",
+              "type": "materialized view",
+              "columns": [
+                {
+                  "name": "price_range",
+                  "type": "varchar(6)"
+                },
+                {
+                  "name": "offer_count",
+                  "type": "bigint"
+                },
+                {
+                  "name": "total_stock",
+                  "type": "bigint"
+                },
+                {
+                  "name": "average_price",
+                  "type": "double"
+                }
+              ]
+            },
+            {
               "name": "offers",
+              "type": "table",
               "columns": [
                 {
                   "name": "offer_index",
@@ -300,6 +351,7 @@
           "tables": [
             {
               "name": "support_tickets",
+              "type": "table",
               "columns": [
                 {
                   "name": "ticket_index",

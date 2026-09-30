@@ -34,17 +34,11 @@ hr_manager can delete from support.support_tickets
 
 hr_manager can drop column inside support.support_tickets
 
-#TODO DropMaterializedViewAction
-
 hr_manager can drop table support.support_tickets
 
 hr_manager can drop schema support
 
-#TODO DropViewAction
-
 hr_manager can insert a new entity inside schema hr
-
-#TODO RefreshMaterializedViewAction
 
 hr_manager can rename a column inside procurement
 
@@ -54,13 +48,11 @@ hr_manager can rename table inside procurement schema
 
 # NOT SUPPORTED BY HIVE METASTORE: hr_manager can rename schema name, only of schema procurement
 
-#TODO: RenameViewAction
+
 
 hr_manager can add comment to column in schema sales
 
 hr_manager can add comment to table in schema sales
-
-#TODO SetViewCommentAction
 
 hr manager can execute show columns inside schema sales
 
@@ -72,10 +64,25 @@ hr manager can see the list of schemas inside iceberg
 
 hr manager can see the list of table inside iceberg.sales
 
-#TODO TruncateTableAction
-
 hr manager can update an entity inside the iceberg.sales
 
+#TODO TruncateTableAction
+hr manager can truncate table inside iceberg.sales
+
+#TODO: RenameViewAction
+hr manager can rename view inside iceberg.sales
+
+#TODO SetViewCommentAction
+hr manager can comment view inside sales schema
+
+#TODO RefreshMaterializedViewAction
+hr manager can refresh materialized view inside inventory schema
+
+#TODO DropMaterializedViewAction
+hr manager can drop materialized view inside inventory schema
+
+#TODO DropViewAction
+hr manager can drop view inside inventory schema
 
 
 

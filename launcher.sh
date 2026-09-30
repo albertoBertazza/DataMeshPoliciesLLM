@@ -43,6 +43,7 @@ while true; do
     fi
 
     sleep 5
+    echo "⏳ Waiting for trino-init to finish..."
 done
 
 

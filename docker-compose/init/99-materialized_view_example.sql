@@ -28,3 +28,41 @@ WHERE stock > 0
 GROUP BY
     category,
     brand;
+
+
+
+-- =========================
+-- SALES VIEW
+-- =========================
+
+CREATE OR REPLACE VIEW iceberg.sales.available_offers AS
+SELECT
+    offer_index,
+    ean,
+    stock,
+    price
+FROM iceberg.sales.offers
+WHERE stock > 0;
+
+-- =========================
+-- SALES MATERIALIZED VIEW
+-- =========================
+
+CREATE OR REPLACE MATERIALIZED VIEW iceberg.sales.offer_price_summary AS
+SELECT
+    CASE
+        WHEN price < 20 THEN 'LOW'
+        WHEN price < 100 THEN 'MEDIUM'
+        ELSE 'HIGH'
+    END AS price_range,
+    COUNT(*) AS offer_count,
+    SUM(stock) AS total_stock,
+    AVG(price) AS average_price
+FROM iceberg.sales.offers
+WHERE stock > 0
+GROUP BY
+    CASE
+        WHEN price < 20 THEN 'LOW'
+        WHEN price < 100 THEN 'MEDIUM'
+        ELSE 'HIGH'
+    END;
