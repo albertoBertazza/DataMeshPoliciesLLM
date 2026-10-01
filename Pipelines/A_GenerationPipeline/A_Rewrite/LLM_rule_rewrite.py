@@ -56,20 +56,54 @@ def _find_table(schema, table_name):
     return None
 
 def _get_columns(table):
+    """
+    Return normalized column definitions while preserving the
+    authoritative Data Mesh column type.
+
+    Supports both:
+
+        "columns": ["id", "name"]
+
+    and:
+
+        "columns": [
+            {"name": "id", "type": "varchar"},
+            {"name": "salary", "type": "integer"}
+        ]
+    """
+
     if not isinstance(table, dict):
         return []
+
     columns = table.get("columns", [])
     if not isinstance(columns, list):
         return []
+
     result = []
+
     for column in columns:
+
+        # Legacy format:
+        # "columns": ["id", "name"]
         if isinstance(column, str):
             if column:
-                result.append(column)
-        elif isinstance(column, dict):
+                result.append({ "name": column, "type": "varchar" })
+            continue
+
+        # Authoritative Data Mesh format:
+        # {"name": "salary", "type": "integer"}
+        if isinstance(column, dict):
             name = column.get("name")
-            if isinstance(name, str) and name:
-                result.append(name)
+
+            if not isinstance(name, str) or not name:
+                continue
+
+            column_type = column.get("type", "varchar")
+
+            if not isinstance(column_type, str) or not column_type.strip():
+                column_type = "varchar"
+
+            result.append({ "name": name, "type": column_type.strip() })
 
     return result
 
@@ -96,8 +130,49 @@ def _get_table_names(schema):
         if isinstance(name, str) and name:
             result.append(name)
     return result
+
 def _get_column_names(table):
-    return _get_columns(table)
+    return [ column["name"] for column in _get_columns(table) if isinstance(column, dict) and column.get("name") ]
+
+def _get_column_type(table, column_name):
+    """
+    Return the authoritative Data Mesh type for a column.
+    """
+
+    if not isinstance(column_name, str) or not column_name:
+        return None
+
+    for column in _get_columns(table):
+        if column.get("name") == column_name:
+            return column.get("type", "varchar")
+
+    return None
+
+def _find_column_definition( data_mesh_structure, catalog_name, schema_name, table_name, column_name ):
+    """
+    Resolve the complete Data Mesh column definition.
+    """
+
+    catalog = _find_catalog( data_mesh_structure, catalog_name )
+
+    if catalog is None:
+        return None
+
+    schema = _find_schema( catalog, schema_name )
+
+    if schema is None:
+        return None
+
+    table = _find_table( schema, table_name )
+
+    if table is None:
+        return None
+
+    for column in _get_columns(table):
+        if column.get("name") == column_name:
+            return column
+
+    return None
 
 # ============================================================================
 # Normalize Data Mesh
@@ -148,8 +223,10 @@ def _normalize_data_mesh_structure(data_mesh_structure):
                             columns.append(column)
                         elif isinstance(column, dict):
                             column_name = column.get("name")
+
                             if column_name:
-                                columns.append(column_name)
+                                columns.append({ "name": column_name, "type": column.get("type", "varchar") })
+
                 tables.append({ "name": table_name, "columns": columns })
             schemas.append({ "name": schema_name, "tables": tables })
         catalogs.append({ "name": catalog_name, "schemas": schemas })
@@ -659,35 +736,53 @@ def _normalize_extracted_actions( requested_actions, available_actions):
     return normalized
 
 def _validate_actions(requested_actions, available_actions):
-    if ( not isinstance(requested_actions, list) or not requested_actions ):
-        return { "valid": False, "feedback": ( "No actionable operation could be identified " "from the request." ) }
+    """
+    Validate ordinary Trino actions.
+
+    An empty action list is valid because a rule may contain only
+    a column mask or row filter. Those effects are validated
+    separately by _validate_effects().
+    """
+
+    if not isinstance(requested_actions, list):
+        return { "valid": False, "feedback": "The extracted actions are not a valid list." }
+
     available = set(available_actions)
     invalid = []
     valid = []
+
     for item in requested_actions:
         if not isinstance(item, dict):
             invalid.append({ "intent": "", "action": None })
             continue
+
         intent = item.get("intent", "")
         action = item.get("action")
+
         if action is None:
             invalid.append({ "intent": intent, "action": None })
             continue
+
         if action not in available:
             invalid.append({ "intent": intent, "action": action })
             continue
+
         valid.append(action)
+
     if invalid:
         messages = []
+
         for item in invalid:
             if item["action"] is None:
-                messages.append( f"The requested operation " f"'{item['intent']}' could not be mapped " "to any available action." )
+                messages.append( f"The requested operation '{item['intent']}' " "could not be mapped to any available action." )
             else:
-                messages.append( f"The inferred action " f"'{item['action']}' is not in the " "available actions." )
+                messages.append( f"The inferred action '{item['action']}' " "is not in the available actions." )
+
         messages.append( "Available actions are: " + ( ", ".join(available_actions) if available_actions else "none" ) + "." )
+
         return { "valid": False, "feedback": " ".join(messages) }
-    if not valid:
-        return { "valid": False, "feedback": "No valid Trino actions were identified." }
+
+    # Empty is valid: the rule may contain only a mask/filter.
     return { "valid": True, "feedback": "" }
 
 # ============================================================================
@@ -878,90 +973,274 @@ Examples:
 # Column mask / row filter extraction
 # ============================================================================
 
-def _extract_effects( rule, resource, is_local, chat_url=None, client=None, model=None ):
+def _extract_effects( rule, resource, data_mesh_structure, is_local, chat_url=None, client=None, model=None ):
     """
     Extract optional row-filter and column-mask declarations.
 
-    These are NOT ordinary permissions.
+    Column masks are type-sensitive.
+
+    A mask expression MUST return the same SQL type as the
+    Data Mesh column.
+
+    Example:
+
+        annual_salary -> integer
+
+        valid:
+            0
+            999999
+            CAST(0 AS integer)
+
+        invalid:
+            '****'
+            'hidden'
 
     Return:
 
     {
-      "column_mask": null,
-      "row_filter": null
+        "row_filter": null,
+        "column_masks": {}
     }
     """
 
-    system_prompt = """
-Extract optional DATA FILTERING declarations from a Trino
-authorization rule.
+    # ---------------------------------------------------------
+    # Resolve authoritative column type
+    # ---------------------------------------------------------
 
-Return ONLY:
+    resource_column = resource.get("column")
 
-{
-  "column_mask": null,
-  "row_filter": null
-}
+    column_type = None
 
-Rules:
+    if ( resource.get("catalog") and resource.get("schema") and resource.get("table") and resource_column ):
+        column_definition = _find_column_definition( data_mesh_structure=data_mesh_structure, catalog_name=resource["catalog"], schema_name=resource["schema"], table_name=resource["table"], column_name=resource_column )
 
-1. A column mask means a column value must be transformed,
-   masked, hidden or replaced.
-2. A row filter means rows must be restricted by a predicate.
-3. Do not invent expressions.
-4. Preserve the expression stated by the user.
-5. If no column mask exists, return null.
-6. If no row filter exists, return null.
-7. These are not permissions.
-8. A column mask normally requires a specific column.
-9. A row filter normally requires a table.
-10. Return no other fields.
+        if column_definition is not None:
+            column_type = column_definition.get("type")
 
-Example:
+    # ---------------------------------------------------------
+    # LLM prompt
+    # ---------------------------------------------------------
 
-"HR managers can select salary from employees but mask salary
-as '****'"
+    system_prompt = f"""
+    Extract optional DATA FILTERING declarations from a Trino
+    authorization rule.
 
-{
-  "column_mask": "'****'",
-  "row_filter": null
-}
+    Return ONLY:
 
-Example:
+    {{
+      "row_filter": null,
+      "column_masks": {{}}
+    }}
 
-"HR managers can select employees where department = 'HR'"
+    Rules:
 
-{
-  "column_mask": null,
-  "row_filter": "department = 'HR'"
-}
-"""
-    context = { "rule": rule, "resource": resource }
+    1. A column mask transforms, masks, hides, replaces, or otherwise
+       changes the VALUE returned for a specific column.
+
+    2. A row filter restricts WHICH ROWS are visible using a SQL
+       predicate.
+
+    3. Do not invent expressions.
+
+    4. Preserve the SQL expression stated by the user whenever it
+       is already type-compatible.
+
+    5. A column mask MUST return the SAME SQL TYPE as the column
+       being masked.
+
+    6. The authoritative Data Mesh column type is:
+
+       column = {resource_column or "none"}
+       type   = {column_type or "unknown"}
+
+    7. NEVER return a varchar/string expression for an integer,
+       bigint, smallint, tinyint, decimal, real, double, boolean,
+       date, timestamp, or other non-varchar column.
+
+    8. Examples:
+
+       INTEGER column:
+           valid:
+               0
+               999
+               CAST(0 AS integer)
+
+           invalid:
+               '****'
+               'hidden'
+
+       BIGINT column:
+           valid:
+               0
+               CAST(0 AS bigint)
+
+       DOUBLE column:
+           valid:
+               0.0
+               CAST(0.0 AS double)
+
+       DECIMAL column:
+           valid:
+               CAST(0 AS decimal(18,2))
+
+       BOOLEAN column:
+           valid:
+               false
+               true
+
+       VARCHAR column:
+           valid:
+               '****'
+               'hidden'
+
+    9. If the user's requested mask is incompatible with the
+       authoritative column type, convert it to a simple
+       type-compatible masking expression.
+
+       For example:
+
+           Rule:
+           "mask annual_salary as '****'"
+
+           Data Mesh:
+           annual_salary -> integer
+
+           Return:
+
+           {{
+             "row_filter": null,
+             "column_masks": {{
+               "annual_salary": "0"
+             }}
+           }}
+
+    10. A column mask requires a specific column.
+
+    11. The key of "column_masks" MUST be the actual column name.
+
+    12. A row filter does not change column values.
+
+    13. Do not interpret a column mask as an ordinary Trino action.
+
+    14. If there is no row filter, return:
+        "row_filter": null
+
+    15. If there are no column masks, return:
+        "column_masks": {{}}
+
+    16. A row filter must be a SQL predicate compatible with the
+        columns referenced by the Data Mesh.
+
+    Examples:
+
+    Rule:
+    "mask email as '****' || substring(email, -4)"
+
+    If email is varchar:
+
+    {{
+      "row_filter": null,
+      "column_masks": {{
+        "email": "'****' || substring(email, -4)"
+      }}
+    }}
+
+    Rule:
+    "mask salary as '****'"
+
+    If salary is integer:
+
+    {{
+      "row_filter": null,
+      "column_masks": {{
+        "salary": "0"
+      }}
+    }}
+
+    Rule:
+    "only show rows where department = 'HR'"
+
+    {{
+      "row_filter": "department = 'HR'",
+      "column_masks": {{}}
+    }}
+
+    Rule:
+    "show employees where department = 'HR' and mask email as
+    '****' || substring(email, -4)"
+
+    {{
+      "row_filter": "department = 'HR'",
+      "column_masks": {{
+        "email": "'****' || substring(email, -4)"
+      }}
+    }}
+    """
+    context = { "rule": rule, "resource": resource, "column_type": column_type }
     result = _llm_json( system_prompt, json.dumps( context, ensure_ascii=False, indent=2 ), is_local=is_local, chat_url=chat_url, client=client, model=model )
-    if set(result.keys()) != { "column_mask", "row_filter" }:
+    if set(result.keys()) != { "row_filter", "column_masks" }:
         raise ValueError( "Column/row effect extraction returned invalid JSON. " f"Received: {json.dumps(result, ensure_ascii=False)}" )
-    column_mask = result.get("column_mask")
     row_filter = result.get("row_filter")
-    if column_mask is not None and not isinstance(column_mask, str):
-        raise ValueError( "'column_mask' must be a string or null." )
+    column_masks = result.get("column_masks")
     if row_filter is not None and not isinstance(row_filter, str):
         raise ValueError( "'row_filter' must be a string or null." )
-    return { "column_mask": ( column_mask.strip() if isinstance(column_mask, str) and column_mask.strip() else None ), "row_filter": ( row_filter.strip() if isinstance(row_filter, str) and row_filter.strip() else None ) }
+    if not isinstance(column_masks, dict):
+        raise ValueError( "'column_masks' must be an object." )
+    normalized_masks = {}
+    for column, expression in column_masks.items():
+        if not isinstance(column, str) or not column.strip():
+            raise ValueError( "Column mask keys must be non-empty column names." )
+        if not isinstance(expression, str) or not expression.strip():
+            raise ValueError( f"Column mask for '{column}' " "must be a non-empty string." )
+        normalized_masks[column.strip()] = expression.strip()
+    return { "row_filter": ( row_filter.strip() if isinstance(row_filter, str) and row_filter.strip() else None ), "column_masks": normalized_masks }
 
 def _validate_effects( effects, resource, data_mesh_structure ):
     """
-    Validate mask/filter scope against the authoritative Data Mesh.
+    Validate row-filter and column-mask scope against the
+    authoritative Data Mesh.
     """
     feedback = []
-    column_mask = effects.get("column_mask")
     row_filter = effects.get("row_filter")
-    # Column mask requires a concrete column.
-    if column_mask and not resource.get("column"):
-        feedback.append( "A column mask requires a specific column." )
-    # Row filter requires a concrete table.
+    column_masks = effects.get("column_masks", {})
+    if not isinstance(column_masks, dict):
+        feedback.append( "'column_masks' must be an object." )
+        column_masks = {}
+
+    # ---------------------------------------------------------
+    # Column masks
+    # ---------------------------------------------------------
+    if column_masks:
+        resource_column = resource.get("column")
+        if not resource_column:
+            feedback.append( "A column mask requires a specific resource column." )
+        else:
+            # The resource column must correspond to the mask.
+            if resource_column not in column_masks:
+                feedback.append( "The column mask must target the resource column " f"'{resource_column}'." )
+        # Validate every mask column against the Data Mesh.
+        table = resource.get("table")
+        schema = resource.get("schema")
+        catalog = resource.get("catalog")
+        if catalog and schema and table:
+            catalog_obj = _find_catalog( data_mesh_structure, catalog )
+            schema_obj = _find_schema( catalog_obj, schema )
+            table_obj = _find_table( schema_obj, table )
+            if table_obj is not None:
+                valid_columns = set( _get_column_names(table_obj) )
+                for column in column_masks:
+                    if column not in valid_columns:
+                        feedback.append( f"The column mask references unknown " f"column '{column}'." )
+
+    # ---------------------------------------------------------
+    # Row filter
+    # ---------------------------------------------------------
     if row_filter and not resource.get("table"):
         feedback.append( "A row filter requires a specific table." )
-    # If resource is already invalid, don't perform deeper validation.
+
+    # ---------------------------------------------------------
+    # Resource validity
+    # ---------------------------------------------------------
     path_result = _validate_resource_path( resource, data_mesh_structure )
     if not path_result["valid"]:
         feedback.append(path_result["feedback"])
@@ -985,144 +1264,257 @@ def _format_action_examples(examples):
     return ( "\n\n".join(blocks) if blocks else "No examples." )
 
 def _extract_actions( rule, available_actions, is_local, chat_url=None, client=None, model=None, examples=None ):
-    system_prompt = ("""
-        Identify the intended Trino authorization operations and whether
-        each operation is allowed or denied.
+    """
+    Extract ordinary Trino authorization operations.
 
-        Return ONLY:
+    IMPORTANT:
+    Column masks and row filters are NOT actions. If the rule only
+    describes a column mask or row filter, return an empty
+    requested_actions list.
 
+    Examples:
+
+        "auditor has applied a filter on column price ..."
+            -> []
+
+        "auditor masks price as '$$$' ..."
+            -> []
+
+        "auditor can select from table X but masks price ..."
+            -> SelectFromTableAction
+
+    A masking/filtering operation must never be converted into
+    UpdateTableAction.
+    """
+
+    system_prompt = """
+    Identify the intended Trino authorization operations and whether
+    each operation is allowed or denied.
+
+    Return ONLY:
+
+    {
+      "requested_actions": [
         {
-          "requested_actions": [
-            {
-              "intent": "",
-              "action": null,
-              "effect": "allow"
-            }
-          ]
+          "intent": "",
+          "action": null,
+          "effect": "allow"
         }
+      ]
+    }
 
-        Rules:
+    Rules:
 
-        1. "intent" MUST describe the operation in natural language.
-        2. "action" MUST contain the exact matching action name from Available Actions.
-        3. Never put an action name into "intent" when the natural-language
-           operation can be described instead.
-        4. If a matching action exists in Available Actions, "action" MUST NOT
-           be null.
-        5. Never invent an action.
-        6. Copy action names exactly from Available Actions.
+    1. "intent" MUST describe an ordinary authorization operation
+       in natural language.
 
-        Operation mappings:
+    2. "action" MUST contain the exact matching action name from
+       Available Actions.
 
-        - "select", "read", "query"
-          -> SelectFromTableAction
+    3. NEVER interpret a column mask as UpdateTableAction.
 
-        - "insert"
-          -> InsertIntoTableAction
+    4. NEVER interpret a row filter as an update, delete, select,
+       or other ordinary action.
 
-        - "update"
-          -> UpdateTableAction
+    5. Column masks and row filters are handled separately by Python.
+       They are NOT Trino actions.
 
-        - "delete"
-          -> DeleteFromTableAction
+    6. If the rule ONLY describes a column mask or row filter,
+       return:
 
-        - "show tables"
-          -> ShowTablesAction
+       {
+         "requested_actions": []
+       }
 
-        - "show schemas"
-          -> ShowSchemasAction
+    7. A column mask is language such as:
+       - mask a column
+       - masked column
+       - replace column values
+       - replace values in a column
+       - hide column values
+       - transform column values
+       - show $$$ instead of the value
+       - apply a mask
+       - applied a filter on column X where the intention is to
+         replace/mask the displayed column value
 
-        - "add column"
-          -> AddColumnAction
+    8. A row filter is language such as:
+       - filter rows
+       - restrict rows
+       - only show rows where ...
+       - rows where ...
+       - apply a row filter
+       - restrict access to rows
 
-        - "create table"
-          -> CreateTableAction
+    9. IMPORTANT:
+       "update column values" normally means UpdateTableAction ONLY
+       when the user actually requests a database update operation.
 
-        - "create schema"
-          -> CreateSchemaAction
+       For example:
 
-        - "add comment to table"
-          -> SetTableCommentAction
+       "auditor can update the price column"
+           -> UpdateTableAction
 
-        - "set comment on table"
-          -> SetTableCommentAction
+       But:
 
-        - "set table comment"
-          -> SetTableCommentAction
+       "auditor has applied a filter on the price column that
+        replaces all values with $$$"
+           -> NO ordinary action
 
-        - "comment on table"
-          -> SetTableCommentAction
+    10. "intent" MUST NOT contain the canonical action name when a
+        natural-language description is possible.
 
-        - "add comment to column"
-          -> SetColumnCommentAction
+    11. If a matching action exists in Available Actions,
+        "action" MUST NOT be null.
 
-        - "set comment on column"
-          -> SetColumnCommentAction
+    12. Never invent an action.
 
-        - "set column comment"
-          -> SetColumnCommentAction
+    13. Copy action names exactly from Available Actions.
 
-        - "comment on column"
-          -> SetColumnCommentAction
+    Ordinary operation mappings:
 
-        - "add comment to view"
-          -> SetViewCommentAction
+    - select / read / query
+      -> SelectFromTableAction
 
-        - "set comment on view"
-          -> SetViewCommentAction
+    - insert / insert rows / insert data
+      -> InsertIntoTableAction
 
-        - "set view comment"
-          -> SetViewCommentAction
+    - update table / update rows / modify table data
+      -> UpdateTableAction
 
-        - "comment on view"
-          -> SetViewCommentAction
+    - delete rows / delete from table
+      -> DeleteFromTableAction
 
-        7. "deny", "cannot", "not allowed", "forbidden",
-           "prohibited" -> effect="deny".
+    - drop table / delete table
+      -> DropTableAction
 
-        8. Otherwise use effect="allow".
+    - create table
+      -> CreateTableAction
 
-        9. One item per operation.
+    - create schema
+      -> CreateSchemaAction
 
-        10. A rule may mix allow and deny.
+    - create view
+      -> CreateViewAction
 
-        11. Return no other fields.
+    - create materialized view
+      -> CreateMaterializedViewAction
 
-        Examples:
+    - drop view
+      -> DropViewAction
 
-        Example:
+    - drop materialized view
+      -> DropMaterializedViewAction
 
-        Rule:
-        hr_manager can add comment to table in schema sales
+    - drop schema
+      -> DropSchemaAction
 
-        Return:
+    - add column
+      -> AddColumnAction
 
+    - drop column
+      -> DropColumnAction
+
+    - rename column
+      -> RenameColumnAction
+
+    - rename table
+      -> RenameTableAction
+
+    - rename view
+      -> RenameViewAction
+
+    - rename materialized view
+      -> RenameMaterializedViewAction
+
+    - refresh materialized view
+      -> RefreshMaterializedViewAction
+
+    - truncate table
+      -> TruncateTableAction
+
+    - show tables
+      -> ShowTablesAction
+
+    - show schemas
+      -> ShowSchemasAction
+
+    - show columns
+      -> ShowColumnsAction
+
+    - show create table
+      -> ShowCreateTableAction
+
+    - show create schema
+      -> ShowCreateSchemaAction
+
+    - add/set/comment on table
+      -> SetTableCommentAction
+
+    - add/set/comment on column
+      -> SetColumnCommentAction
+
+    - add/set/comment on view
+      -> SetViewCommentAction
+
+    Effect:
+
+    - "deny", "cannot", "not allowed", "forbidden",
+      "prohibited" -> effect="deny"
+
+    - otherwise -> effect="allow"
+
+    One item per ordinary operation.
+
+    A rule may mix ordinary operations with masking/filtering.
+
+    Examples:
+
+    Rule:
+    auditor can select from employees but mask salary as '****'
+
+    Return:
+    {
+      "requested_actions": [
         {
-          "requested_actions": [
-            {
-              "intent": "add comment to table",
-              "action": "SetTableCommentAction",
-              "effect": "allow"
-            }
-          ]
+          "intent": "select from table",
+          "action": "SelectFromTableAction",
+          "effect": "allow"
         }
+      ]
+    }
 
-        """
-    )
-    # + _format_action_examples(examples))
+    Rule:
+    auditor has applied a mask to salary that replaces values with '$$$'
+
+    Return:
+    {
+      "requested_actions": []
+    }
+
+    Rule:
+    auditor has applied a filter on column price that replaces
+    all price values with '$$$'
+
+    Return:
+    {
+      "requested_actions": []
+    }
+    """
+
     result = _llm_json( system_prompt, ( "Available Actions:\n" + json.dumps( available_actions, ensure_ascii=False, indent=2 ) + "\n\nRule:\n" + rule ), is_local=is_local, chat_url=chat_url, client=client, model=model )
     if set(result.keys()) != {"requested_actions"}:
-        raise ValueError( "Action extraction returned invalid JSON." )
+        raise ValueError("Action extraction returned invalid JSON.")
     items = result.get("requested_actions")
     if not isinstance(items, list):
-        raise ValueError( "'requested_actions' must be a list." )
+        raise ValueError("'requested_actions' must be a list.")
     normalized = []
     for item in items:
         if not isinstance(item, dict):
             continue
         effect = item.get("effect")
         if effect not in EFFECTS:
-            raise ValueError( f"Invalid effect: {effect!r}" )
+            raise ValueError(f"Invalid effect: {effect!r}")
         normalized.append({ "intent": item.get("intent", ""), "action": item.get("action"), "effect": effect })
     return normalized
 
@@ -1148,19 +1540,18 @@ def _split_allowed_deny( requested_actions, available_actions ):
 # Final explanation
 # ============================================================================
 
-def _build_explanation_text( rule, group, resource, allowed, deny, column_mask=None, row_filter=None ):
-    parts = [ f"{k} {resource[k]}" for k in ( "catalog", "schema", "table", "column" ) if resource.get(k) ]
+def _build_explanation_text( rule, group, resource, allowed, deny, column_masks=None, row_filter=None ):
+    parts = [ f"{k} {resource[k]}" for k in ("catalog", "schema", "table", "column") if resource.get(k) ]
     scope = ", ".join(parts) or "no specific resource"
     text = ( f"Group {group or 'unknown'}: " f"allowed {allowed or 'none'}, " f"denied {deny or 'none'}, " f"on {scope}." )
-    if column_mask:
-        text += f" Column mask: {column_mask}."
+    if column_masks:
+        text += f" Column masks: {column_masks}."
     if row_filter:
         text += f" Row filter: {row_filter}."
     return text
 
 def _generate_final_explanation( rule, security_group_result, resource, expanded_resources, allowed, deny, path_result, effects, examples, is_local, chat_url=None, client=None, model=None, data_mesh_structure=None ):
-    return _build_explanation_text( rule, security_group_result.get("security_group"), resource, allowed, deny, column_mask=effects.get("column_mask"), row_filter=effects.get("row_filter") )
-
+    return _build_explanation_text( rule=rule, group=security_group_result.get("security_group"), resource=resource, allowed=allowed, deny=deny, column_masks=effects.get("column_masks", {}), row_filter=effects.get("row_filter") )
 # ============================================================================
 # Main
 # ============================================================================
@@ -1220,7 +1611,7 @@ def llm_explain( rule, example_index, data_mesh_structure, security_groups, avai
     # ------------------------------------------------------------------------
     # Row filter / column mask
     # -----------------------------------------------------------------------
-    effects = _extract_effects( rule=rule, resource=resource, is_local=is_local, chat_url=chat_url, client=client, model=model )
+    effects = _extract_effects( rule=rule, resource=resource, data_mesh_structure=data_mesh_structure, is_local=is_local, chat_url=chat_url, client=client, model=model )
     effects_result = _validate_effects( effects=effects, resource=resource, data_mesh_structure=data_mesh_structure )
 
     # ------------------------------------------------------------------------
@@ -1261,19 +1652,19 @@ def llm_explain( rule, example_index, data_mesh_structure, security_groups, avai
     # Return
     # ------------------------------------------------------------------------
 
-    rewritten_rule= {
+    rewritten_rule = {
         "text": text,
-        "securityGroup":security_group_result["security_group"],
-        "existSecureGroup":  security_group_result["existSecureGroup"],
+        "securityGroup": security_group_result["security_group"],
+        "existSecureGroup": security_group_result["existSecureGroup"],
         "pathExistOnDataMeshStructure": path_result["valid"],
-        "actionExist":action_result["valid"] and not conflicts,
+        "actionExist": action_result["valid"] and not conflicts,
         "resource": { "catalog": resource.get("catalog") or "", "schema": resource.get("schema") or "", "table": resource.get("table") or "", "column": resource.get("column") or "" },
         "allowed": allowed,
         "deny": deny,
-        "columnMask":effects.get("column_mask"),
-        "rowFilter":effects.get("row_filter"),
-        "expandedResources":expanded_resources,
-        "llm_feedback":" ".join(feedback)
+        "row_filter": effects.get("row_filter"),
+        "column_masks": effects.get("column_masks", {}),
+        "expandedResources": expanded_resources,
+        "llm_feedback": " ".join(feedback)
     }
 
     with REWRITTEN_RULE_PATH.open( "w", encoding="utf-8" ) as f:

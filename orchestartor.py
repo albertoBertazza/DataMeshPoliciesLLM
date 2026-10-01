@@ -80,24 +80,31 @@ def start_pipelines(rule_user, skip_user_check):
     print("=" * 70)
     restart_opa()
 
+    answer_go_with_test = ""
+    while answer_go_with_test != "y" and answer_go_with_test != "n":
+        answer_go_with_test = input("Do you wanna test the generated rules? [y/n]: ").strip().lower()
+
+    if answer_go_with_test == "n":
+        return False
+
     # ======================================================
-    # 4. RESOLVE + GENERATE + EXECUTE + EVALUATE
+    # 2. RESOLVE + GENERATE + EXECUTE + EVALUATE
     # ======================================================
     evaluation_report = testEvaluation()
 
     # ======================================================
-    # 5. PRINT SUMMARY
+    # 3. PRINT SUMMARY
     # ======================================================
-    summary = evaluation_report.get("summary", {})
+    summary_test = evaluation_report.get("summary", {})
     print("\n" + "=" * 70)
     print("🔐 AUTHORIZATION EVALUATION")
     print("=" * 70)
-    print(f"🧪 Total tests:  {summary.get('total', 0)}")
-    print(f"✅ Passed:       {summary.get('passed', 0)}")
-    print(f"❌ Failed:       {summary.get('failed', 0)}")
-    print(f"📊 Success:      {summary.get('success', False)}")
+    print(f"🧪 Total tests:  {summary_test.get('total', 0)}")
+    print(f"✅ Passed:       {summary_test.get('passed', 0)}")
+    print(f"❌ Failed:       {summary_test.get('failed', 0)}")
+    print(f"📊 Success:      {summary_test.get('success', False)}")
     print("=" * 70)
-    return summary
+    return summary_test
 
 if __name__ == "__main__":
     print("=" * 60)

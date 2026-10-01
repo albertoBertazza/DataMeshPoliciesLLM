@@ -740,6 +740,95 @@ class TrinoTestGenerator:
             print( f"[TEST SKIP] No existing schema found " f"for catalog '{catalog}'" )
             return None
 
+        # =========================================================
+        # DIRECT TABLE-LEVEL ACTIONS
+        # =========================================================
+        #
+        # Only enter this block when the resolver already identifies
+        # a concrete table.
+        #
+        # If table is missing, the resolver target is a higher-level
+        # resource (catalog or schema), and the fallback block below
+        # must select an existing physical table.
+        #
+        if resource_level == "table" and resource.get("table"):
+
+            catalog = resource.get("catalog")
+            schema = resource.get("schema")
+            table = resource.get("table")
+
+            if not catalog or not schema:
+                return None
+
+            # -------------------------------------------------
+            # Resolver already identifies a concrete relation.
+            #
+            # The resolver resource is preserved exactly.
+            # resource_level only tells us what SQL context
+            # is required.
+            # -------------------------------------------------
+
+            table_resource = self._find_object(
+                {
+                    "catalog": catalog,
+                    "schema": schema,
+                    "table": table,
+                }
+            )
+
+            if table_resource is None:
+                print(
+                    f"[TEST SKIP] No physical object found for "
+                    f"{action}: '{catalog}.{schema}.{table}'"
+                )
+                return None
+
+            object_type = table_resource.get(
+                "type",
+                "table",
+            )
+
+            print(
+                f"[TEST DEBUG] Using physical object "
+                f"'{catalog}.{schema}.{table}' "
+                f"(type={object_type})"
+            )
+
+            context = {
+                "catalog": catalog,
+                "schema": schema,
+                "table": table,
+            }
+
+            # -------------------------------------------------
+            # Some table-level SQL actions also need a column.
+            # -------------------------------------------------
+
+            column = resource.get("column")
+
+            if column:
+                column_resource = self._find_column(
+                    {
+                        "catalog": catalog,
+                        "schema": schema,
+                        "table": table,
+                        "column": column,
+                    }
+                )
+
+                if column_resource is not None:
+                    context["column"] = column
+                    context["column_type"] = column_resource.get(
+                        "column_type",
+                        "varchar",
+                    )
+
+            return self._add_action_values(
+                action,
+                context,
+                username,
+                test_run_id,
+            )
         # =====================================================
         # TABLE ACTIONS FROM HIGHER-LEVEL RESOURCES
         # =====================================================

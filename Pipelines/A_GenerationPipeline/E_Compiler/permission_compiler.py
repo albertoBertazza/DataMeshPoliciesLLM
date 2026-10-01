@@ -286,66 +286,192 @@ class PermissionCompiler:
     # Node rules
     # ========================================================================
 
-    def _compile_node_rules( self, node: Dict[str, Any], resource_data: Dict[str, Any]) -> None:
+    def _compile_node_rules( self, node: Dict[str, Any], resource_data: Dict[str, Any] ) -> None:
+
         permissions = resource_data.get("permissions", {})
         if not isinstance(permissions, dict):
-            raise ValueError( f"permissions must be an object on " f"{node['id']!r}" )
+            raise ValueError( f"permissions must be an object on {node['id']!r}" )
+
+        # ========================================================================
+        # Resource-level effects
+        #
+        # These are defined directly on the resource node:
+        #
+        # column:
+        #   "column_masks": {
+        #       "annual_salary": "'$$$'"
+        #   }
+        #
+        # table:
+        #   "row_filters": [
+        #       "department = 'finance'"
+        #   ]
+        #
+        # They are NOT stored inside permissions[group].
+        # ========================================================================
+
+        resource_column_masks = resource_data.get("column_masks", {})
+        if not isinstance(resource_column_masks, dict):
+            raise ValueError( f"column_masks must be an object on {node['id']!r}" )
+
+        resource_row_filters = resource_data.get("row_filters", [])
+        if not isinstance(resource_row_filters, list):
+            raise ValueError( f"row_filters must be a list on {node['id']!r}" )
+
+        # ========================================================================
+        # Normal permissions
+        # ========================================================================
+
         for group, group_rule in permissions.items():
+
             if not isinstance(group, str) or not group:
-                raise ValueError( f"invalid security group on " f"{node['id']!r}" )
+                raise ValueError( f"invalid security group on {node['id']!r}" )
+
             if not isinstance(group_rule, dict):
-                raise ValueError( f"permissions for group {group!r} " f"must be an object on {node['id']!r}" )
+                raise ValueError( f"permissions for group {group!r} must be " f"an object on {node['id']!r}" )
+
             self._validate_security_group(group)
+
             allow = group_rule.get("allow", [])
             deny = group_rule.get("deny", [])
+
             if not isinstance(allow, list):
                 raise ValueError( f"permissions.allow must be a list on " f"{node['id']!r} for {group!r}" )
+
             if not isinstance(deny, list):
                 raise ValueError( f"permissions.deny must be a list on " f"{node['id']!r} for {group!r}" )
+
             conflict = set(allow) & set(deny)
+
             if conflict:
                 raise ValueError( "permission appears in both allow and deny " f"on {node['id']!r} for {group!r}: " + ", ".join(sorted(conflict)) )
-            # --------------------------------------------------------------
+
+            # --------------------------------------------------------------------
             # Permissions
-            # --------------------------------------------------------------
+            # --------------------------------------------------------------------
+
             for permission in allow:
-                self._compile_permission( node, permission, "allow", group)
+                self._compile_permission( node, permission, "allow", group )
+
             for permission in deny:
-                self._compile_permission( node, permission, "deny", group)
-            # --------------------------------------------------------------
-            # Row filter
-            # --------------------------------------------------------------
+                self._compile_permission( node, permission, "deny", group )
+
+            # --------------------------------------------------------------------
+            # Row filter from permissions[group]
+            #
+            # Keep support for this representation too.
+            # --------------------------------------------------------------------
+
             row_filter = group_rule.get("row_filter")
+
             if row_filter is not None:
+
                 if not isinstance(row_filter, str):
-                    raise ValueError( f"row_filter must be a string or null " f"on {node['id']!r} for {group!r}" )
+                    raise ValueError( f"row_filter must be a string or null on " f"{node['id']!r} for {group!r}" )
+
                 row_filter = row_filter.strip()
+
                 if row_filter:
-                    if node["type"] not in { "table", "view", "materialized_view"}:
+                    if node["type"] not in { "table", "view", "materialized_view" }:
                         raise ValueError( "row_filter must be attached to a " f"table/view: {node['id']!r}" )
-                    self._validate_effect_depth( "GetRowFilters", node)
-                    self._add_row_filter( node, group, row_filter)
-            # --------------------------------------------------------------
-            # Column masks
-            # --------------------------------------------------------------
-            column_masks = group_rule.get( "column_masks", {})
-            if not isinstance(column_masks, dict):
-                raise ValueError( f"column_masks must be an object on " f"{node['id']!r} for {group!r}" )
-            for column_name, expression in column_masks.items():
+
+                    self._validate_effect_depth( "GetRowFilters", node )
+
+                    self._add_row_filter( node, group, row_filter )
+
+        # ========================================================================
+        # Resource-level row filters
+        #
+        # Example:
+        #
+        # "row_filters": [
+        #     "department = 'finance'"
+        # ]
+        #
+        # Apply the same filter to the security group(s) represented by the
+        # permissions on this resource.
+        # ========================================================================
+
+        if resource_row_filters:
+
+            if node["type"] not in { "table", "view", "materialized_view" }:
+                raise ValueError( "row_filters must be attached to a " f"table/view: {node['id']!r}" )
+
+            self._validate_effect_depth( "GetRowFilters", node )
+
+            for group in permissions:
+
+                for row_filter in resource_row_filters:
+
+                    if not isinstance(row_filter, str):
+                        raise ValueError( "row_filter expression must be a string" )
+
+                    row_filter = row_filter.strip()
+
+                    if not row_filter:
+                        continue
+
+                    self._add_row_filter( node, group, row_filter )
+
+        # ========================================================================
+        # Resource-level column masks
+        #
+        # Example:
+        #
+        # "column_masks": {
+        #     "annual_salary": "'$$$'"
+        # }
+        #
+        # These are attached directly to the column resource.
+        # ========================================================================
+
+        if resource_column_masks:
+
+            if node["type"] != "column":
+                raise ValueError( "column_masks must be attached to a " f"column: {node['id']!r}" )
+
+            self._validate_effect_depth( "GetColumnMask", node )
+
+            for column_name, expression in resource_column_masks.items():
+
                 column_name = str(column_name).strip()
+
                 if not column_name:
                     raise ValueError( "column mask requires column" )
+
                 if not isinstance(expression, str):
                     raise ValueError( "column mask expression must be a string" )
+
                 expression = expression.strip()
+
                 if not expression:
                     raise ValueError( "column mask requires expression" )
-                if node["type"] != "column":
-                    raise ValueError( "column_mask must be attached to a " f"column: {node['id']!r}" )
+
                 if node["name"] != column_name:
                     raise ValueError( f"column mask targets {column_name!r}, " f"but is attached to {node['name']!r}" )
-                self._validate_effect_depth( "GetColumnMask", node)
-                self._add_column_mask( node, group, column_name, expression)
+
+                # Apply the mask to every group defined on this resource.
+                for group in permissions:
+                    self._add_column_mask( node, group, column_name, expression )
+
+                    # The mask itself requires GetColumnMask.
+                    rule = node["rules"].setdefault( group, { "allow": [], "deny": [], "row_filter": None, "column_masks": {} } )
+
+                    if "GetColumnMask" not in rule["allow"]:
+                        rule["allow"].append("GetColumnMask")
+
+        # ========================================================================
+        # Resource-level row-filter permission
+        # ========================================================================
+
+        if resource_row_filters:
+
+            for group in permissions:
+
+                rule = node["rules"].setdefault( group, { "allow": [], "deny": [], "row_filter": None, "column_masks": {} } )
+
+                if "GetRowFilters" not in rule["allow"]:
+                    rule["allow"].append("GetRowFilters")
 
     # ========================================================================
     # Security groups

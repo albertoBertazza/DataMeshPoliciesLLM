@@ -152,23 +152,28 @@ def _place_permissions( permissions: List[str], effect: str, rule_depth: int, re
 # Column masks
 # ============================================================================
 
-def _add_column_mask( resource_values: Dict[str, Any], column_mask: Dict[str, str]) -> None:
-    catalogs = resource_values.get( "catalogs", [])
+def _add_column_mask(
+    resource_values: Dict[str, Any],
+    column_masks: Dict[str, str],
+) -> None:
+    catalogs = resource_values.get("catalogs", [])
     if not catalogs:
-        raise ValueError( "Column mask requires a catalog." )
-    schemas = catalogs[0].get( "schemas", [])
+        raise ValueError("Column mask requires a catalog.")
+    schemas = catalogs[0].get("schemas", [])
     if not schemas:
-        raise ValueError( "Column mask requires a schema." )
-    tables = schemas[0].get( "tables", [])
+        raise ValueError("Column mask requires a schema.")
+    tables = schemas[0].get("tables", [])
     if not tables:
-        raise ValueError( "Column mask requires a table." )
-    columns = tables[0].get( "columns", [])
+        raise ValueError("Column mask requires a table.")
+    columns = tables[0].get("columns", [])
     if not columns:
-        raise ValueError( "Column mask requires a column." )
+        raise ValueError("Column mask requires a column.")
     column_node = columns[0]
-    masks = column_node.setdefault( "column_masks", [])
-    if column_mask not in masks:
-        masks.append( column_mask )
+    masks = column_node.setdefault("column_masks", {})
+    if not isinstance(masks, dict):
+        raise ValueError("Column node 'column_masks' must be an object.")
+    for column_name, expression in column_masks.items():
+        masks[column_name] = expression
 
 # ============================================================================
 # Row filters
@@ -193,20 +198,43 @@ def _add_row_filter( resource_values: Dict[str, Any], row_filter: str) -> None:
 # Main extractor
 # ============================================================================
 
-def build_intermediate_representation( explanation: Dict[str, Any], check_for_action: Dict[str, List[str]], permission_depth: Dict[str, int]) -> Dict[str, Any]:
-    group = explanation.get( "securityGroup" )
+def build_intermediate_representation( explanation: Dict[str, Any], check_for_action: Dict[str, List[str]], permission_depth: Dict[str, int] ) -> Dict[str, Any]:
+    group = explanation.get("securityGroup")
     if not group:
-        raise ValueError( "No security group in explanation." )
-    allowed_actions = ( explanation.get("allowed") or [] )
-    denied_actions = ( explanation.get("deny") or [] )
-    column_mask = explanation.get( "columnMask" )
-    row_filter = explanation.get( "rowFilter" )
-    if isinstance(column_mask, str):
-        column_mask = ( column_mask.strip() or None )
+        raise ValueError("No security group in explanation.")
+    allowed_actions = explanation.get("allowed") or []
+    denied_actions = explanation.get("deny") or []
+
+    # ------------------------------------------------------------------------
+    # Canonical filtering effects
+    #
+    # row_filter:
+    #     string | None
+    #
+    # column_masks:
+    #     {
+    #         "column_name": "mask expression"
+    #     }
+    # ------------------------------------------------------------------------
+    row_filter = explanation.get("row_filter")
+    column_masks = explanation.get("column_masks") or {}
     if isinstance(row_filter, str):
-        row_filter = ( row_filter.strip() or None )
-    has_mask = bool(column_mask)
+        row_filter = row_filter.strip() or None
+    if not isinstance(column_masks, dict):
+        raise ValueError("'column_masks' must be an object.")
+    normalized_column_masks = {}
+    for column_name, expression in column_masks.items():
+        column_name = str(column_name).strip()
+        expression = str(expression).strip()
+        if not column_name:
+            raise ValueError( "Column mask contains an empty column name." )
+        if not expression:
+            raise ValueError( f"Column mask for '{column_name}' has an empty expression." )
+        normalized_column_masks[column_name] = expression
+    column_masks = normalized_column_masks
+    has_mask = bool(column_masks)
     has_filter = bool(row_filter)
+
     if ( not allowed_actions and not denied_actions and not has_mask and not has_filter ):
         raise ValueError( "Explanation contains no allowed/denied action, " "column mask, or row filter." )
     # ------------------------------------------------------------------------
@@ -269,17 +297,37 @@ def build_intermediate_representation( explanation: Dict[str, Any], check_for_ac
     # GetColumnMask itself has depth 4.
     # ------------------------------------------------------------------------
     if has_mask:
-        column_name = str( resource.get("column") or "" ).strip()
-        if not column_name:
-            raise ValueError( "A column mask requires a specific resource column." )
-        mask_expression = str( column_mask or "" ).strip()
-        if not mask_expression:
-            raise ValueError( "A column mask requires a non-empty expression." )
-        mask_depth = _permission_placement_depth( permission="GetColumnMask", rule_depth=rule_depth, permission_depth=permission_depth)
-        if mask_depth != 4:
-            raise ValueError( "GetColumnMask must resolve to column depth 4." )
-        _add_column_mask( resource_values=resource_values, column_mask={ "column": column_name, "expression": mask_expression})
+        mask_depth = _permission_placement_depth(
+            permission="GetColumnMask",
+            rule_depth=rule_depth,
+            permission_depth=permission_depth
+        )
 
+        if mask_depth != 4:
+            raise ValueError(
+                "GetColumnMask must resolve to column depth 4."
+            )
+
+        resource_column = str(
+            resource.get("column") or ""
+        ).strip()
+
+        if not resource_column:
+            raise ValueError(
+                "A column mask requires a specific resource column."
+            )
+
+        for column_name in column_masks:
+            if column_name != resource_column:
+                raise ValueError(
+                    f"Column mask targets '{column_name}', but the "
+                    f"resource column is '{resource_column}'."
+                )
+
+        _add_column_mask(
+            resource_values=resource_values,
+            column_masks=column_masks
+        )
     # ------------------------------------------------------------------------
     # Row filter
     #

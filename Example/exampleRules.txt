@@ -86,3 +86,13 @@ hr manager can drop view inside inventory schema
 auditor is not allowed to select any table inside the iceberg catalog
 
 auditor is allowed to select any table inside schema sales
+
+
+
+# filter
+auditor can select from all table
+
+auditor have applied a filter on column annual_salary finance.employee_finance, it should replace all annual_salary with 0
+auditor can't see the employee id column inside finance.employee_finance  in clear text, it should be masked with asterisks
+auditor can't see the rows inside finance.employee_finance where profit_contribution is less than 185000, it should be filtered out
+auditor can select from tabel inside finance.employee_finance
