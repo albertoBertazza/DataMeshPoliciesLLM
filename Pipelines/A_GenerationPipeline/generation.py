@@ -134,7 +134,7 @@ def build_permission_policy( extracted_tree: Dict[str, Any]) -> Dict[str, Any]:
     # ------------------------------------------------------------------------
     # 3. Merge
     # ------------------------------------------------------------------------
-    merged_tree = merge_permission_tree( existing_tree, extracted_tree)
+    merged_tree = merge_permission_tree( existing_tree, extracted_tree )
     print( "\n[ Merged permission tree]" )
     print( json.dumps( merged_tree, indent=2, ensure_ascii=False) )
 
@@ -253,7 +253,7 @@ def process_rule(
     # ========================================================================
 
     try:
-        build_permission_policy( entities )
+        build_permission_policy( entities)
     except Exception as error:
         print( "Permission-policy pipeline failed:", error)
         traceback.print_exc()

@@ -30,6 +30,7 @@ RESOURCE_DEPTH = {
     "table": 3,
     "view": 3,
     "materialized_view": 3,
+    "column": 4,
 }
 
 
@@ -406,17 +407,16 @@ def _add_filter_at_depth(
     filter_value: str,
     effect: str,
     placement_depth: int,
+    security_group: str,
 ) -> None:
     """
     Store a metadata visibility declaration at the appropriate hierarchy
-    level.
+    level, scoped to the security group.
 
     FilterCatalogs -> root
     FilterSchemas  -> catalog
     FilterTables   -> schema
     FilterColumns  -> table
-
-    Both allowed and deny are preserved.
     """
 
     if effect not in ("allowed", "deny"):
@@ -434,16 +434,16 @@ def _add_filter_at_depth(
     if not filter_value:
         return
 
-    def add_to_node(
-        node: Dict[str, Any]
-    ) -> None:
+    if not security_group:
+        raise ValueError(
+            "Security group is required for metadata visibility filters."
+        )
+
+    def add_to_node(node: Dict[str, Any]) -> None:
 
         filters = node.setdefault(
             filter_key,
-            {
-                "allowed": [],
-                "deny": [],
-            }
+            {}
         )
 
         if not isinstance(filters, dict):
@@ -451,11 +451,24 @@ def _add_filter_at_depth(
                 f"'{filter_key}' must be an object."
             )
 
-        filters.setdefault("allowed", [])
-        filters.setdefault("deny", [])
+        group_filter = filters.setdefault(
+            security_group,
+            {
+                "allowed": [],
+                "deny": [],
+            }
+        )
 
-        if filter_value not in filters[effect]:
-            filters[effect].append(filter_value)
+        if not isinstance(group_filter, dict):
+            raise ValueError(
+                f"'{filter_key}.{security_group}' must be an object."
+            )
+
+        group_filter.setdefault("allowed", [])
+        group_filter.setdefault("deny", [])
+
+        if filter_value not in group_filter[effect]:
+            group_filter[effect].append(filter_value)
 
     # ------------------------------------------------------------------------
     # Root
@@ -469,17 +482,13 @@ def _add_filter_at_depth(
         )
 
         add_to_node(root_node)
-
         return
 
     # ------------------------------------------------------------------------
     # Catalog
     # ------------------------------------------------------------------------
 
-    catalogs = resource_values.get(
-        "catalogs",
-        []
-    )
+    catalogs = resource_values.get("catalogs", [])
 
     if not catalogs:
         raise ValueError(
@@ -492,17 +501,13 @@ def _add_filter_at_depth(
     if placement_depth == 1:
 
         add_to_node(catalog_node)
-
         return
 
     # ------------------------------------------------------------------------
     # Schema
     # ------------------------------------------------------------------------
 
-    schemas = catalog_node.get(
-        "schemas",
-        []
-    )
+    schemas = catalog_node.get("schemas", [])
 
     if not schemas:
         raise ValueError(
@@ -515,17 +520,13 @@ def _add_filter_at_depth(
     if placement_depth == 2:
 
         add_to_node(schema_node)
-
         return
 
     # ------------------------------------------------------------------------
     # Table
     # ------------------------------------------------------------------------
 
-    tables = schema_node.get(
-        "tables",
-        []
-    )
+    tables = schema_node.get("tables", [])
 
     if not tables:
         raise ValueError(
@@ -538,7 +539,6 @@ def _add_filter_at_depth(
     if placement_depth == 3:
 
         add_to_node(table_node)
-
         return
 
     raise ValueError(
@@ -550,6 +550,7 @@ def _place_visibility_filters(
     visibility_filters: Dict[str, Any],
     rule_depth: int,
     resource_values: Dict[str, Any],
+    security_group: str
 ) -> None:
     """
     Place metadata visibility declarations.
@@ -615,6 +616,7 @@ def _place_visibility_filters(
                 filter_value=filter_value,
                 effect="allowed",
                 placement_depth=placement_depth,
+                security_group=security_group,
             )
 
         # --------------------------------------------------------------------
@@ -636,6 +638,7 @@ def _place_visibility_filters(
                 filter_value=filter_value,
                 effect="deny",
                 placement_depth=placement_depth,
+                security_group=security_group,
             )
 
 
@@ -1174,6 +1177,7 @@ def build_intermediate_representation(
         visibility_filters=visibility_filters,
         rule_depth=rule_depth,
         resource_values=resource_values,
+        security_group=group,
     )
 
     # =========================================================================

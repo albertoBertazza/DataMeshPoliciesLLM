@@ -6,7 +6,6 @@ import future.keywords.contains
 
 default allow := false
 
-
 # ------------------------------------------------------------
 # Resource depths
 # ------------------------------------------------------------
@@ -26,7 +25,6 @@ resource_depth := {
 is_admin if {
     "admin" in input.context.identity.groups
 }
-
 
 # ------------------------------------------------------------
 # Target resource
@@ -54,17 +52,8 @@ target_info := {"res": res, "depth": 4} if {
     "depth": 0
 }
 
-
 # ------------------------------------------------------------
 # Resource path
-#
-# Example:
-#
-# root
-# root/iceberg
-# root/iceberg/hr
-# root/iceberg/hr/people
-# root/iceberg/hr/people/email
 # ------------------------------------------------------------
 
 target_path := "root" if {
@@ -103,24 +92,8 @@ target_path := "root" if {
     target_info.depth == 4
 }
 
-
 # ------------------------------------------------------------
 # Matching rules
-#
-# data.rules is now:
-#
-# {
-#   "root": {
-#       "hr_manager": {...}
-#   },
-#   "root/iceberg": {
-#       "hr_manager": {...}
-#   }
-# }
-#
-# A rule matches when:
-#   1. its resource path is an ancestor of the target
-#   2. its group belongs to the user
 # ------------------------------------------------------------
 
 matching_rules contains rule if {
@@ -134,18 +107,8 @@ matching_rules contains rule if {
     rule.group == group
 }
 
-
 # ------------------------------------------------------------
 # Path hierarchy
-#
-# A path is an ancestor when:
-#
-# root
-# root/iceberg
-# root/iceberg/hr
-# root/iceberg/hr/people
-#
-# are prefixes of the target path.
 # ------------------------------------------------------------
 
 path_is_ancestor("root", _) if true
@@ -159,24 +122,14 @@ path_is_ancestor(path, target) if {
     path == target
 }
 
-
 # ------------------------------------------------------------
 # Effective permission
-#
-# Current semantics:
-#
-# ALLOW if an applicable rule grants the permission
-# and no applicable rule denies it.
-#
-# Therefore a DENY anywhere on the target path
-# overrides an ALLOW.
 # ------------------------------------------------------------
 
 permission_denied(perm) if {
     some r in matching_rules
     perm in r.permissions.deny
 }
-
 
 permission_allowed(perm) if {
     some r in matching_rules
@@ -185,12 +138,21 @@ permission_allowed(perm) if {
     not permission_denied(perm)
 }
 
-
 # ------------------------------------------------------------
 # Action authorization
 # ------------------------------------------------------------
 
+is_metadata_filter_operation(operation) if {
+    operation in {
+        "FilterCatalogs",
+        "FilterSchemas",
+        "FilterTables",
+        "FilterColumns"
+    }
+}
+
 allow if {
+    not is_metadata_filter_operation(input.action.operation)
     permission_allowed(input.action.operation)
 }
 
@@ -198,12 +160,8 @@ allow if {
     is_admin
 }
 
-
 # ------------------------------------------------------------
 # Row filters
-#
-# All matching row filters are returned.
-# Trino combines returned row filters conjunctively.
 # ------------------------------------------------------------
 
 rowFilters contains {
@@ -216,11 +174,8 @@ rowFilters contains {
     r.row_filter != null
 }
 
-
 # ------------------------------------------------------------
 # Batch column masking
-#
-# Most-specific matching rule wins for each column.
 # ------------------------------------------------------------
 
 batchColumnMasks contains mask if {
@@ -274,7 +229,6 @@ batchColumnMasks contains mask if {
     }
 }
 
-
 # ------------------------------------------------------------
 # Path depth
 # ------------------------------------------------------------
@@ -299,12 +253,12 @@ path_depth(path) := 4 if {
     count(split(path, "/")) == 5
 }
 
-
-##################### BATCH #######################
-
+# ============================================================
+# BATCH
+# ============================================================
 
 # ------------------------------------------------------------
-# Admin: FilterColumns returns every column index.
+# Admin: FilterColumns returns every column index
 # ------------------------------------------------------------
 
 batch contains i if {
@@ -315,9 +269,8 @@ batch contains i if {
     input.action.filterResources[0].table.columns[i]
 }
 
-
 # ------------------------------------------------------------
-# Admin: other batch operations return every resource index.
+# Admin: other batch operations return every resource index
 # ------------------------------------------------------------
 
 batch contains i if {
@@ -328,108 +281,193 @@ batch contains i if {
     input.action.filterResources[i]
 }
 
+# ============================================================
+# METADATA DENY LISTS
+#
+# IMPORTANT:
+#
+# Filter* entries contain VALUES THAT MUST BE HIDDEN.
+#
+# Example:
+#
+# "root/iceberg/hr": {
+#     "FilterTables": {
+#         "hr_manager": ["salary"]
+#     }
+# }
+#
+# means:
+#
+#   salary -> hidden
+#   people -> visible
+#   orders -> visible
+#
+# If the group has no FilterTables entry at this path,
+# everything passed in filterResources is visible.
+# ============================================================
 
-# ------------------------------------------------------------
+explicit_filter_denied(
+    filter_operation,
+    filter_path,
+    resource_name
+) if {
+    path_rules := data.rules[filter_path]
+    filter_rules := path_rules[filter_operation]
+
+    some group in input.context.identity.groups
+
+    denied_resources := filter_rules[group]
+
+    resource_name in denied_resources
+}
+
+# ============================================================
 # FilterCatalogs
-# ------------------------------------------------------------
+# ============================================================
 
 batch contains i if {
     not is_admin
     input.action.operation == "FilterCatalogs"
+
     some i
 
     raw_resource := input.action.filterResources[i]
 
-    allow
-        with input.action.operation as "AccessCatalog"
-        with input.action.resource as {
-            "catalog": {
-                "name": raw_resource.catalog.name
-            }
-        }
+    catalog_name := raw_resource.catalog.name
+
+    not explicit_filter_denied(
+        "FilterCatalogs",
+        "root",
+        catalog_name
+    )
 }
 
-
-# ------------------------------------------------------------
-# FilterSchemas -> ShowSchemas
-# ------------------------------------------------------------
+# ============================================================
+# FilterSchemas
+# ============================================================
 
 batch contains i if {
     not is_admin
     input.action.operation == "FilterSchemas"
 
     some i
+
     raw_resource := input.action.filterResources[i]
 
-    # A schema is visible when ShowSchemas is allowed
-    # on that schema.
-    allow
-        with input.action.operation as "ShowSchemas"
-        with input.action.resource as raw_resource
+    catalog_name := raw_resource.schema.catalogName
+    schema_name := raw_resource.schema.schemaName
+
+    filter_path := sprintf(
+        "root/%s",
+        [catalog_name]
+    )
+
+    not explicit_filter_denied(
+        "FilterSchemas",
+        filter_path,
+        schema_name
+    )
 }
 
-# ------------------------------------------------------------
-# FilterTables -> ShowTables
-# ------------------------------------------------------------
+# ============================================================
+# FilterTables
+# ============================================================
+
 batch contains i if {
     not is_admin
     input.action.operation == "FilterTables"
 
     some i
-    raw_resource := input.action.filterResources[i]
-
-    allow
-        with input.action.operation as "ShowTables"
-        with input.action.resource as raw_resource
-}
-
-
-# ------------------------------------------------------------
-# Normal batch authorization
-# ------------------------------------------------------------
-
-batch contains i if {
-    not is_admin
-
-    input.action.operation != "FilterCatalogs"
-    input.action.operation != "FilterSchemas"
-    input.action.operation != "FilterTables"
-
-    some i
 
     raw_resource := input.action.filterResources[i]
 
-    allow with input.action.resource as raw_resource
+    catalog_name := raw_resource.table.catalogName
+    schema_name := raw_resource.table.schemaName
+    table_name := raw_resource.table.tableName
+
+    filter_path := sprintf(
+        "root/%s/%s",
+        [
+            catalog_name,
+            schema_name
+        ]
+    )
+
+    not explicit_filter_denied(
+        "FilterTables",
+        filter_path,
+        table_name
+    )
 }
 
-
-# ------------------------------------------------------------
+# ============================================================
 # FilterColumns
-# ------------------------------------------------------------
+# ============================================================
 
 batch contains i if {
     not is_admin
     input.action.operation == "FilterColumns"
+
     count(input.action.filterResources) == 1
 
     raw_resource := input.action.filterResources[0]
+
+    catalog_name := raw_resource.table.catalogName
+    schema_name := raw_resource.table.schemaName
+    table_name := raw_resource.table.tableName
+
+    some i
+
     column_name := raw_resource.table.columns[i]
 
-    allow
-        with input.action.operation as "SelectFromColumns"
-        with input.action.resource as {
-            "column": {
-                "catalogName": raw_resource.table.catalogName,
-                "schemaName": raw_resource.table.schemaName,
-                "tableName": raw_resource.table.tableName,
-                "columnName": column_name
-            }
-        }
+    filter_path := sprintf(
+        "root/%s/%s/%s",
+        [
+            catalog_name,
+            schema_name,
+            table_name
+        ]
+    )
+
+    not explicit_filter_denied(
+        "FilterColumns",
+        filter_path,
+        column_name
+    )
 }
 
-#debug_target := {
-#    "operation": input.action.operation,
-#    "target_info": target_info,
-#    "target_path": target_path,
-#    "matching_rules": [r | r := matching_rules[_]]
-#}
+# ============================================================
+# information_schema
+# ============================================================
+
+allow if {
+    input.action.operation == "SelectFromColumns"
+    input.action.resource.table.catalogName == "iceberg"
+    input.action.resource.table.schemaName == "information_schema"
+}
+
+# ============================================================
+# Debug
+# ============================================================
+
+debug_filter_tables := {
+    "operation": input.action.operation,
+    "groups": input.context.identity.groups,
+    "filter_path": sprintf(
+        "root/%s/%s",
+        [
+            input.action.filterResources[0].table.catalogName,
+            input.action.filterResources[0].table.schemaName
+        ]
+    ),
+    "filter_rules": data.rules[
+        sprintf(
+            "root/%s/%s",
+            [
+                input.action.filterResources[0].table.catalogName,
+                input.action.filterResources[0].table.schemaName
+            ]
+        )
+    ]["FilterTables"],
+    "table": input.action.filterResources[0].table.tableName
+}

@@ -56,106 +56,27 @@ class PermissionTreeMerger:
     # Normalize metadata visibility filters
     # ========================================================================
 
-    def _merge_visibility_filters(
+    def _normalize_visibility_filters(
             self,
-            existing: Dict[str, Any],
-            new: Dict[str, Any]
-    ) -> None:
-
-        filter_mapping = {
-            "FilterCatalogs": "filter_catalogs",
-            "FilterSchemas": "filter_schemas",
-            "FilterTables": "filter_tables",
-            "FilterColumns": "filter_columns",
-        }
-
-        for input_key, canonical_key in filter_mapping.items():
-
-            # Existing canonical values
-            current = existing.get(canonical_key, [])
-
-            if not isinstance(current, list):
-                current = []
-
-            current = set(
-                value for value in current if value
-            )
-
-            # Existing old-style values
-            old_values = existing.get(input_key)
-
-            if isinstance(old_values, list):
-                current.update(
-                    value for value in old_values if value
-                )
-
-            # New declaration
-            new_filter = new.get(input_key)
-
-            if isinstance(new_filter, dict):
-
-                allowed = new_filter.get("allowed", [])
-                deny = new_filter.get("deny", [])
-
-                if not isinstance(allowed, list):
-                    allowed = []
-
-                if not isinstance(deny, list):
-                    deny = []
-
-                for value in allowed:
-                    if value:
-                        current.discard(value)
-
-                for value in deny:
-                    if value:
-                        current.add(value)
-
-            elif isinstance(new_filter, list):
-
-                current.update(
-                    value for value in new_filter if value
-                )
-
-            # Write ONLY canonical representation
-            existing[canonical_key] = sorted(current)
-
-            # Delete legacy representation
-            existing.pop(input_key, None)
-
-    # ========================================================================
-    # Metadata visibility filters
-    # ========================================================================
-
-    def _merge_visibility_filters(
-            self,
-            existing: Dict[str, Any],
-            new: Dict[str, Any]
+            resource: Dict[str, Any]
     ) -> None:
         """
-        Merge metadata visibility filters into the canonical representation.
+        Normalize metadata visibility filters into:
 
-        Canonical representation:
-
-            "filter_catalogs": [...]
-            "filter_schemas": [...]
-            "filter_tables": [...]
-            "filter_columns": [...]
-
-        Input representation may be either:
-
-            "FilterSchemas": {
-                "allowed": [],
-                "deny": ["hr"]
+            "FilterTables": {
+                "auditor": ["people"]
             }
 
-        or:
+        The extractor representation:
 
-            "FilterSchemas": ["hr"]
+            "FilterTables": {
+                "auditor": {
+                    "allowed": [],
+                    "deny": ["people"]
+                }
+            }
 
-        Semantics:
-            allowed -> remove from hidden list
-            deny    -> add to hidden list
+        is converted to the cumulative representation.
         """
 
         filter_mapping = {
@@ -165,74 +86,327 @@ class PermissionTreeMerger:
             "FilterColumns": "filter_columns",
         }
 
-        for input_key, canonical_key in filter_mapping.items():
+        for filter_key, legacy_key in filter_mapping.items():
 
-            new_filter = new.get(input_key)
+            result: Dict[str, set] = {}
 
-            if new_filter is None:
-                continue
+            # ================================================================
+            # Current canonical representation
+            # ================================================================
 
-            current = existing.get(canonical_key, [])
+            current = resource.get(filter_key)
 
-            if not isinstance(current, list):
-                current = []
+            if isinstance(current, dict):
 
-            current = set(current)
+                for group, group_value in current.items():
 
-            # ------------------------------------------------------------
-            # New representation:
+                    # --------------------------------------------------------
+                    # Extracted representation:
+                    #
+                    # "auditor": {
+                    #     "allowed": [],
+                    #     "deny": ["people"]
+                    # }
+                    # --------------------------------------------------------
+
+                    if isinstance(group_value, dict):
+
+                        allowed = group_value.get("allowed", [])
+                        denied = group_value.get("deny", [])
+
+                        if not isinstance(allowed, list):
+                            allowed = []
+
+                        if not isinstance(denied, list):
+                            denied = []
+
+                        hidden = result.setdefault(group, set())
+
+                        for value in denied:
+                            value = str(value).strip()
+
+                            if value:
+                                hidden.add(value)
+
+                        for value in allowed:
+                            value = str(value).strip()
+
+                            if value:
+                                hidden.discard(value)
+
+                    # --------------------------------------------------------
+                    # Already cumulative:
+                    #
+                    # "auditor": ["people"]
+                    # --------------------------------------------------------
+
+                    elif isinstance(group_value, list):
+
+                        hidden = result.setdefault(group, set())
+
+                        for value in group_value:
+                            value = str(value).strip()
+
+                            if value:
+                                hidden.add(value)
+
+            # ================================================================
+            # Legacy representation
+            # ================================================================
+
+            legacy = resource.get(legacy_key)
+
+            if isinstance(legacy, dict):
+
+                for group, group_value in legacy.items():
+
+                    hidden = result.setdefault(group, set())
+
+                    if isinstance(group_value, list):
+
+                        for value in group_value:
+                            value = str(value).strip()
+
+                            if value:
+                                hidden.add(value)
+
+                    elif isinstance(group_value, dict):
+
+                        allowed = group_value.get("allowed", [])
+                        denied = group_value.get("deny", [])
+
+                        if not isinstance(allowed, list):
+                            allowed = []
+
+                        if not isinstance(denied, list):
+                            denied = []
+
+                        for value in denied:
+                            value = str(value).strip()
+
+                            if value:
+                                hidden.add(value)
+
+                        for value in allowed:
+                            value = str(value).strip()
+
+                            if value:
+                                hidden.discard(value)
+
+            # ================================================================
+            # Write cumulative representation
+            # ================================================================
+
+            if result:
+
+                resource[filter_key] = {
+                    group: sorted(values)
+                    for group, values in result.items()
+                    if values
+                }
+
+                if not resource[filter_key]:
+                    resource.pop(filter_key, None)
+
+            else:
+                resource.pop(filter_key, None)
+
+            resource.pop(legacy_key, None)
+
+
+    # ========================================================================
+    # Normalize metadata visibility filters
+    # ========================================================================
+    def _merge_visibility_filters(
+            self,
+            existing: Dict[str, Any],
+            new: Dict[str, Any]
+    ) -> None:
+        """
+        Merge security-group-specific metadata visibility filters.
+
+        Extracted input:
+
+            "FilterTables": {
+                "auditor": {
+                    "allowed": [],
+                    "deny": ["people"]
+                }
+            }
+
+        Cumulative output:
+
+            "FilterTables": {
+                "auditor": ["people"]
+            }
+
+        Multiple trees/groups are merged independently.
+        """
+
+        filter_names = (
+            "FilterCatalogs",
+            "FilterSchemas",
+            "FilterTables",
+            "FilterColumns",
+        )
+
+        legacy_mapping = {
+            "FilterCatalogs": "filter_catalogs",
+            "FilterSchemas": "filter_schemas",
+            "FilterTables": "filter_tables",
+            "FilterColumns": "filter_columns",
+        }
+
+        for filter_name in filter_names:
+
+            merged: Dict[str, set] = {}
+
+            # ================================================================
+            # Existing cumulative values
             #
-            # "FilterSchemas": {
-            #     "allowed": [...],
-            #     "deny": [...]
+            # {
+            #     "auditor": ["people"],
+            #     "analyst": ["salary"]
             # }
-            # ------------------------------------------------------------
+            # ================================================================
+
+            current = existing.get(filter_name)
+
+            if isinstance(current, dict):
+
+                for group, values in current.items():
+
+                    if not isinstance(values, list):
+                        continue
+
+                    hidden = merged.setdefault(group, set())
+
+                    for value in values:
+                        value = str(value).strip()
+
+                        if value:
+                            hidden.add(value)
+
+            # ================================================================
+            # Existing legacy values
+            # ================================================================
+
+            legacy_name = legacy_mapping[filter_name]
+            legacy = existing.get(legacy_name)
+
+            if isinstance(legacy, dict):
+
+                for group, values in legacy.items():
+
+                    hidden = merged.setdefault(group, set())
+
+                    if isinstance(values, list):
+
+                        for value in values:
+                            value = str(value).strip()
+
+                            if value:
+                                hidden.add(value)
+
+                    elif isinstance(values, dict):
+
+                        allowed = values.get("allowed", [])
+                        denied = values.get("deny", [])
+
+                        if not isinstance(allowed, list):
+                            allowed = []
+
+                        if not isinstance(denied, list):
+                            denied = []
+
+                        for value in denied:
+                            value = str(value).strip()
+
+                            if value:
+                                hidden.add(value)
+
+                        for value in allowed:
+                            value = str(value).strip()
+
+                            if value:
+                                hidden.discard(value)
+
+            # ================================================================
+            # New extracted declaration
+            # ================================================================
+
+            new_filter = new.get(filter_name)
+
             if isinstance(new_filter, dict):
 
-                allowed = new_filter.get("allowed", [])
-                deny = new_filter.get("deny", [])
+                for group, group_value in new_filter.items():
 
-                if not isinstance(allowed, list):
-                    allowed = []
+                    hidden = merged.setdefault(group, set())
 
-                if not isinstance(deny, list):
-                    deny = []
+                    # --------------------------------------------------------
+                    # Extracted representation
+                    # --------------------------------------------------------
 
-                # ALLOW removes the value from the hidden list.
-                for value in allowed:
-                    if value:
-                        current.discard(value)
+                    if isinstance(group_value, dict):
 
-                # DENY adds the value to the hidden list.
-                # DENY wins if it also appears in allowed.
-                for value in deny:
-                    if value:
-                        current.add(value)
+                        allowed = group_value.get("allowed", [])
+                        denied = group_value.get("deny", [])
 
-            # ------------------------------------------------------------
-            # Already-normalized representation:
-            #
-            # "FilterSchemas": ["hr"]
-            # ------------------------------------------------------------
-            elif isinstance(new_filter, list):
+                        if not isinstance(allowed, list):
+                            allowed = []
 
-                for value in new_filter:
-                    if value:
-                        current.add(value)
+                        if not isinstance(denied, list):
+                            denied = []
 
-            # ------------------------------------------------------------
-            # Ignore malformed values
-            # ------------------------------------------------------------
+                        # ALLOW removes from cumulative hidden values.
+                        for value in allowed:
+
+                            value = str(value).strip()
+
+                            if value:
+                                hidden.discard(value)
+
+                        # DENY adds to cumulative hidden values.
+                        for value in denied:
+
+                            value = str(value).strip()
+
+                            if value:
+                                hidden.add(value)
+
+                    # --------------------------------------------------------
+                    # Already cumulative representation
+                    # --------------------------------------------------------
+
+                    elif isinstance(group_value, list):
+
+                        for value in group_value:
+
+                            value = str(value).strip()
+
+                            if value:
+                                hidden.add(value)
+
+            # ================================================================
+            # Write result
+            # ================================================================
+
+            if merged:
+
+                existing[filter_name] = {
+                    group: sorted(values)
+                    for group, values in merged.items()
+                    if values
+                }
+
+                if not existing[filter_name]:
+                    existing.pop(filter_name, None)
+
             else:
-                continue
+                existing.pop(filter_name, None)
 
-            existing[canonical_key] = sorted(current)
-
-            # IMPORTANT:
-            # Never leave the old camel-case representation in the tree.
-            existing.pop(input_key, None)
-
-
+            # Remove legacy key.
+            existing.pop(legacy_name, None)
     # ========================================================================
     # Resource values
     # ========================================================================

@@ -106,4 +106,28 @@ auditor can select from tabel inside hr.people
 
 
 # VISIBILITY
+
+# CATALOGS
+# Already filtered
+
+# COLUMN
+auditor can not see the email column in the list of columns inside iceberg.hr.people
+auditor can show the list of columns inside iceberg.hr.people
+hr manager can show the list of columns inside iceberg.hr.people
+
+# TABLE
+auditor can not see people table in the list of tables inside iceberg.hr
+auditor can show the list of tables inside iceberg.hr
+hr manager can show the list of tables inside iceberg.hr
+
+
+# SCHEMA
 auditor can not see hr schema in the list of schemas inside iceberg
+auditor can show the list of schemas inside iceberg
+hr manager can show the list of schemas inside iceberg
+
+# Rollback
+auditor can  see hr schema in the list of schemas inside iceberg
+auditor can show the list of schemas inside iceberg
+
+

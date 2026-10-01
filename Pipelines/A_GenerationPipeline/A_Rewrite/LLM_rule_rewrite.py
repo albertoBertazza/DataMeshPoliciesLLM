@@ -25,34 +25,46 @@ FILTER_KEYS = ( "FilterCatalogs", "FilterSchemas", "FilterTables", "FilterColumn
 # ============================================================================
 # Metadata visibility filters
 # ============================================================================
-def _extract_visibility_filters( rule, resource, data_mesh_structure, is_local, chat_url=None, client=None, model=None ):
+def _extract_visibility_filters(
+    rule,
+    resource,
+    data_mesh_structure,
+    is_local,
+    chat_url=None,
+    client=None,
+    model=None
+):
     """
     Extract metadata visibility declarations.
 
-    Metadata visibility is tied to the object explicitly mentioned
-    by the rule:
-
-        catalog -> FilterCatalogs
-        schema  -> FilterSchemas
-        table   -> FilterTables
-        column  -> FilterColumns
-
-    A schema visibility rule MUST NOT automatically deny its catalog.
-
-    Example:
-
-        "auditor cannot see hr schema inside iceberg"
-
-    becomes:
-
-        FilterCatalogs:
-            allowed=[]
-            deny=[]
-
-        FilterSchemas:
-            allowed=[]
-            deny=["hr"]
+    Ordinary SHOW/LIST operations must never create metadata
+    visibility filters.
     """
+
+    # --------------------------------------------------------------
+    # CRITICAL GATE
+    # --------------------------------------------------------------
+
+    if not _is_metadata_visibility_declaration(rule):
+
+        return {
+            "FilterCatalogs": {
+                "allowed": [],
+                "deny": []
+            },
+            "FilterSchemas": {
+                "allowed": [],
+                "deny": []
+            },
+            "FilterTables": {
+                "allowed": [],
+                "deny": []
+            },
+            "FilterColumns": {
+                "allowed": [],
+                "deny": []
+            }
+        }
 
     system_prompt = """
 Extract metadata visibility declarations from an authorization rule.
@@ -1012,6 +1024,94 @@ def _is_metadata_visibility_restriction(rule):
     execution_denial = re.search( r"\b(" r"execute|run|perform" r")\b" r".*\b(" r"show|list" r")\b", text )
 
     return bool( visibility_verb and negative_visibility and metadata_target and not execution_denial )
+
+def _is_metadata_visibility_declaration(rule):
+    """
+    Return True only when the rule explicitly changes metadata
+    visibility.
+
+    Examples that ARE metadata visibility declarations:
+
+        auditor cannot see people table
+        auditor cannot see hr schema
+        auditor can see hr schema
+        auditor cannot view salary column
+
+    Examples that are NOT metadata visibility declarations:
+
+        auditor can show tables inside hr
+        auditor can list tables inside hr
+        auditor can show schemas
+        auditor is not allowed to execute SHOW TABLES
+    """
+
+    text = re.sub(r"\s+", " ", rule.lower().strip())
+
+    # --------------------------------------------------------------
+    # Explicit negative visibility
+    # --------------------------------------------------------------
+
+    negative_visibility = re.search(
+        r"\b("
+        r"cannot see|can't see|can not see|"
+        r"cannot view|can't view|can not view|"
+        r"cannot access|can't access|can not access|"
+        r"not allowed to see|"
+        r"not allowed to view|"
+        r"must not see|"
+        r"must not view|"
+        r"should not see|"
+        r"should not view|"
+        r"do not see|don't see|"
+        r"do not view|don't view|"
+        r"hide|hidden|"
+        r"not visible|"
+        r"not be visible"
+        r")\b",
+        text
+    )
+
+    # --------------------------------------------------------------
+    # Explicit positive visibility
+    #
+    # "can see/view X" is visibility.
+    #
+    # "can show/list X" is NOT visibility; that is normally
+    # an ordinary Show*Action.
+    # --------------------------------------------------------------
+
+    positive_visibility = re.search(
+        r"\b("
+        r"can see|"
+        r"can view|"
+        r"is allowed to see|"
+        r"is allowed to view|"
+        r"should see|"
+        r"should be able to see|"
+        r"should view|"
+        r"should be able to view"
+        r")\b",
+        text
+    )
+
+    # --------------------------------------------------------------
+    # A metadata object must be the target.
+    # --------------------------------------------------------------
+
+    metadata_target = re.search(
+        r"\b("
+        r"catalog|catalogs|"
+        r"schema|schemas|"
+        r"table|tables|"
+        r"column|columns"
+        r")\b",
+        text
+    )
+
+    if not metadata_target:
+        return False
+
+    return bool(negative_visibility or positive_visibility)
 
 def _normalize_extracted_actions( requested_actions, available_actions ):
     """
@@ -2570,7 +2670,33 @@ def llm_explain( rule, example_index, data_mesh_structure, security_groups, avai
 
         effects = _extract_effects( rule=rule, resource=resource, data_mesh_structure=data_mesh_structure, is_local=is_local, chat_url=chat_url, client=client, model=model )
 
-    visibility_filters = _extract_visibility_filters( rule=rule, resource=resource, data_mesh_structure=data_mesh_structure, is_local=is_local, chat_url=chat_url, client=client, model=model )
+    is_metadata_visibility = _is_metadata_visibility_restriction(rule)
+
+    if is_metadata_visibility:
+        effects = {
+            "row_filter": None,
+            "column_masks": {}
+        }
+    else:
+        effects = _extract_effects(
+            rule=rule,
+            resource=resource,
+            data_mesh_structure=data_mesh_structure,
+            is_local=is_local,
+            chat_url=chat_url,
+            client=client,
+            model=model
+        )
+
+    visibility_filters = _extract_visibility_filters(
+        rule=rule,
+        resource=resource,
+        data_mesh_structure=data_mesh_structure,
+        is_local=is_local,
+        chat_url=chat_url,
+        client=client,
+        model=model
+    )
 
     effects_result = _validate_effects( effects=effects, resource=resource, data_mesh_structure=data_mesh_structure )
 

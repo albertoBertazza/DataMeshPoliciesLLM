@@ -13,7 +13,16 @@ from Function.jsonHelper import load_json
 # 4 = column
 # ============================================================================
 
-RESOURCE_DEPTH = { "root": 0, "catalog": 1, "schema": 2, "table": 3, "view": 3, "materialized_view": 3, "column": 4}
+RESOURCE_DEPTH = {
+    "root": 0,
+    "catalog": 1,
+    "schema": 2,
+    "table": 3,
+    "view": 3,
+    "materialized_view": 3,
+    "column": 4,
+}
+
 
 class PermissionCompiler:
     """
@@ -86,6 +95,77 @@ class PermissionCompiler:
             raise ValueError( "Permission compilation failed:\n" + "\n".join( f"- {error}" for error in self.errors ) )
         return self._build_output()
 
+    def _get_visibility_filters(
+            self,
+            resource_data: Dict[str, Any],
+    ) -> Dict[str, Dict[str, list]]:
+        """
+        Read cumulative, security-group-specific metadata visibility filters.
+
+        Expected merged-tree format:
+
+            "FilterTables": {
+                "auditor": ["people"],
+                "analyst": ["salary"]
+            }
+
+        The group dimension is preserved all the way to the OPA output.
+        """
+
+        result: Dict[str, Dict[str, list]] = {}
+
+        filter_depth = {
+            "FilterCatalogs": 0,
+            "FilterSchemas": 1,
+            "FilterTables": 2,
+            "FilterColumns": 3,
+        }
+
+        for filter_name, expected_depth in filter_depth.items():
+
+            value = resource_data.get(filter_name)
+
+            if value is None:
+                continue
+
+            if not isinstance(value, dict):
+                raise ValueError(
+                    f"{filter_name} must be an object keyed by security group"
+                )
+
+            current: Dict[str, list] = {}
+
+            for group, values in value.items():
+
+                if not isinstance(group, str) or not group.strip():
+                    raise ValueError(
+                        f"{filter_name} contains an invalid security group"
+                    )
+
+                group = group.strip()
+
+                self._validate_security_group(group)
+
+                if not isinstance(values, list):
+                    raise ValueError(
+                        f"{filter_name}[{group!r}] must be a list"
+                    )
+
+                normalized_values = sorted({
+                    str(item).strip()
+                    for item in values
+                    if str(item).strip()
+                })
+
+                if normalized_values:
+                    current[group] = normalized_values
+
+            if current:
+                result[filter_name] = current
+
+        return result
+
+
     # ========================================================================
     # Data Mesh
     # ========================================================================
@@ -109,7 +189,14 @@ class PermissionCompiler:
         if "catalogs" not in structure:
             if not isinstance(structure, dict):
                 raise ValueError( "Invalid Data Mesh structure" )
-            self.nodes["root"] = { "id": "root", "type": "root", "parent": None, "name": "root", "rules": {}}
+            self.nodes["root"] = {
+                "id": "root",
+                "type": "root",
+                "parent": None,
+                "name": "root",
+                "rules": {},
+                "visibility_filters": {},
+            }
             for catalog_name, catalog_data in structure.items():
                 if not isinstance(catalog_data, dict):
                     continue
@@ -122,7 +209,7 @@ class PermissionCompiler:
         catalogs = structure.get("catalogs", [])
         if not isinstance(catalogs, list):
             raise ValueError( "Invalid Data Mesh: 'catalogs' must be a list" )
-        self.nodes["root"] = { "id": "root", "type": "root", "parent": None, "name": "root", "rules": {}}
+        self.nodes["root"] = { "id": "root", "type": "root", "parent": None, "name": "root", "rules": {}, "visibility_filters": {} }
         for catalog in catalogs:
             if not isinstance(catalog, dict):
                 continue
@@ -187,8 +274,17 @@ class PermissionCompiler:
                         continue
                     column_id = ( f"column/" f"{catalog_name}/" f"{schema_name}/" f"{table_name}/" f"{column_name}" )
                     self._add_node( node_id=column_id, node_type="column", name=column_name, parent=table_id)
+
+
     def _add_node( self, node_id: str, node_type: str, name: str, parent: Optional[str]) -> None:
-        self.nodes[node_id] = { "id": node_id, "type": node_type, "parent": parent, "name": name, "rules": {}}
+        self.nodes[node_id] = {
+            "id": node_id,
+            "type": node_type,
+            "parent": parent,
+            "name": name,
+            "rules": {},
+            "visibility_filters": {},
+        }
 
     # ========================================================================
     # Resource values
@@ -286,11 +382,47 @@ class PermissionCompiler:
     # Node rules
     # ========================================================================
 
-    def _compile_node_rules( self, node: Dict[str, Any], resource_data: Dict[str, Any] ) -> None:
+    def _compile_node_rules(
+            self,
+            node: Dict[str, Any],
+            resource_data: Dict[str, Any],
+    ) -> None:
 
         permissions = resource_data.get("permissions", {})
+
         if not isinstance(permissions, dict):
-            raise ValueError( f"permissions must be an object on {node['id']!r}" )
+            raise ValueError(
+                f"permissions must be an object on {node['id']!r}"
+            )
+        # ---------------------------------------------------------------
+        # Metadata visibility filters
+        # Already cumulative/final in the merged tree.
+        # ---------------------------------------------------------------
+
+        visibility_filters = self._get_visibility_filters(resource_data)
+
+        filter_resource_depth = {
+            "FilterCatalogs": 0,
+            "FilterSchemas": 1,
+            "FilterTables": 2,
+            "FilterColumns": 3,
+        }
+
+        actual_depth = RESOURCE_DEPTH[node["type"]]
+
+        for filter_name, group_values in visibility_filters.items():
+
+            expected_depth = filter_resource_depth[filter_name]
+
+            if actual_depth != expected_depth:
+                raise ValueError(
+                    f"{filter_name} must be attached to resource depth "
+                    f"{expected_depth}, but {node['id']!r} is at depth "
+                    f"{actual_depth}"
+                )
+
+            node["visibility_filters"][filter_name] = group_values
+
 
         # ========================================================================
         # Resource-level effects
@@ -558,22 +690,56 @@ class PermissionCompiler:
 
     def _build_output(self) -> Dict[str, Any]:
         rules = {}
+
         for node in self.nodes.values():
-            if not node["rules"]:
+
+            if not node["rules"] and not node["visibility_filters"]:
                 continue
+
             resource_id = self._output_resource_id(node)
-            rules[resource_id] = {}
+
+            output_resource = {}
+
+            # ------------------------------------------------------------
+            # Permissions
+            # ------------------------------------------------------------
+
             for group, rule in node["rules"].items():
-                rules[resource_id][group] = {
-                    "rule_id": self._make_rule_id( resource_id, group),
+                output_resource[group] = {
+                    "rule_id": self._make_rule_id(
+                        resource_id,
+                        group
+                    ),
                     "group": group,
                     "resource_type": node["type"],
-                    "permissions": { "allow": sorted( set(rule.get("allow", [])) ), "deny": sorted( set(rule.get("deny", [])) )},
-                    "row_filter": rule.get( "row_filter" ),
-                    "column_masks": dict( rule.get( "column_masks", {}) ),
+                    "permissions": {
+                        "allow": sorted(
+                            set(rule.get("allow", []))
+                        ),
+                        "deny": sorted(
+                            set(rule.get("deny", []))
+                        ),
+                    },
+                    "row_filter": rule.get("row_filter"),
+                    "column_masks": dict(
+                        rule.get("column_masks", {})
+                    ),
                 }
 
-        return { "version": "2.0-opa", "rules": rules}
+            # ------------------------------------------------------------
+            # Metadata visibility
+            # Already final in cumulative tree.
+            # ------------------------------------------------------------
+
+            for filter_name, values in node["visibility_filters"].items():
+                output_resource[filter_name] = values
+
+            rules[resource_id] = output_resource
+
+        return {
+            "version": "2.0-opa",
+            "rules": rules,
+        }
 
     # ========================================================================
     # Helpers
