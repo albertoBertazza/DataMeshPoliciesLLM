@@ -80,12 +80,13 @@ def start_pipelines(rule_user, skip_user_check):
     print("=" * 70)
     restart_opa()
 
-    answer_go_with_test = ""
-    while answer_go_with_test != "y" and answer_go_with_test != "n":
-        answer_go_with_test = input("Do you wanna test the generated rules? [y/n]: ").strip().lower()
+    if not skip_user_check:
+        answer_go_with_test = ""
+        while answer_go_with_test != "y" and answer_go_with_test != "n":
+            answer_go_with_test = input("Do you wanna test the generated rules? [y/n]: ").strip().lower()
 
-    if answer_go_with_test == "n":
-        return False
+        if answer_go_with_test == "n":
+            return False
 
     # ======================================================
     # 2. RESOLVE + GENERATE + EXECUTE + EVALUATE

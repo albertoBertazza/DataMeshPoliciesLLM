@@ -1047,6 +1047,53 @@ def _extract_effects( rule, resource, data_mesh_structure, is_local, chat_url=No
 
     5. A column mask MUST return the SAME SQL TYPE as the column
        being masked.
+       
+    5a. ALL column-mask expressions MUST use Trino SQL syntax and
+    Trino-supported functions.
+
+    Do NOT use functions from other SQL dialects.
+
+    For example:
+
+    WRONG:
+        locate('@', email)
+
+    CORRECT:
+        strpos(email, '@')
+
+    Trino examples:
+
+        substring(email, strpos(email, '@'))
+        substr(email, strpos(email, '@'))
+        length(email)
+        lower(email)
+        upper(email)
+        concat('****', substring(email, strpos(email, '@')))
+
+    Never generate MySQL-specific or non-Trino functions such as
+    locate().
+    
+    5b. A column mask MUST return exactly ONE scalar value of the
+    same type as the target column.
+    
+    5c. If the target column type is varchar, the mask MUST return
+    varchar, NOT array(varchar).
+    
+    WRONG for varchar:
+        ARRAY['****']
+        ARRAY['****' || substring(email, strpos(email, '@'))]
+    
+    CORRECT for varchar:
+        '****'
+        '****' || substring(email, strpos(email, '@'))
+    
+    5d. NEVER wrap a scalar mask expression inside ARRAY[...],
+    CAST(... AS ARRAY(...)), or any other array constructor unless
+    the authoritative column type itself is an array type.
+    
+    5e. The expression must be valid as the value of a Trino
+    column mask directly. Do not return a collection when the
+    column is scalar.
 
     6. The authoritative Data Mesh column type is:
 

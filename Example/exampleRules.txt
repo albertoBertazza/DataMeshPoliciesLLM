@@ -96,3 +96,9 @@ auditor have applied a filter on column annual_salary finance.employee_finance, 
 auditor can't see the employee id column inside finance.employee_finance  in clear text, it should be masked with asterisks
 auditor can't see the rows inside finance.employee_finance where profit_contribution is less than 185000, it should be filtered out
 auditor can select from tabel inside finance.employee_finance
+
+
+auditor can't see the full email address of employees inside hr.people, it should be masked with asterisks before the @ symbol, the length of the asterisks should be equal to the length of the email address before the @ symbol
+auditor can select from tabel inside hr.people
+
+
