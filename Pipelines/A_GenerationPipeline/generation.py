@@ -235,12 +235,14 @@ def process_rule(
     try:
         permission_depth = load_json( PERMISSION_DEPTH_PATH )["permission_depth"]
         entities = build_intermediate_representation( explanation, check_for_action, permission_depth=permission_depth)
+    except ValueError as error:
+        print( "Extraction failed:", error)
+        return False
     except Exception as error:
         print( "Extraction failed:", error)
         return False
 
     if entities is None:
-
         print( "Extraction returned no entities." )
 
         return False

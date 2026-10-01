@@ -97,8 +97,13 @@ auditor can't see the employee id column inside finance.employee_finance  in cle
 auditor can't see the rows inside finance.employee_finance where profit_contribution is less than 185000, it should be filtered out
 auditor can select from tabel inside finance.employee_finance
 
+#TODO: at higher level resource
+auditor are not allowed to see the email address in clear text, it should be masked with asterisks, inside hr schema
+
 
 auditor can't see the full email address of employees inside hr.people, it should be masked with asterisks before the @ symbol, the length of the asterisks should be equal to the length of the email address before the @ symbol
 auditor can select from tabel inside hr.people
 
 
+# VISIBILITY
+auditor can not see hr schema in the list of schemas inside iceberg

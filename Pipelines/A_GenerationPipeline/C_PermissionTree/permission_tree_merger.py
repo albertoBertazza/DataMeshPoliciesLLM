@@ -53,6 +53,187 @@ class PermissionTreeMerger:
         return result
 
     # ========================================================================
+    # Normalize metadata visibility filters
+    # ========================================================================
+
+    def _merge_visibility_filters(
+            self,
+            existing: Dict[str, Any],
+            new: Dict[str, Any]
+    ) -> None:
+
+        filter_mapping = {
+            "FilterCatalogs": "filter_catalogs",
+            "FilterSchemas": "filter_schemas",
+            "FilterTables": "filter_tables",
+            "FilterColumns": "filter_columns",
+        }
+
+        for input_key, canonical_key in filter_mapping.items():
+
+            # Existing canonical values
+            current = existing.get(canonical_key, [])
+
+            if not isinstance(current, list):
+                current = []
+
+            current = set(
+                value for value in current if value
+            )
+
+            # Existing old-style values
+            old_values = existing.get(input_key)
+
+            if isinstance(old_values, list):
+                current.update(
+                    value for value in old_values if value
+                )
+
+            # New declaration
+            new_filter = new.get(input_key)
+
+            if isinstance(new_filter, dict):
+
+                allowed = new_filter.get("allowed", [])
+                deny = new_filter.get("deny", [])
+
+                if not isinstance(allowed, list):
+                    allowed = []
+
+                if not isinstance(deny, list):
+                    deny = []
+
+                for value in allowed:
+                    if value:
+                        current.discard(value)
+
+                for value in deny:
+                    if value:
+                        current.add(value)
+
+            elif isinstance(new_filter, list):
+
+                current.update(
+                    value for value in new_filter if value
+                )
+
+            # Write ONLY canonical representation
+            existing[canonical_key] = sorted(current)
+
+            # Delete legacy representation
+            existing.pop(input_key, None)
+
+    # ========================================================================
+    # Metadata visibility filters
+    # ========================================================================
+
+    def _merge_visibility_filters(
+            self,
+            existing: Dict[str, Any],
+            new: Dict[str, Any]
+    ) -> None:
+        """
+        Merge metadata visibility filters into the canonical representation.
+
+        Canonical representation:
+
+            "filter_catalogs": [...]
+            "filter_schemas": [...]
+            "filter_tables": [...]
+            "filter_columns": [...]
+
+        Input representation may be either:
+
+            "FilterSchemas": {
+                "allowed": [],
+                "deny": ["hr"]
+            }
+
+        or:
+
+            "FilterSchemas": ["hr"]
+
+        Semantics:
+            allowed -> remove from hidden list
+            deny    -> add to hidden list
+        """
+
+        filter_mapping = {
+            "FilterCatalogs": "filter_catalogs",
+            "FilterSchemas": "filter_schemas",
+            "FilterTables": "filter_tables",
+            "FilterColumns": "filter_columns",
+        }
+
+        for input_key, canonical_key in filter_mapping.items():
+
+            new_filter = new.get(input_key)
+
+            if new_filter is None:
+                continue
+
+            current = existing.get(canonical_key, [])
+
+            if not isinstance(current, list):
+                current = []
+
+            current = set(current)
+
+            # ------------------------------------------------------------
+            # New representation:
+            #
+            # "FilterSchemas": {
+            #     "allowed": [...],
+            #     "deny": [...]
+            # }
+            # ------------------------------------------------------------
+            if isinstance(new_filter, dict):
+
+                allowed = new_filter.get("allowed", [])
+                deny = new_filter.get("deny", [])
+
+                if not isinstance(allowed, list):
+                    allowed = []
+
+                if not isinstance(deny, list):
+                    deny = []
+
+                # ALLOW removes the value from the hidden list.
+                for value in allowed:
+                    if value:
+                        current.discard(value)
+
+                # DENY adds the value to the hidden list.
+                # DENY wins if it also appears in allowed.
+                for value in deny:
+                    if value:
+                        current.add(value)
+
+            # ------------------------------------------------------------
+            # Already-normalized representation:
+            #
+            # "FilterSchemas": ["hr"]
+            # ------------------------------------------------------------
+            elif isinstance(new_filter, list):
+
+                for value in new_filter:
+                    if value:
+                        current.add(value)
+
+            # ------------------------------------------------------------
+            # Ignore malformed values
+            # ------------------------------------------------------------
+            else:
+                continue
+
+            existing[canonical_key] = sorted(current)
+
+            # IMPORTANT:
+            # Never leave the old camel-case representation in the tree.
+            existing.pop(input_key, None)
+
+
+    # ========================================================================
     # Resource values
     # ========================================================================
 
@@ -229,6 +410,13 @@ class PermissionTreeMerger:
         group_permissions["allow"] = sorted(allow)
         group_permissions["deny"] = sorted(deny)
 
+
+        # --------------------------------------------------------------------
+        # Metadata visibility filters
+        # --------------------------------------------------------------------
+        self._merge_visibility_filters(existing, new)
+
+
         # --------------------------------------------------------------------
         # Row filters
         # --------------------------------------------------------------------
@@ -243,35 +431,71 @@ class PermissionTreeMerger:
     # Normalize a single newly inserted resource
     # ========================================================================
 
-    def _normalize_new_resource( self, resource: Dict[str, Any], group: str, row_filters: List[Any], column_masks: List[Any] ) -> None:
+    def _normalize_new_resource(
+            self,
+            resource: Dict[str, Any],
+            group: str,
+            row_filters: List[Any],
+            column_masks: List[Any]
+    ) -> None:
+
+        # ------------------------------------------------------------
+        # Metadata visibility filters
+        # ------------------------------------------------------------
+        self._normalize_visibility_filters(resource)
 
         old_permissions = resource.get("permissions")
 
         # No permissions declared on this resource.
         if old_permissions is None:
-            resource["permissions"] = { group: { "allow": [], "deny": [], "row_filter": None, "column_masks": {} } }
+            resource["permissions"] = {
+                group: {
+                    "allow": [],
+                    "deny": [],
+                    "row_filter": None,
+                    "column_masks": {}
+                }
+            }
             return
 
-        # Existing simple structure:
-        #
-        # "permissions": {
-        #     "allow": [...],
-        #     "deny": [...]
-        # }
-        #
-        # Convert it to the group-based structure.
-        if ( isinstance(old_permissions, dict) and ( "allow" in old_permissions or "deny" in old_permissions ) ):
-            resource["permissions"] = { group: { "allow": list(old_permissions.get("allow", [])), "deny": list(old_permissions.get("deny", [])), "row_filter": None, "column_masks": {} } }
+        # Existing simple structure.
+        if (
+                isinstance(old_permissions, dict)
+                and (
+                "allow" in old_permissions
+                or "deny" in old_permissions
+        )
+        ):
+            resource["permissions"] = {
+                group: {
+                    "allow": list(old_permissions.get("allow", [])),
+                    "deny": list(old_permissions.get("deny", [])),
+                    "row_filter": None,
+                    "column_masks": {}
+                }
+            }
             return
 
         # Permissions exists but is not an object.
         if not isinstance(old_permissions, dict):
-            resource["permissions"] = { group: { "allow": [], "deny": [], "row_filter": None, "column_masks": {} } }
+            resource["permissions"] = {
+                group: {
+                    "allow": [],
+                    "deny": [],
+                    "row_filter": None,
+                    "column_masks": {}
+                }
+            }
             return
 
-        # Already in group-based structure.
+        # Already group-based structure.
         if group not in old_permissions:
-            old_permissions[group] = { "allow": [], "deny": [], "row_filter": None, "column_masks": {} }
+            old_permissions[group] = {
+                "allow": [],
+                "deny": [],
+                "row_filter": None,
+                "column_masks": {}
+            }
 
     # ========================================================================
     # Normalize an entire resource subtree
