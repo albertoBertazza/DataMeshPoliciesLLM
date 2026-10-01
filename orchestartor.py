@@ -111,10 +111,10 @@ if __name__ == "__main__":
     print("=" * 60)
     print(" DATA MESH POLICY PIPELINE")
     print("=" * 60)
-    answer = "n"
-    # while answer != "y" and answer != "n":
-    #     answer = input("Do you wanna launch test? [y/n]: ").strip().lower()
-    #     print("answer:", answer)
+    answer = ""
+    while answer != "y" and answer != "n":
+        answer = input("Do you wanna launch test? [y/n]: ").strip().lower()
+        print("answer:", answer)
 
     if answer == "y":
         print("🚀 Launching test...")
