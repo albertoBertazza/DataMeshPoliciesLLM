@@ -125,14 +125,16 @@ if __name__ == "__main__":
         total_failed = 0
 
         # Create and test all rules in the original set
+        count=0
         for rule in EXAMPLE_RULES:
             print("=" * 50)
-            print("📋 EXAMPLE RULE " + rule)
+            print(f"📋 {count + 1}/{len(EXAMPLE_RULES)} EXAMPLE RULE : {rule}")
             print("=" * 50)
             summary = start_pipelines(rule, True)
             total_tests += summary.get("total", 0)
             total_passed += summary.get("passed", 0)
             total_failed += summary.get("failed", 0)
+            count += 1
             if not summary.get("success", False):
                 throw_error( f"❌ Not matched rule expectation: {rule}" )
 
