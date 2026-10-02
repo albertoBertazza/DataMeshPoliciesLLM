@@ -25,15 +25,7 @@ FILTER_KEYS = ( "FilterCatalogs", "FilterSchemas", "FilterTables", "FilterColumn
 # ============================================================================
 # Metadata visibility filters
 # ============================================================================
-def _extract_visibility_filters(
-    rule,
-    resource,
-    data_mesh_structure,
-    is_local,
-    chat_url=None,
-    client=None,
-    model=None
-):
+def _extract_visibility_filters( rule, resource, data_mesh_structure, is_local, chat_url=None, client=None, model=None ):
     """
     Extract metadata visibility declarations.
 
@@ -47,24 +39,7 @@ def _extract_visibility_filters(
 
     if not _is_metadata_visibility_declaration(rule):
 
-        return {
-            "FilterCatalogs": {
-                "allowed": [],
-                "deny": []
-            },
-            "FilterSchemas": {
-                "allowed": [],
-                "deny": []
-            },
-            "FilterTables": {
-                "allowed": [],
-                "deny": []
-            },
-            "FilterColumns": {
-                "allowed": [],
-                "deny": []
-            }
-        }
+        return { "FilterCatalogs": { "allowed": [], "deny": [] }, "FilterSchemas": { "allowed": [], "deny": [] }, "FilterTables": { "allowed": [], "deny": [] }, "FilterColumns": { "allowed": [], "deny": [] } }
 
     system_prompt = """
 Extract metadata visibility declarations from an authorization rule.
@@ -284,6 +259,50 @@ Do not create ordinary authorization actions.
 Do not create row filters.
 
 Do not create column masks.
+
+CRITICAL DISTINCTION BETWEEN VISIBILITY AND COLUMN MASKING:
+
+FilterColumns means that the COLUMN ITSELF is hidden from metadata.
+
+A column mask means that the COLUMN REMAINS VISIBLE, but its VALUES
+are transformed, obfuscated, redacted, or replaced.
+
+Therefore:
+
+"auditor cannot see employee_id column in the list of columns"
+-> FilterColumns.deny = ["employee_id"]
+
+BUT:
+
+"auditor cannot see employee_id in clear text"
+"auditor cannot see employee_id values"
+"auditor must see employee_id as ****"
+"mask employee_id with asterisks"
+"redact employee_id"
+"obfuscate employee_id"
+"replace employee_id values with ****"
+
+-> These are COLUMN MASKS.
+-> Do NOT populate FilterColumns.
+-> Return all Filter* lists empty.
+
+The words "cannot see" alone do NOT imply FilterColumns.
+You must determine whether the rule hides the COLUMN METADATA or
+hides/transforms the COLUMN VALUES.
+
+If the rule mentions:
+- clear text
+- plain text
+- values
+- masked
+- mask
+- asterisks
+- ****
+- redacted
+- obfuscated
+- replaced values
+
+then it is a column mask, not a metadata visibility filter.
 """
 
     context = { "rule": rule, "resource": resource, "data_mesh_structure": data_mesh_structure }
@@ -1007,21 +1026,60 @@ def _normalize_available_actions(available_actions):
 
     return result
 
+def _is_column_mask_declaration(rule):
+    """
+    Return True when the rule describes masking/obfuscating the VALUE
+    of a column rather than hiding the column metadata itself.
+    """
+
+    text = re.sub(r"\s+", " ", rule.lower().strip())
+
+    mask_patterns = (
+        r"\bmask(?:ed|ing)?\b",
+        r"\bobfuscat(?:e|ed|ing)\b",
+        r"\bredact(?:ed|ing)?\b",
+        r"\banonymiz(?:e|ed|ing)\b",
+        r"\breplace\b.*\bwith\b",
+        r"\basterisks?\b",
+        r"\b\*{2,}\b",
+        r"\bclear text\b",
+        r"\bplain text\b",
+        r"\bin clear\b",
+        r"\bhide\b.*\bvalues?\b",
+        r"\bhidden\b.*\bvalues?\b",
+        r"\btransform\b.*\bvalues?\b",
+    )
+
+    return any(re.search(pattern, text) for pattern in mask_patterns)
+
 def _is_metadata_visibility_restriction(rule):
     """
     Return True when the rule changes metadata visibility rather
-    than denying execution of a SHOW/LIST operation.
+    than masking column values or denying execution of SHOW/LIST.
     """
 
-    text = re.sub( r"\s+", " ", rule.lower().strip() )
+    text = re.sub(r"\s+", " ", rule.lower().strip())
 
-    visibility_verb = re.search( r"\b(" r"see|view|show|list|display" r")\b", text )
+    # --------------------------------------------------------------
+    # COLUMN MASK HAS PRIORITY
+    #
+    # Example:
+    #   "auditor can't see employee_id in clear text;
+    #    it should be masked with asterisks"
+    #
+    # This is NOT metadata visibility.
+    # --------------------------------------------------------------
+
+    if _is_column_mask_declaration(rule):
+        return False
+
+    visibility_verb = re.search( r"\b(see|view|show|list|display)\b", text )
 
     negative_visibility = re.search( r"\b(" r"cannot|can't|can not|" r"not allowed to|must not|should not|" r"do not|don't|hide|hidden" r")\b", text )
 
     metadata_target = re.search( r"\b(" r"catalog|catalogs|" r"schema|schemas|" r"table|tables|" r"column|columns" r")\b", text )
 
-    execution_denial = re.search( r"\b(" r"execute|run|perform" r")\b" r".*\b(" r"show|list" r")\b", text )
+    execution_denial = re.search( r"\b(execute|run|perform)\b.*\b(show|list)\b", text )
 
     return bool( visibility_verb and negative_visibility and metadata_target and not execution_denial )
 
@@ -1030,22 +1088,33 @@ def _is_metadata_visibility_declaration(rule):
     Return True only when the rule explicitly changes metadata
     visibility.
 
-    Examples that ARE metadata visibility declarations:
+    Column masking always takes precedence over metadata visibility.
 
-        auditor cannot see people table
-        auditor cannot see hr schema
-        auditor can see hr schema
-        auditor cannot view salary column
+    Examples:
 
-    Examples that are NOT metadata visibility declarations:
+        "auditor cannot see people table"
+            -> FilterTables
 
-        auditor can show tables inside hr
-        auditor can list tables inside hr
-        auditor can show schemas
-        auditor is not allowed to execute SHOW TABLES
+        "auditor cannot see employee_id in clear text"
+            -> column mask
+
+        "auditor masks employee_id with ****"
+            -> column mask
+
+        "auditor cannot see employee_id column in the list of columns"
+            -> FilterColumns
     """
 
     text = re.sub(r"\s+", " ", rule.lower().strip())
+
+    # --------------------------------------------------------------
+    # CRITICAL:
+    # A mask/redaction/value-transformation is NOT metadata
+    # visibility, even if the sentence contains "cannot see".
+    # --------------------------------------------------------------
+
+    if _is_column_mask_declaration(rule):
+        return False
 
     # --------------------------------------------------------------
     # Explicit negative visibility
@@ -1073,45 +1142,20 @@ def _is_metadata_visibility_declaration(rule):
 
     # --------------------------------------------------------------
     # Explicit positive visibility
-    #
-    # "can see/view X" is visibility.
-    #
-    # "can show/list X" is NOT visibility; that is normally
-    # an ordinary Show*Action.
     # --------------------------------------------------------------
 
-    positive_visibility = re.search(
-        r"\b("
-        r"can see|"
-        r"can view|"
-        r"is allowed to see|"
-        r"is allowed to view|"
-        r"should see|"
-        r"should be able to see|"
-        r"should view|"
-        r"should be able to view"
-        r")\b",
-        text
-    )
+    positive_visibility = re.search( r"\b(" r"can see|" r"can view|" r"is allowed to see|" r"is allowed to view|" r"should see|" r"should be able to see|" r"should view|" r"should be able to view" r")\b", text )
 
     # --------------------------------------------------------------
-    # A metadata object must be the target.
+    # Metadata object must be present.
     # --------------------------------------------------------------
 
-    metadata_target = re.search(
-        r"\b("
-        r"catalog|catalogs|"
-        r"schema|schemas|"
-        r"table|tables|"
-        r"column|columns"
-        r")\b",
-        text
-    )
+    metadata_target = re.search( r"\b(" r"catalog|catalogs|" r"schema|schemas|" r"table|tables|" r"column|columns" r")\b", text )
 
     if not metadata_target:
         return False
 
-    return bool(negative_visibility or positive_visibility)
+    return bool( negative_visibility or positive_visibility )
 
 def _normalize_extracted_actions( requested_actions, available_actions ):
     """
@@ -1781,6 +1825,12 @@ def _extract_resource( rule, data_mesh_structure, is_local, chat_url=None, clien
 
 def _extract_effects( rule, resource, data_mesh_structure, is_local, chat_url=None, client=None, model=None ):
 
+    path_result = _validate_resource_path( resource, data_mesh_structure )
+
+    if not path_result["valid"]:
+
+        return { "row_filter": None, "column_masks": {} }
+
     resource_column = resource.get("column")
 
     column_type = None
@@ -1959,6 +2009,120 @@ def _extract_effects( rule, resource, data_mesh_structure, is_local, chat_url=No
 
     return { "row_filter": ( row_filter.strip() if isinstance(row_filter, str) and row_filter.strip() else None ), "column_masks": normalized_masks }
 
+def _extract_sql_identifiers(expression):
+    """
+    Extract likely column identifiers from a SQL expression.
+
+    This is intentionally conservative. SQL keywords, literals,
+    functions and qualified names are removed/ignored.
+    """
+
+    if not isinstance(expression, str):
+        return []
+
+    # Remove SQL single-quoted literals.
+    expression = re.sub( r"'(?:''|[^'])*'", " ", expression )
+
+    # Remove double-quoted literals/identifiers temporarily.
+    expression = re.sub( r'"(?:""|[^"])*"', " ", expression )
+
+    # Remove numeric literals.
+    expression = re.sub( r"\b\d+(?:\.\d+)?\b", " ", expression )
+
+    # SQL keywords / boolean literals / common operators.
+    sql_keywords = {
+        "and",
+        "or",
+        "not",
+        "null",
+        "true",
+        "false",
+        "is",
+        "in",
+        "like",
+        "between",
+        "as",
+        "case",
+        "when",
+        "then",
+        "else",
+        "end",
+        "cast",
+        "try_cast",
+        "date",
+        "timestamp",
+        "interval",
+        "current_date",
+        "current_timestamp",
+
+        # SQL types
+        "varchar",
+        "char",
+        "integer",
+        "int",
+        "bigint",
+        "smallint",
+        "tinyint",
+        "decimal",
+        "numeric",
+        "real",
+        "double",
+        "boolean",
+        "time",
+    }
+
+    # Function names.
+    function_names = {
+        "lower",
+        "upper",
+        "trim",
+        "ltrim",
+        "rtrim",
+        "length",
+        "substr",
+        "substring",
+        "coalesce",
+        "nullif",
+        "concat",
+        "regexp_like",
+        "regexp_extract",
+        "regexp_replace",
+        "date",
+        "year",
+        "month",
+        "day",
+        "hour",
+        "minute",
+        "second",
+        "count",
+        "sum",
+        "avg",
+        "min",
+        "max",
+    }
+
+    identifiers = re.findall(
+        r"\b[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*\b",
+        expression
+    )
+
+    result = []
+
+    for identifier in identifiers:
+
+        normalized = identifier.split(".")[-1].lower()
+
+        if normalized in sql_keywords:
+            continue
+
+        if normalized in function_names:
+            continue
+
+        if normalized not in result:
+            result.append(normalized)
+
+    return result
+
 def _validate_effects( effects, resource, data_mesh_structure ):
 
     feedback = []
@@ -1987,39 +2151,109 @@ def _validate_effects( effects, resource, data_mesh_structure ):
 
         else:
 
+            # The mask must target exactly the resource column.
             if resource_column not in column_masks:
-
                 feedback.append( "The column mask must target the resource column " f"'{resource_column}'." )
 
-        table = resource.get("table")
-        schema = resource.get("schema")
-        catalog = resource.get("catalog")
+            catalog = resource.get("catalog")
+            schema = resource.get("schema")
+            table_name = resource.get("table")
 
-        if catalog and schema and table:
+            if not catalog or not schema or not table_name:
 
-            catalog_obj = _find_catalog( data_mesh_structure, catalog )
+                feedback.append( "A column mask requires a complete " "catalog/schema/table/column resource." )
 
-            schema_obj = _find_schema( catalog_obj, schema )
+            else:
 
-            table_obj = _find_table( schema_obj, table )
+                catalog_obj = _find_catalog( data_mesh_structure, catalog )
 
-            if table_obj is not None:
+                if catalog_obj is None:
 
-                valid_columns = set( _get_column_names(table_obj) )
+                    feedback.append( f"The mask catalog '{catalog}' " "does not exist in the Data Mesh." )
 
-                for column in column_masks:
+                else:
 
-                    if column not in valid_columns:
+                    schema_obj = _find_schema( catalog_obj, schema )
 
-                        feedback.append( "The column mask references unknown " f"column '{column}'." )
+                    if schema_obj is None:
+
+                        feedback.append( f"The mask schema '{schema}' " f"does not exist in catalog '{catalog}'." )
+
+                    else:
+
+                        table_obj = _find_table( schema_obj, table_name )
+
+                        if table_obj is None:
+
+                            feedback.append( f"The mask table " f"'{catalog}.{schema}.{table_name}' " "does not exist in the Data Mesh." )
+
+                        else:
+
+                            valid_columns = set( _get_column_names(table_obj) )
+
+                            for column in column_masks:
+
+                                if column not in valid_columns:
+                                    feedback.append(
+                                        "The column mask references "
+                                        f"unknown column '{column}' "
+                                        f"in '{catalog}.{schema}.{table_name}'. "
+                                        "Available columns are: "
+                                        + ( ", ".join( repr(x) for x in sorted(valid_columns) ) if valid_columns else "none" )
+                                        + "."
+                                    )
 
     # ------------------------------------------------------------------
     # Row filter
     # ------------------------------------------------------------------
 
-    if row_filter and not resource.get("table"):
+    if row_filter:
 
-        feedback.append( "A row filter requires a specific table." )
+        catalog = resource.get("catalog")
+        schema = resource.get("schema")
+        table_name = resource.get("table")
+
+        if not table_name:
+
+            feedback.append( "A row filter requires a specific table." )
+
+        elif not catalog or not schema:
+
+            feedback.append( "A row filter requires a complete " "catalog/schema/table resource." )
+
+        else:
+
+            catalog_obj = _find_catalog( data_mesh_structure, catalog )
+
+            schema_obj = _find_schema( catalog_obj, schema )
+
+            table_obj = _find_table( schema_obj, table_name )
+
+            if table_obj is None:
+
+                feedback.append( f"The row filter references table " f"'{catalog}.{schema}.{table_name}', " f"but that table does not exist " f"in the Data Mesh." )
+
+            else:
+
+                valid_columns = set( _get_column_names(table_obj) )
+
+                referenced_columns = ( _extract_sql_identifiers(row_filter) )
+
+                # Case-insensitive comparison.
+                valid_columns_lower = { column.lower() for column in valid_columns }
+
+                unknown_columns = [ column for column in referenced_columns if column not in valid_columns_lower ]
+
+                if unknown_columns:
+                    feedback.append(
+                        "The row filter references column(s) "
+                        "that do not exist in "
+                        f"'{catalog}.{schema}.{table_name}': "
+                        + ", ".join( repr(x) for x in unknown_columns )
+                        + ". Available columns are: "
+                        + ( ", ".join( repr(x) for x in sorted(valid_columns) ) if valid_columns else "none" )
+                        + "."
+                    )
 
     # ------------------------------------------------------------------
     # Resource validity
@@ -2142,6 +2376,36 @@ Rules:
     - do not show tables
     - do not show columns
     - hide metadata from the list
+
+    IMPORTANT DISTINCTION:
+
+    "cannot see a column" is ambiguous.
+
+    If the rule says the column should be:
+    - masked
+    - hidden in clear text
+    - shown as **** - replaced with asterisks
+    - transformed
+    - obfuscated
+    - redacted
+
+    then this is a COLUMN MASK, NOT FilterColumns.
+
+    Examples:
+
+    "auditor can't see employee_id in clear text; mask it with asterisks"
+
+    MUST NOT produce:
+
+    FilterColumns.deny = ["employee_id"]
+
+    It MUST produce a column mask for employee_id.
+
+    "auditor cannot see salary column in the list of columns"
+
+    IS a metadata visibility restriction and produces:
+
+    FilterColumns.deny = ["salary"]
 
 11. IMPORTANT:
 
@@ -2376,12 +2640,25 @@ Only use a canonical action when it actually exists in Available Actions.
 
     return normalized
 
-def _validate_visibility_filters( filters, resource, data_mesh_structure ):
+def _validate_visibility_filters(filters, resource, data_mesh_structure):
+    """
+    Validate metadata visibility filters against the authoritative
+    Data Mesh structure.
+
+    IMPORTANT:
+    - FilterCatalogs validates catalog existence.
+    - FilterSchemas validates schema existence.
+    - FilterTables validates table existence.
+    - FilterColumns validates column existence.
+    - A child target must be resolved using the resource hierarchy.
+    - This function does NOT treat column masks as FilterColumns.
+    """
+
     feedback = []
 
-    # --------------------------------------------------------------
-    # Validate structure
-    # --------------------------------------------------------------
+    # ==============================================================
+    # Structure validation
+    # ==============================================================
 
     for key in FILTER_KEYS:
 
@@ -2392,100 +2669,261 @@ def _validate_visibility_filters( filters, resource, data_mesh_structure ):
             continue
 
         if set(value.keys()) != {"allowed", "deny"}:
-            feedback.append( f"'{key}' must contain exactly " "'allowed' and 'deny'." )
+            feedback.append( f"'{key}' must contain exactly 'allowed' and 'deny'." )
 
         for effect in ("allowed", "deny"):
 
             if not isinstance(value.get(effect), list):
                 feedback.append( f"'{key}.{effect}' must be a list." )
 
-    # --------------------------------------------------------------
+    # ==============================================================
     # Helpers
-    # --------------------------------------------------------------
+    # ==============================================================
 
     def _values(filter_key, effect):
+
         value = filters.get( filter_key, { "allowed": [], "deny": [] } )
 
         if not isinstance(value, dict):
             return []
 
-        result = value.get(effect, [])
+        values = value.get(effect, [])
 
-        return result if isinstance(result, list) else []
+        if not isinstance(values, list):
+            return []
 
-    # --------------------------------------------------------------
+        return [ value.strip() for value in values if isinstance(value, str) and value.strip() ]
+
+    # ==============================================================
     # Resource context
-    # --------------------------------------------------------------
+    # ==============================================================
 
-    catalog_name = resource.get("catalog")
-    schema_name = resource.get("schema")
-    table_name = resource.get("table")
+    resource_catalog = resource.get("catalog")
+    resource_schema = resource.get("schema")
+    resource_table = resource.get("table")
+    resource_column = resource.get("column")
 
-    catalog = _find_catalog( data_mesh_structure, catalog_name )
-
-    schema = ( _find_schema(catalog, schema_name) if catalog and schema_name else None )
-
-    table = ( _find_table(schema, table_name) if schema and table_name else None )
-
-    # --------------------------------------------------------------
+    # ==============================================================
     # Catalog filters
-    # --------------------------------------------------------------
+    # ==============================================================
 
     for effect in ("allowed", "deny"):
 
-        for catalog_name_to_filter in _values( "FilterCatalogs", effect ):
+        for filtered_catalog in _values( "FilterCatalogs", effect ):
 
-            if _find_catalog( data_mesh_structure, catalog_name_to_filter ) is None:
+            catalog_obj = _find_catalog( data_mesh_structure, filtered_catalog )
 
-                feedback.append( f"The filtered catalog " f"'{catalog_name_to_filter}' does not exist." )
+            if catalog_obj is None:
 
-    # --------------------------------------------------------------
+                feedback.append( f"The filtered catalog " f"'{filtered_catalog}' does not exist " f"in the Data Mesh." )
+
+    # ==============================================================
     # Schema filters
-    # --------------------------------------------------------------
+    # ==============================================================
 
-    if catalog is not None:
+    # A schema filter needs a catalog.
+    #
+    # First use the explicit resource catalog.
+    #
+    # If there is no catalog, try to find the schema uniquely
+    # across the Data Mesh.
 
-        for effect in ("allowed", "deny"):
+    for effect in ("allowed", "deny"):
 
-            for schema_name_to_filter in _values( "FilterSchemas", effect ):
+        for filtered_schema in _values( "FilterSchemas", effect ):
 
-                if _find_schema( catalog, schema_name_to_filter ) is None:
+            candidate_catalogs = []
 
-                    feedback.append( f"The filtered schema " f"'{schema_name_to_filter}' does not exist " f"in catalog '{catalog_name}'." )
+            # ------------------------------------------------------
+            # Explicit catalog from resource
+            # ------------------------------------------------------
 
-    # --------------------------------------------------------------
+            if resource_catalog:
+
+                catalog_obj = _find_catalog( data_mesh_structure, resource_catalog )
+
+                if catalog_obj is not None:
+
+                    if _find_schema( catalog_obj, filtered_schema ) is not None:
+
+                        candidate_catalogs.append( resource_catalog )
+
+            # ------------------------------------------------------
+            # Explicit schema resource can also identify catalog
+            # ------------------------------------------------------
+
+            elif resource_schema:
+
+                inferred_catalog = _infer_unique_catalog( data_mesh_structure, filtered_schema )
+
+                if inferred_catalog:
+                    candidate_catalogs.append( inferred_catalog )
+
+            # ------------------------------------------------------
+            # General Data Mesh lookup
+            # ------------------------------------------------------
+
+            else:
+
+                for catalog in _get_catalogs( data_mesh_structure ):
+
+                    if not isinstance(catalog, dict):
+                        continue
+
+                    if _find_schema( catalog, filtered_schema ) is not None:
+
+                        catalog_name = catalog.get("name")
+
+                        if catalog_name:
+                            candidate_catalogs.append( catalog_name )
+
+            if not candidate_catalogs:
+
+                feedback.append( f"The filtered schema " f"'{filtered_schema}' does not exist " f"in the Data Mesh." )
+
+    # ==============================================================
     # Table filters
-    # --------------------------------------------------------------
+    # ==============================================================
+    for effect in ("allowed", "deny"):
 
-    if schema is not None:
+        for filtered_table in _values(
+                "FilterTables",
+                effect
+        ):
 
-        for effect in ("allowed", "deny"):
+            found = False
 
-            for table_name_to_filter in _values( "FilterTables", effect ):
+            if resource_catalog and resource_schema:
 
-                if _find_table( schema, table_name_to_filter ) is None:
+                catalog_obj = _find_catalog(
+                    data_mesh_structure,
+                    resource_catalog
+                )
 
-                    feedback.append( f"The filtered table " f"'{table_name_to_filter}' does not exist " f"in schema '{schema_name}'." )
+                schema_obj = _find_schema(
+                    catalog_obj,
+                    resource_schema
+                )
 
-    # --------------------------------------------------------------
+                if schema_obj is not None:
+                    found = (
+                            _find_table(
+                                schema_obj,
+                                filtered_table
+                            ) is not None
+                    )
+
+            else:
+
+                for catalog in _get_catalogs(
+                        data_mesh_structure
+                ):
+
+                    if not isinstance(catalog, dict):
+                        continue
+
+                    for schema in catalog.get("schemas", []):
+
+                        if not isinstance(schema, dict):
+                            continue
+
+                        if _find_table(
+                                schema,
+                                filtered_table
+                        ) is not None:
+                            found = True
+                            break
+
+                    if found:
+                        break
+
+            if not found:
+                feedback.append(
+                    f"The filtered table '{filtered_table}' "
+                    "does not exist in the Data Mesh."
+                )
+
+    # ==============================================================
     # Column filters
-    # --------------------------------------------------------------
+    # ==============================================================
 
-    if table is not None:
+    for effect in ("allowed", "deny"):
 
-        valid_columns = set( _get_column_names(table) )
+        for filtered_column in _values(
+                "FilterColumns",
+                effect
+        ):
 
-        for effect in ("allowed", "deny"):
+            found = False
 
-            for column_name_to_filter in _values( "FilterColumns", effect ):
+            if (
+                    resource_catalog
+                    and resource_schema
+                    and resource_table
+            ):
 
-                if column_name_to_filter not in valid_columns:
+                catalog_obj = _find_catalog(
+                    data_mesh_structure,
+                    resource_catalog
+                )
 
-                    feedback.append( f"The filtered column " f"'{column_name_to_filter}' does not exist " f"in table '{table_name}'." )
+                schema_obj = _find_schema(
+                    catalog_obj,
+                    resource_schema
+                )
 
-    # --------------------------------------------------------------
-    # Check conflicts
-    # --------------------------------------------------------------
+                table_obj = _find_table(
+                    schema_obj,
+                    resource_table
+                )
+
+                if table_obj is not None:
+                    found = (
+                            filtered_column
+                            in _get_column_names(table_obj)
+                    )
+
+            else:
+
+                for catalog in _get_catalogs(
+                        data_mesh_structure
+                ):
+
+                    if not isinstance(catalog, dict):
+                        continue
+
+                    for schema in catalog.get("schemas", []):
+
+                        if not isinstance(schema, dict):
+                            continue
+
+                        for table in schema.get("tables", []):
+
+                            if not isinstance(table, dict):
+                                continue
+
+                            if (
+                                    filtered_column
+                                    in _get_column_names(table)
+                            ):
+                                found = True
+                                break
+
+                        if found:
+                            break
+
+                    if found:
+                        break
+
+            if not found:
+                feedback.append(
+                    f"The filtered column '{filtered_column}' "
+                    "does not exist in the Data Mesh."
+                )
+
+    # ==============================================================
+    # Conflicts
+    # ==============================================================
 
     for key in FILTER_KEYS:
 
@@ -2545,8 +2983,6 @@ def _build_explanation_text( rule, group, resource, allowed, deny, column_masks=
 
     if row_filter:
         text += f" Row filter: {row_filter}."
-
-    visibility_filters = visibility_filters or {}
 
     visibility_filters = visibility_filters or {}
 
@@ -2651,52 +3087,39 @@ def llm_explain( rule, example_index, data_mesh_structure, security_groups, avai
     allowed, deny, conflicts = _split_allowed_deny( requested_actions, available_actions )
 
     # ------------------------------------------------------------------
-    # Row filter / column mask
-    # ------------------------------------------------------------------
-
-    # ------------------------------------------------------------------
     # Row filter / column mask / metadata visibility
     # ------------------------------------------------------------------
 
     is_metadata_visibility = _is_metadata_visibility_restriction(rule)
 
-    if is_metadata_visibility:
+    if not path_result["valid"]:
 
-        # Metadata visibility rules NEVER produce row filters
-        # or column masks.
         effects = { "row_filter": None, "column_masks": {} }
+
+        visibility_filters = { "FilterCatalogs": { "allowed": [], "deny": [] }, "FilterSchemas": { "allowed": [], "deny": [] }, "FilterTables": { "allowed": [], "deny": [] }, "FilterColumns": { "allowed": [], "deny": [] } }
+
+    elif is_metadata_visibility:
+
+        effects = { "row_filter": None, "column_masks": {} }
+
+        visibility_filters = _extract_visibility_filters( rule=rule, resource=resource, data_mesh_structure=data_mesh_structure, is_local=is_local, chat_url=chat_url, client=client, model=model )
 
     else:
 
         effects = _extract_effects( rule=rule, resource=resource, data_mesh_structure=data_mesh_structure, is_local=is_local, chat_url=chat_url, client=client, model=model )
 
-    is_metadata_visibility = _is_metadata_visibility_restriction(rule)
+        visibility_filters = _extract_visibility_filters( rule=rule, resource=resource, data_mesh_structure=data_mesh_structure, is_local=is_local, chat_url=chat_url, client=client, model=model )
 
-    if is_metadata_visibility:
-        effects = {
-            "row_filter": None,
-            "column_masks": {}
-        }
-    else:
-        effects = _extract_effects(
-            rule=rule,
-            resource=resource,
-            data_mesh_structure=data_mesh_structure,
-            is_local=is_local,
-            chat_url=chat_url,
-            client=client,
-            model=model
-        )
+    # ==============================================================
+    # Column mask has absolute priority over FilterColumns.
+    #
+    # If the rule describes values being masked/transformed,
+    # the column remains visible and must NEVER become a
+    # metadata visibility filter.
+    # ==============================================================
 
-    visibility_filters = _extract_visibility_filters(
-        rule=rule,
-        resource=resource,
-        data_mesh_structure=data_mesh_structure,
-        is_local=is_local,
-        chat_url=chat_url,
-        client=client,
-        model=model
-    )
+    if _is_column_mask_declaration(rule):
+        visibility_filters["FilterColumns"] = { "allowed": [], "deny": [] }
 
     effects_result = _validate_effects( effects=effects, resource=resource, data_mesh_structure=data_mesh_structure )
 

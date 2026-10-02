@@ -47,44 +47,6 @@
                   "type": "integer"
                 }
               ]
-            },
-            {
-              "name": "employee_finance_test_view_hr_20261001_230948_831835",
-              "type": "view",
-              "columns": [
-                {
-                  "name": "employee_id",
-                  "type": "varchar"
-                },
-                {
-                  "name": "department",
-                  "type": "varchar"
-                },
-                {
-                  "name": "annual_salary",
-                  "type": "integer"
-                },
-                {
-                  "name": "bonus",
-                  "type": "integer"
-                },
-                {
-                  "name": "benefits",
-                  "type": "integer"
-                },
-                {
-                  "name": "total_cost",
-                  "type": "integer"
-                },
-                {
-                  "name": "annual_revenue_generated",
-                  "type": "integer"
-                },
-                {
-                  "name": "profit_contribution",
-                  "type": "integer"
-                }
-              ]
             }
           ]
         },
@@ -130,66 +92,6 @@
                 {
                   "name": "job_title",
                   "type": "varchar"
-                },
-                {
-                  "name": "test_added_column_hr_20261001_230916_265900",
-                  "type": "varchar"
-                }
-              ]
-            },
-            {
-              "name": "people_test_mv_hr_20261001_230924_844217",
-              "type": "materialized view",
-              "columns": [
-                {
-                  "name": "employee_index",
-                  "type": "integer"
-                },
-                {
-                  "name": "user_id",
-                  "type": "varchar"
-                },
-                {
-                  "name": "first_name",
-                  "type": "varchar"
-                },
-                {
-                  "name": "last_name",
-                  "type": "varchar"
-                },
-                {
-                  "name": "sex",
-                  "type": "varchar"
-                },
-                {
-                  "name": "email",
-                  "type": "varchar"
-                },
-                {
-                  "name": "phone",
-                  "type": "varchar"
-                },
-                {
-                  "name": "date_of_birth",
-                  "type": "date"
-                },
-                {
-                  "name": "job_title",
-                  "type": "varchar"
-                },
-                {
-                  "name": "test_added_column_hr_20261001_230916_265900",
-                  "type": "varchar"
-                }
-              ]
-            },
-            {
-              "name": "test_table_hr_20261001_230940_257875",
-              "type": "table",
-              "columns": [
-                {
-                  "name": "id",
-                  "type": "integer"
                 }
               ]
             }
@@ -198,6 +100,82 @@
         {
           "name": "inventory",
           "tables": [
+            {
+              "name": "available_products",
+              "type": "view",
+              "columns": [
+                {
+                  "name": "product_index",
+                  "type": "integer"
+                },
+                {
+                  "name": "name",
+                  "type": "varchar"
+                },
+                {
+                  "name": "brand",
+                  "type": "varchar"
+                },
+                {
+                  "name": "category",
+                  "type": "varchar"
+                },
+                {
+                  "name": "price",
+                  "type": "double"
+                },
+                {
+                  "name": "currency",
+                  "type": "varchar"
+                },
+                {
+                  "name": "stock",
+                  "type": "integer"
+                },
+                {
+                  "name": "color",
+                  "type": "varchar"
+                },
+                {
+                  "name": "size",
+                  "type": "varchar"
+                }
+              ]
+            },
+            {
+              "name": "inventory_summary",
+              "type": "materialized view",
+              "columns": [
+                {
+                  "name": "category",
+                  "type": "varchar"
+                },
+                {
+                  "name": "brand",
+                  "type": "varchar"
+                },
+                {
+                  "name": "product_count",
+                  "type": "bigint"
+                },
+                {
+                  "name": "total_stock",
+                  "type": "bigint"
+                },
+                {
+                  "name": "average_price",
+                  "type": "double"
+                },
+                {
+                  "name": "minimum_price",
+                  "type": "double"
+                },
+                {
+                  "name": "maximum_price",
+                  "type": "double"
+                }
+              ]
+            },
             {
               "name": "products",
               "type": "table",
@@ -262,11 +240,11 @@
           "name": "procurement",
           "tables": [
             {
-              "name": "product_catalog_renamed_hr_20261001_231050_838364",
+              "name": "product_catalog",
               "type": "table",
               "columns": [
                 {
-                  "name": "product_index_renamed_hr_20261001_231043_648760",
+                  "name": "product_index",
                   "type": "integer"
                 },
                 {
@@ -301,7 +279,7 @@
           "name": "sales",
           "tables": [
             {
-              "name": "available_offers_renamed_hr_20261001_231235_143840",
+              "name": "available_offers",
               "type": "view",
               "columns": [
                 {
@@ -323,7 +301,7 @@
               ]
             },
             {
-              "name": "offer_price_summary_renamed_hr_20261001_231242_643636",
+              "name": "offer_price_summary",
               "type": "materialized view",
               "columns": [
                 {
@@ -369,8 +347,39 @@
           ]
         },
         {
-          "name": "test_schema_test_hr_20261001_230932_491571",
-          "tables": []
+          "name": "support",
+          "tables": [
+            {
+              "name": "support_tickets",
+              "type": "table",
+              "columns": [
+                {
+                  "name": "ticket_index",
+                  "type": "integer"
+                },
+                {
+                  "name": "ticket_id",
+                  "type": "varchar"
+                },
+                {
+                  "name": "customer_plan",
+                  "type": "varchar"
+                },
+                {
+                  "name": "ticket_subject",
+                  "type": "varchar"
+                },
+                {
+                  "name": "ticket_text",
+                  "type": "varchar"
+                },
+                {
+                  "name": "priority_hint",
+                  "type": "varchar"
+                }
+              ]
+            }
+          ]
         }
       ]
     }
