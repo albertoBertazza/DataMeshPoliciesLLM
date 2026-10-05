@@ -7,18 +7,18 @@ import requests
 
 from Helper.action_resolver import AuthorizationResolver
 
-def run_opa_tests( tests: List[Dict[str, Any]], action_permissions_file: str | Path, policy_file: str | Path, opa_url: str, output_file_path: str | Path, is_stateless: bool, repetitions: int = 1):
+def run_opa_tests( tests: List[Dict[str, Any]], action_permissions_file: str | Path, policy_file: str | Path, opa_url: str, output_file_path: str | Path, is_mapping_agnostic: bool, repetitions: int = 1):
     """
     Execute already-generated tests against OPA.
 
     The tests are generated only once by generate_opa_tests().
 
-    Stateful:
+    Mapping Aware:
         One OPA execution per generated action test.
 
         operation = action
 
-    Stateless:
+    Mapping Agnostic:
         The same generated action test is checked against every
         permission required by that action.
 
@@ -51,7 +51,7 @@ def run_opa_tests( tests: List[Dict[str, Any]], action_permissions_file: str | P
     execution_number = 0
 
     # This is only an upper-bound progress value.
-    if is_stateless:
+    if is_mapping_agnostic:
 
         total_possible_executions = sum( len(action_permissions.get(test["action"], [])) for test in tests ) * repetitions
 
@@ -62,10 +62,10 @@ def run_opa_tests( tests: List[Dict[str, Any]], action_permissions_file: str | P
     print()
     print("=" * 70)
 
-    if is_stateless:
-        print(" STATELESS OPA - PERMISSION TESTS")
+    if is_mapping_agnostic:
+        print(" MAPPING AGNOSTIC OPA - PERMISSION TESTS")
     else:
-        print(" STATEFUL OPA - ACTION TESTS")
+        print(" MAPPING AWARE OPA - ACTION TESTS")
 
     print("=" * 70)
 
@@ -93,7 +93,7 @@ def run_opa_tests( tests: List[Dict[str, Any]], action_permissions_file: str | P
         # DETERMINE OPERATIONS
         # ========================================================
 
-        if is_stateless:
+        if is_mapping_agnostic:
 
             operations = action_permissions.get( action )
 
@@ -220,10 +220,10 @@ def run_opa_tests( tests: List[Dict[str, Any]], action_permissions_file: str | P
                         operation,
 
                     # Permission index only matters
-                    # for stateless execution.
+                    # for mapping agnostic execution.
                     "permissionIndex":
                         permission_index
-                        if is_stateless
+                        if is_mapping_agnostic
                         else None,
 
                     "resource":
@@ -296,10 +296,10 @@ def run_opa_tests( tests: List[Dict[str, Any]], action_permissions_file: str | P
                 print( f"\rProgress: " f"{execution_number}/" f"{total_possible_executions}", end="", flush=True)
 
                 # =================================================
-                # STATELESS FAILURE
+                # MAPPING AGNOSTIC FAILURE
                 # =================================================
 
-                if is_stateless and not matches:
+                if is_mapping_agnostic and not matches:
 
                     permission_failed = True
 
@@ -309,7 +309,7 @@ def run_opa_tests( tests: List[Dict[str, Any]], action_permissions_file: str | P
             # SKIP REMAINING PERMISSIONS
             # ====================================================
 
-            if is_stateless and permission_failed:
+            if is_mapping_agnostic and permission_failed:
 
                 print()
 
@@ -330,10 +330,10 @@ def run_opa_tests( tests: List[Dict[str, Any]], action_permissions_file: str | P
     print()
     print("=" * 70)
 
-    if is_stateless:
-        print(" STATELESS OPA TEST RESULTS")
+    if is_mapping_agnostic:
+        print(" MAPPING AGNOSTIC OPA TEST RESULTS")
     else:
-        print(" STATEFUL OPA TEST RESULTS")
+        print(" MAPPING AWARE OPA TEST RESULTS")
 
     print("=" * 70)
 
@@ -365,8 +365,7 @@ def run_opa_tests( tests: List[Dict[str, Any]], action_permissions_file: str | P
 
             print()
 
-            print( f"Test {result['testId']} " f"(repetition {result['repetition']})"
-            )
+            print( f"Test {result['testId']} " f"(repetition {result['repetition']})")
 
             print( f"  Security group: " f"{result['securityGroup']}" )
 

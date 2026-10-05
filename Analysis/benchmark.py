@@ -6,22 +6,22 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 
-from DrawGraph.draw_permission_in_action import plot_action_permission_euler
+from DrawGraph.draw_permission_in_action import plot_permission_action_matrix
 from Pipelines.costantPath import (
-    OUTPUT_STATEFUL_PATH,
-    OUTPUT_STATELESS_PATH,
-    OUTPUT_BENCHMARK_DIR,
+    OUTPUT_MAPPING_AWARE_PATH,
+    OUTPUT_MAPPING_AGNOSTIC_PATH,
+    OUTPUT_BENCHMARK_DIR, CHECK_FOR_ACTION_PATH,
 )
 
 
 class OPABenchmark:
     """
-    Benchmark Stateful vs Stateless authorization.
+    Benchmark Mapping Aware vs Mapping Agnostic authorization.
 
-    Stateful:
+    Mapping Aware:
         One OPA request for the complete action.
 
-    Stateless:
+    Mapping Agnostic:
         One OPA request per required permission.
         Evaluation short-circuits at the first denied permission.
 
@@ -35,23 +35,23 @@ class OPABenchmark:
                      otherwise ALLOW
         - passed = final decision == expectedAllowed
 
-    This makes Stateful and Stateless directly comparable at the same
+    This makes Mapping Aware and Mapping Agnostic directly comparable at the same
     x-axis position.
     """
 
     def __init__(
         self,
-        stateful_file: str | Path,
-        stateless_file: str | Path,
+        mapping_aware_file: str | Path,
+        mapping_agnostic_file: str | Path,
         output_dir: str | Path,
     ):
-        self.stateful_file = Path(stateful_file)
-        self.stateless_file = Path(stateless_file)
+        self.mapping_aware_file = Path(mapping_aware_file)
+        self.mapping_agnostic_file = Path(mapping_agnostic_file)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.stateful = self._load(self.stateful_file)
-        self.stateless = self._load(self.stateless_file)
+        self.mapping_aware = self._load(self.mapping_aware_file)
+        self.mapping_agnostic = self._load(self.mapping_agnostic_file)
 
     # ==========================================================
     # LOAD
@@ -81,7 +81,7 @@ class OPABenchmark:
     @staticmethod
     def _executed(result: Dict[str, Any]) -> bool:
         """
-        A stateless row is an executed OPA request when it has timing data.
+        A mapping_agnostic row is an executed OPA request when it has timing data.
 
         This also handles explicitly skipped rows produced by the runner:
         skipped rows have no HTTP timing.
@@ -151,13 +151,13 @@ class OPABenchmark:
     # LOGICAL TEST AGGREGATION
     # ==========================================================
 
-    def _aggregate_stateful(self) -> List[Dict[str, Any]]:
+    def _aggregate_mapping_aware(self) -> List[Dict[str, Any]]:
         """
-        Stateful already contains one row per logical test.
+        Mapping Aware already contains one row per logical test.
         """
         rows = []
 
-        for result in self.stateful:
+        for result in self.mapping_aware:
             rows.append({
                 "testId": result.get("testId"),
                 "repetition": result.get("repetition"),
@@ -173,7 +173,7 @@ class OPABenchmark:
 
         return rows
 
-    def _aggregate_stateless(self) -> List[Dict[str, Any]]:
+    def _aggregate_mapping_agnostic(self) -> List[Dict[str, Any]]:
         """
         Aggregate all permission requests belonging to one logical test.
 
@@ -186,7 +186,7 @@ class OPABenchmark:
         """
         groups: Dict[Tuple[Any, Any], List[Dict[str, Any]]] = {}
 
-        for result in self.stateless:
+        for result in self.mapping_agnostic:
             key = self._test_key(result)
             groups.setdefault(key, []).append(result)
 
@@ -254,21 +254,21 @@ class OPABenchmark:
 
     def _paired_tests(self) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
-        Put Stateful and Stateless logical tests in the same x-axis order.
+        Put Mapping Aware and Mapping Agnostic logical tests in the same x-axis order.
 
         Pairing is done by (testId, repetition).
         """
-        stateful = {
+        mapping_aware = {
             self._test_key(row): row
-            for row in self._aggregate_stateful()
+            for row in self._aggregate_mapping_aware()
         }
-        stateless = {
+        mapping_agnostic = {
             self._test_key(row): row
-            for row in self._aggregate_stateless()
+            for row in self._aggregate_mapping_agnostic()
         }
 
         keys = sorted(
-            set(stateful) | set(stateless),
+            set(mapping_aware) | set(mapping_agnostic),
             key=lambda k: (
                 k[0] if k[0] is not None else 10**9,
                 k[1] if k[1] is not None else 10**9,
@@ -276,8 +276,8 @@ class OPABenchmark:
         )
 
         return (
-            [stateful[k] for k in keys if k in stateful],
-            [stateless[k] for k in keys if k in stateless],
+            [mapping_aware[k] for k in keys if k in mapping_aware],
+            [mapping_agnostic[k] for k in keys if k in mapping_agnostic],
         )
 
     # ==========================================================
@@ -309,12 +309,12 @@ class OPABenchmark:
         }
 
     def summary(self) -> Dict[str, Any]:
-        stateful = self._aggregate_stateful()
-        stateless = self._aggregate_stateless()
+        mapping_aware = self._aggregate_mapping_aware()
+        mapping_agnostic = self._aggregate_mapping_agnostic()
 
         return {
-            "stateful": self._mode_summary(stateful),
-            "stateless": self._mode_summary(stateless),
+            "mapping_aware": self._mode_summary(mapping_aware),
+            "mapping_agnostic": self._mode_summary(mapping_agnostic),
         }
 
     # ==========================================================
@@ -350,13 +350,13 @@ class OPABenchmark:
 
     def _permission_statistics(self) -> Dict[str, Dict[str, Any]]:
         """
-        Stateless permission-level min / average / max HTTP latency.
+        Mapping Agnostic permission-level min / average / max HTTP latency.
 
         Skipped permissions are excluded because they did not execute.
         """
         grouped: Dict[str, List[float]] = {}
 
-        for result in self.stateless:
+        for result in self.mapping_agnostic:
             if not self._executed(result):
                 continue
 
@@ -376,13 +376,13 @@ class OPABenchmark:
         }
 
     def detailed_statistics(self) -> Dict[str, Any]:
-        stateful = self._aggregate_stateful()
-        stateless = self._aggregate_stateless()
+        mapping_aware = self._aggregate_mapping_aware()
+        mapping_agnostic = self._aggregate_mapping_agnostic()
 
         return {
-            "statefulByAction": self._action_statistics(stateful),
-            "statelessByAction": self._action_statistics(stateless),
-            "statelessByPermission": self._permission_statistics(),
+            "mapping_awareByAction": self._action_statistics(mapping_aware),
+            "mapping_agnosticByAction": self._action_statistics(mapping_agnostic),
+            "mapping_agnosticByPermission": self._permission_statistics(),
         }
 
     # ==========================================================
@@ -397,7 +397,7 @@ class OPABenchmark:
         print("OPA BENCHMARK")
         print("=" * 90)
 
-        for mode in ("stateful", "stateless"):
+        for mode in ("mapping_aware", "mapping_agnostic"):
             m = summary[mode]
 
             print()
@@ -449,16 +449,16 @@ class OPABenchmark:
                 )
 
         print_table(
-            "STATEFUL — TOTAL TIME BY ACTION",
-            details["statefulByAction"],
+            "MAPPING AWARE — TOTAL TIME BY ACTION",
+            details["mapping_awareByAction"],
         )
         print_table(
-            "STATELESS — TOTAL TIME BY ACTION",
-            details["statelessByAction"],
+            "MAPPING AGNOSTIC — TOTAL TIME BY ACTION",
+            details["mapping_agnosticByAction"],
         )
         print_table(
-            "STATELESS — TIME BY PERMISSION",
-            details["statelessByPermission"],
+            "MAPPING AGNOSTIC — TIME BY PERMISSION",
+            details["mapping_agnosticByPermission"],
         )
 
 
@@ -474,26 +474,26 @@ class OPABenchmark:
         2. Total HTTP time per logical test.
         3. Passed / failed per logical test.
 
-        Stateful and Stateless use exactly the same x-axis positions.
+        Mapping Aware and Mapping Agnostic use exactly the same x-axis positions.
 
         The x-axis label contains:
             testId/repetition
             action
         """
-        stateful, stateless = self._paired_tests()
+        mapping_aware, mapping_agnostic = self._paired_tests()
 
-        if not stateful and not stateless:
+        if not mapping_aware and not mapping_agnostic:
             return
 
-        stateful_map = {
-            self._test_key(t): t for t in stateful
+        mapping_aware_map = {
+            self._test_key(t): t for t in mapping_aware
         }
-        stateless_map = {
-            self._test_key(t): t for t in stateless
+        mapping_agnostic_map = {
+            self._test_key(t): t for t in mapping_agnostic
         }
 
         keys = sorted(
-            set(stateful_map) | set(stateless_map),
+            set(mapping_aware_map) | set(mapping_agnostic_map),
             key=lambda k: (
                 k[0] if k[0] is not None else 10 ** 9,
                 k[1] if k[1] is not None else 10 ** 9,
@@ -502,44 +502,44 @@ class OPABenchmark:
 
         x = list(range(1, len(keys) + 1))
 
-        stateful_calls = [
-            stateful_map[k]["calls"] if k in stateful_map else None
+        mapping_aware_calls = [
+            mapping_aware_map[k]["calls"] if k in mapping_aware_map else None
             for k in keys
         ]
 
-        stateless_calls = [
-            stateless_map[k]["calls"] if k in stateless_map else None
+        mapping_agnostic_calls = [
+            mapping_agnostic_map[k]["calls"] if k in mapping_agnostic_map else None
             for k in keys
         ]
 
-        stateful_time = [
+        mapping_aware_time = [
             (
-                stateful_map[k]["totalHttpLatencyNs"] / 1_000_000
-                if k in stateful_map
+                mapping_aware_map[k]["totalHttpLatencyNs"] / 1_000_000
+                if k in mapping_aware_map
                 else None
             )
             for k in keys
         ]
 
-        stateless_time = [
+        mapping_agnostic_time = [
             (
-                stateless_map[k]["totalHttpLatencyNs"] / 1_000_000
-                if k in stateless_map
+                mapping_agnostic_map[k]["totalHttpLatencyNs"] / 1_000_000
+                if k in mapping_agnostic_map
                 else None
             )
             for k in keys
         ]
 
-        stateful_passed = [
-            1 if stateful_map[k]["passed"] else 0
-            if k in stateful_map
+        mapping_aware_passed = [
+            1 if mapping_aware_map[k]["passed"] else 0
+            if k in mapping_aware_map
             else None
             for k in keys
         ]
 
-        stateless_passed = [
-            1 if stateless_map[k]["passed"] else 0
-            if k in stateless_map
+        mapping_agnostic_passed = [
+            1 if mapping_agnostic_map[k]["passed"] else 0
+            if k in mapping_agnostic_map
             else None
             for k in keys
         ]
@@ -556,16 +556,16 @@ class OPABenchmark:
         # ------------------------------------------------------
         axes[0].plot(
             x,
-            stateful_calls,
+            mapping_aware_calls,
             marker="o",
-            label="Stateful",
+            label="Mapping Aware",
         )
 
         axes[0].plot(
             x,
-            stateless_calls,
+            mapping_agnostic_calls,
             marker="o",
-            label="Stateless",
+            label="Mapping Agnostic",
         )
 
         axes[0].set_ylabel("OPA calls")
@@ -578,16 +578,16 @@ class OPABenchmark:
         # ------------------------------------------------------
         axes[1].plot(
             x,
-            stateful_time,
+            mapping_aware_time,
             marker="o",
-            label="Stateful",
+            label="Mapping Aware",
         )
 
         axes[1].plot(
             x,
-            stateless_time,
+            mapping_agnostic_time,
             marker="o",
-            label="Stateless",
+            label="Mapping Agnostic",
         )
 
         axes[1].set_ylabel("Total HTTP time (ms)")
@@ -600,16 +600,16 @@ class OPABenchmark:
         # ------------------------------------------------------
         axes[2].plot(
             x,
-            stateful_passed,
+            mapping_aware_passed,
             marker="o",
-            label="Stateful",
+            label="Mapping Aware",
         )
 
         axes[2].plot(
             x,
-            stateless_passed,
+            mapping_agnostic_passed,
             marker="o",
-            label="Stateless",
+            label="Mapping Agnostic",
         )
 
         axes[2].set_yticks([0, 1])
@@ -629,8 +629,8 @@ class OPABenchmark:
             test_id, repetition = key
 
             test = (
-                    stateful_map.get(key)
-                    or stateless_map.get(key)
+                    mapping_aware_map.get(key)
+                    or mapping_agnostic_map.get(key)
             )
 
             action = test.get("action", "UNKNOWN")
@@ -658,7 +658,7 @@ class OPABenchmark:
 
     def plot_action_time_statistics(self) -> None:
         """
-        Stateful vs Stateless action total-time statistics.
+        Mapping Aware vs Mapping Agnostic action total-time statistics.
 
         One subplot is created for each action.
 
@@ -670,18 +670,18 @@ class OPABenchmark:
         are represented as stacked columns.
 
         For every statistic there are two columns:
-            Stateful
-            Stateless
+            Mapping Aware
+            Mapping Agnostic
 
-        The graph therefore allows direct comparison of Stateful
-        and Stateless for every action and every statistic.
+        The graph therefore allows direct comparison of Mapping Aware
+        and Mapping Agnostic for every action and every statistic.
         """
 
         details = self.detailed_statistics()
 
         actions = sorted(
-            set(details["statefulByAction"])
-            | set(details["statelessByAction"])
+            set(details["mapping_awareByAction"])
+            | set(details["mapping_agnosticByAction"])
         )
 
         if not actions:
@@ -709,25 +709,25 @@ class OPABenchmark:
         # ------------------------------------------------------
 
         for axis, action in zip(axes, actions):
-            stateful_data = details["statefulByAction"].get(action)
-            stateless_data = details["statelessByAction"].get(action)
+            mapping_aware_data = details["mapping_awareByAction"].get(action)
+            mapping_agnostic_data = details["mapping_agnosticByAction"].get(action)
 
-            stateful_values = [
-                stateful_data["minNs"] / 1_000_000
-                if stateful_data else 0,
-                stateful_data["avgNs"] / 1_000_000
-                if stateful_data else 0,
-                stateful_data["maxNs"] / 1_000_000
-                if stateful_data else 0,
+            mapping_aware_values = [
+                mapping_aware_data["minNs"] / 1_000_000
+                if mapping_aware_data else 0,
+                mapping_aware_data["avgNs"] / 1_000_000
+                if mapping_aware_data else 0,
+                mapping_aware_data["maxNs"] / 1_000_000
+                if mapping_aware_data else 0,
             ]
 
-            stateless_values = [
-                stateless_data["minNs"] / 1_000_000
-                if stateless_data else 0,
-                stateless_data["avgNs"] / 1_000_000
-                if stateless_data else 0,
-                stateless_data["maxNs"] / 1_000_000
-                if stateless_data else 0,
+            mapping_agnostic_values = [
+                mapping_agnostic_data["minNs"] / 1_000_000
+                if mapping_agnostic_data else 0,
+                mapping_agnostic_data["avgNs"] / 1_000_000
+                if mapping_agnostic_data else 0,
+                mapping_agnostic_data["maxNs"] / 1_000_000
+                if mapping_agnostic_data else 0,
             ]
 
             x = list(range(len(statistics_names)))
@@ -735,7 +735,7 @@ class OPABenchmark:
             width = 0.35
 
             # --------------------------------------------------
-            # Stateful stacked column
+            # Mapping Aware stacked column
             # --------------------------------------------------
 
             axis.bar(
@@ -743,13 +743,13 @@ class OPABenchmark:
                     value - width / 2
                     for value in x
                 ],
-                stateful_values,
+                mapping_aware_values,
                 width=width,
-                label="Stateful",
+                label="Mapping Aware",
             )
 
             # --------------------------------------------------
-            # Stateless stacked column
+            # Mapping Agnostic stacked column
             # --------------------------------------------------
 
             axis.bar(
@@ -757,9 +757,9 @@ class OPABenchmark:
                     value + width / 2
                     for value in x
                 ],
-                stateless_values,
+                mapping_agnostic_values,
                 width=width,
-                label="Stateless",
+                label="Mapping Agnostic",
             )
 
             # --------------------------------------------------
@@ -781,7 +781,7 @@ class OPABenchmark:
             axis.legend()
 
         fig.suptitle(
-            "Stateful vs Stateless — Total HTTP Time by Action",
+            "Mapping Aware vs Mapping Agnostic — Total HTTP Time by Action",
             fontsize=16,
         )
 
@@ -807,7 +807,7 @@ class OPABenchmark:
 
     def plot_permission_time_statistics(self) -> None:
         """
-        Stateless permission-level min / average / max HTTP latency.
+        Mapping Agnostic permission-level min / average / max HTTP latency.
 
         All statistics are merged into one line chart.
 
@@ -820,7 +820,7 @@ class OPABenchmark:
             Maximum
         """
 
-        data = self.detailed_statistics()["statelessByPermission"]
+        data = self.detailed_statistics()["mapping_agnosticByPermission"]
 
         if not data:
             return
@@ -891,7 +891,7 @@ class OPABenchmark:
         ax.set_ylabel("HTTP time (ms)")
 
         ax.set_title(
-            "Stateless — Min / Average / Max HTTP Time by Permission"
+            "Mapping Agnostic — Min / Average / Max HTTP Time by Permission"
         )
 
         ax.grid(
@@ -961,25 +961,14 @@ class OPABenchmark:
 
 if __name__ == "__main__":
     benchmark = OPABenchmark(
-        stateful_file=str(OUTPUT_STATEFUL_PATH),
-        stateless_file=str(OUTPUT_STATELESS_PATH),
+        mapping_aware_file=str(OUTPUT_MAPPING_AWARE_PATH),
+        mapping_agnostic_file=str(OUTPUT_MAPPING_AGNOSTIC_PATH),
         output_dir=str(OUTPUT_BENCHMARK_DIR),
     )
 
     benchmark.run()
 
-    plot_action_permission_euler(
-        "Analysis/docker-opa-stateful/opa/checkForAction.json",
-        actions=[
-            "AddColumnAction",
-            "CreateMaterializedViewAction",
-            "CreateSchemaAction",
-            "CreateTableAction",
-            "CreateViewAction",
-            "SelectFromTableAction",
-            "DeleteFromTableAction",
-            "DropColumnAction",
-
-        ],
-        output_file="Analysis/output/action_permission_euler.png",
+    plot_permission_action_matrix(
+        check_for_action_file=CHECK_FOR_ACTION_PATH,
+        output_file="Analysis/output/action_permission_euler.png"
     )

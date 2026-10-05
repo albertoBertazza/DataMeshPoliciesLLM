@@ -309,6 +309,6 @@ def plot_permission_action_matrix(
 
 if __name__ == "__main__":
         plot_permission_action_matrix(
-        "Analysis/docker-opa-stateful/opa/checkForAction.json",
+        "Analysis/docker-opa-mapping-aware/opa/checkForAction.json",
         output_file="Analysis/output/action_permission_euler.png",
     )

@@ -1,13 +1,13 @@
 services:
-  opa-stateless:
+  opa-mapping-aware:
     image: openpolicyagent/opa:latest
-    container_name: opa-stateless
+    container_name: opa-mapping-aware
     ports:
-      - "8183:8183"
+      - "8182:8182"
     volumes:
       - ./opa:/policy
     command:
       - "run"
       - "--server"
-      - "--addr=0.0.0.0:8183"
+      - "--addr=0.0.0.0:8182"
       - "/policy"

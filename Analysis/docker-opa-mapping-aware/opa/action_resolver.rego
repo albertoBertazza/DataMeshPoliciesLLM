@@ -191,7 +191,7 @@ permission_allowed(perm) if {
 # ------------------------------------------------------------
 
 # CHECK ALL THE PERMISSIONS
-# STATEFUL EXPRESSION
+# MAPPING AWARE EXPRESSION
 allow if {
     req_perms := data.checkForAction[input.action.operation]
 

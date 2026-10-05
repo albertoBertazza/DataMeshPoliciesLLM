@@ -1,13 +1,13 @@
 services:
-  opa-stateful:
+  opa-mapping-agnostic:
     image: openpolicyagent/opa:latest
-    container_name: opa-stateful
+    container_name: opa-mapping-agnostic
     ports:
-      - "8182:8182"
+      - "8183:8183"
     volumes:
       - ./opa:/policy
     command:
       - "run"
       - "--server"
-      - "--addr=0.0.0.0:8182"
+      - "--addr=0.0.0.0:8183"
       - "/policy"

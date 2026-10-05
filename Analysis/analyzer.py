@@ -10,9 +10,12 @@ import subprocess
 from Helper.action_resolver import AuthorizationResolver
 from Helper.generate_opa_test import generate_opa_tests
 from Helper.run_opa_test import run_opa_tests
-from Pipelines.costantPath import DATA_STATELESS_PATH, DATA_STATEFUL_PATH, DATA_JSON_EXAMPLE_ANALYSIS, \
-    STATEFUL_OPA_DOCKER_DIR, CHECK_FOR_ACTION_PATH, DATA_MESH_STRUCTURE_PATH, USER_CREDENTIALS_PATH, \
-        PERMISSION_DEPTH_PATH, OPA_URL_STATEFUL, OUTPUT_STATEFUL_PATH, STATELESS_OPA_DOCKER_DIR, OPA_URL_STATELESS, OUTPUT_STATELESS_PATH, STATELESS_PORT, STATEFUL_PORT
+from Pipelines.costantPath import DATA_MAPPING_AGNOSTIC_PATH, DATA_MAPPING_AWARE_PATH, DATA_JSON_EXAMPLE_ANALYSIS, \
+    MAPPING_AWARE_OPA_DOCKER_DIR, CHECK_FOR_ACTION_PATH, DATA_MESH_STRUCTURE_PATH, USER_CREDENTIALS_PATH, \
+    PERMISSION_DEPTH_PATH, OPA_URL_MAPPING_AWARE, OUTPUT_MAPPING_AWARE_PATH, MAPPING_AGNOSTIC_OPA_DOCKER_DIR, \
+    OPA_URL_MAPPING_AGNOSTIC, OUTPUT_MAPPING_AGNOSTIC_PATH, MAPPING_AWARE_PORT, \
+    MAPPING_AGNOSTIC_PORT
+
 
 def start_docker_opa(opa_dir, health_port):
     opa_dir = Path(opa_dir)
@@ -49,7 +52,6 @@ def generate_and_run_opa_tests(
     opa_url: str,
     number_of_tests: int,
     output_file_path: str,
-    is_stateless: bool,
     repetitions: int = 1,
     seed: Optional[int] = None,
 ):
@@ -112,26 +114,26 @@ def generate_and_run_opa_tests(
     print("=" * 70)
     print(" GENERATING OPA TESTS")
     print("=" * 70)
-    tests = generate_opa_tests( action_permissions_file=action_permissions_file, data_mesh_file=data_mesh_file, users_file=users_file, permission_depth_file=permission_depth_file, number_of_tests=number_of_tests, seed=seed)
-    print( f"Generated tests: {len(tests)}" )
+    tests_generated = generate_opa_tests(action_permissions_file=action_permissions_file, data_mesh_file=data_mesh_file, users_file=users_file, permission_depth_file=permission_depth_file, number_of_tests=number_of_tests, seed=seed)
+    print( f"Generated tests: {len(tests_generated)}")
 
     # ============================================================
     # 2. CREATE AUTHORIZATION RESOLVER
     # ============================================================
-    resolver = AuthorizationResolver( policy_file=policy_file)
+    resolver = AuthorizationResolver( policy_file=policy_file,action_permissions_file=CHECK_FOR_ACTION_PATH)
 
     # ============================================================
     # 3. RESOLVE + EXECUTE
     # ============================================================
     results = []
-    total_executions = ( len(tests) * repetitions )
+    total_executions = (len(tests_generated) * repetitions)
     execution_number = 0
     print()
     print("=" * 70)
     print(" RESOLVING AND EXECUTING TESTS")
     print("=" * 70)
 
-    for test in tests:
+    for test in tests_generated:
 
         # --------------------------------------------------------
         # Generated test information
@@ -265,7 +267,7 @@ def generate_and_run_opa_tests(
     print("=" * 70)
     print(" OPA TEST RESULTS")
     print("=" * 70)
-    print( f"Generated tests:       {len(tests)}" )
+    print( f"Generated tests:       {len(tests_generated)}")
     print( f"OPA executions:        {len(results)}" )
     print( f"Correct decisions:     {correct}" )
     print( f"Decision mismatches:   {mismatches}" )
@@ -301,7 +303,7 @@ def generate_and_run_opa_tests(
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("ANALYSIS STATEFUL AND STATELESS OPA")
+    print("ANALYSIS MAPPING AWARE AND MAPPING AGNOSTIC OPA")
     print("=" * 60)
     NUMBER_OF_TEST = 10
     REPETITIONS = 5
@@ -311,13 +313,13 @@ if __name__ == "__main__":
     # 1. COPY ANALYSIS DATA
     # ============================================================
     source_analysis = Path( DATA_JSON_EXAMPLE_ANALYSIS )
-    stateless_analysis = Path( DATA_STATELESS_PATH )
-    stateful_analysis = Path( DATA_STATEFUL_PATH )
-    stateless_analysis.parent.mkdir( parents=True, exist_ok=True)
-    stateful_analysis.parent.mkdir( parents=True, exist_ok=True)
-    shutil.copy2( source_analysis, stateless_analysis)
-    shutil.copy2( source_analysis, stateful_analysis)
-    print( f"Copied analysis data to:\n" f"  Stateless: {stateless_analysis}\n" f"  Stateful:  {stateful_analysis}" )
+    mapping_agnostic_analysis = Path( DATA_MAPPING_AGNOSTIC_PATH )
+    mapping_aware_analysis = Path( DATA_MAPPING_AWARE_PATH )
+    mapping_agnostic_analysis.parent.mkdir( parents=True, exist_ok=True)
+    mapping_aware_analysis.parent.mkdir( parents=True, exist_ok=True)
+    shutil.copy2( source_analysis, mapping_agnostic_analysis)
+    shutil.copy2( source_analysis, mapping_aware_analysis)
+    print( f"Copied analysis data to:\n" f"  Mapping Agnostic: {mapping_agnostic_analysis}\n" f"  Mapping Aware:  {mapping_aware_analysis}" )
 
     # ============================================================
     # 2. GENERATE TESTS ONCE
@@ -333,33 +335,33 @@ if __name__ == "__main__":
     # 3. STOP OPA INSTANCES
     # ============================================================
 
-    stop_docker_opa( STATEFUL_OPA_DOCKER_DIR )
-    stop_docker_opa(STATELESS_OPA_DOCKER_DIR)
+    stop_docker_opa( MAPPING_AWARE_OPA_DOCKER_DIR )
+    stop_docker_opa(MAPPING_AGNOSTIC_OPA_DOCKER_DIR)
 
     # ============================================================
-    # 4. STATEFUL
-    # ============================================================
-
-    print()
-    print("=" * 100)
-    print("\t\tANALYSIS STATEFUL")
-    print("=" * 100)
-    start_docker_opa( STATEFUL_OPA_DOCKER_DIR, STATEFUL_PORT)
-    try:
-        run_opa_tests(  tests=tests, action_permissions_file=CHECK_FOR_ACTION_PATH, policy_file=DATA_STATEFUL_PATH, opa_url=OPA_URL_STATEFUL, output_file_path=OUTPUT_STATEFUL_PATH, is_stateless=False,repetitions=REPETITIONS, )
-    finally:
-        stop_docker_opa(STATEFUL_OPA_DOCKER_DIR)
-
-    # ============================================================
-    # 5. STATELESS
+    # 4. MAPPING AWARE
     # ============================================================
 
     print()
     print("=" * 100)
-    print("\t\tANALYSIS STATELESS")
+    print("\t\tANALYSIS MAPPING AWARE")
     print("=" * 100)
-    start_docker_opa( STATELESS_OPA_DOCKER_DIR, STATELESS_PORT)
+    start_docker_opa(MAPPING_AWARE_OPA_DOCKER_DIR, MAPPING_AWARE_PORT)
     try:
-        run_opa_tests(tests=tests, action_permissions_file=CHECK_FOR_ACTION_PATH, policy_file=DATA_STATELESS_PATH, opa_url=OPA_URL_STATELESS,  output_file_path=OUTPUT_STATELESS_PATH,  is_stateless=True, repetitions=REPETITIONS,)
+        run_opa_tests(tests=tests, action_permissions_file=CHECK_FOR_ACTION_PATH, policy_file=DATA_MAPPING_AWARE_PATH, opa_url=OPA_URL_MAPPING_AWARE, output_file_path=OUTPUT_MAPPING_AWARE_PATH, is_mapping_agnostic=False, repetitions=REPETITIONS, )
     finally:
-        stop_docker_opa( STATELESS_OPA_DOCKER_DIR )
+        stop_docker_opa(MAPPING_AWARE_OPA_DOCKER_DIR)
+
+    # ============================================================
+    # 5. MAPPING AGNOSTIC
+    # ============================================================
+
+    print()
+    print("=" * 100)
+    print("\t\tANALYSIS MAPPING AGNOSTIC")
+    print("=" * 100)
+    start_docker_opa( MAPPING_AGNOSTIC_OPA_DOCKER_DIR, MAPPING_AGNOSTIC_PORT)
+    try:
+        run_opa_tests(tests=tests, action_permissions_file=CHECK_FOR_ACTION_PATH, policy_file=DATA_MAPPING_AGNOSTIC_PATH, opa_url=OPA_URL_MAPPING_AGNOSTIC, output_file_path=OUTPUT_MAPPING_AGNOSTIC_PATH, is_mapping_agnostic=True, repetitions=REPETITIONS, )
+    finally:
+        stop_docker_opa( MAPPING_AGNOSTIC_OPA_DOCKER_DIR )

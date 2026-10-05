@@ -140,30 +140,30 @@ EXAMPLE_RULES =[
 
 
 # =================================================================
-# STATELESS STATEFUL ANALYSIS
+# MAPPING AWARE AND AGNOSTIC ANALYSIS
 # =================================================================
 
 ANALYSIS_DIR= os.path.join(DATA_MESH_DIR ,  "Analysis")
 ANALYSIS_OUTPUT = os.path.join(ANALYSIS_DIR , "output")
 
-OUTPUT_STATEFUL_PATH = os.path.join(ANALYSIS_OUTPUT , "output_stateful.json")
-OUTPUT_STATELESS_PATH = os.path.join(ANALYSIS_OUTPUT , "output_stateless.json")
+OUTPUT_MAPPING_AWARE_PATH = os.path.join(ANALYSIS_OUTPUT, "output_mapping_aware.json")
+OUTPUT_MAPPING_AGNOSTIC_PATH = os.path.join(ANALYSIS_OUTPUT , "output_mapping_agnostic.json")
 OUTPUT_BENCHMARK_DIR = os.path.join(ANALYSIS_OUTPUT , "benchmark")
 
-STATEFUL_OPA_DOCKER_DIR = os.path.join(ANALYSIS_DIR , "docker-opa-stateful")
-STATELESS_OPA_DOCKER_DIR = os.path.join(ANALYSIS_DIR , "docker-opa-stateless")
+MAPPING_AWARE_OPA_DOCKER_DIR = os.path.join(ANALYSIS_DIR , "docker-opa-mapping-aware")
+MAPPING_AGNOSTIC_OPA_DOCKER_DIR = os.path.join(ANALYSIS_DIR , "docker-opa-mapping-agnostic")
 
-OPA_STATEFUL_DIR= os.path.join(STATEFUL_OPA_DOCKER_DIR , "opa")
-OPA_STATELESS_DIR = os.path.join(STATELESS_OPA_DOCKER_DIR , "opa")
+OPA_MAPPING_AWARE_DIR= os.path.join(MAPPING_AWARE_OPA_DOCKER_DIR, "opa")
+OPA_MAPPING_AGNOSTIC_DIR = os.path.join(MAPPING_AGNOSTIC_OPA_DOCKER_DIR, "opa")
 
-DATA_STATEFUL_PATH = os.path.join(OPA_STATEFUL_DIR , "data.json")
-DATA_STATELESS_PATH = os.path.join(OPA_STATELESS_DIR , "data.json")
+DATA_MAPPING_AWARE_PATH = os.path.join(OPA_MAPPING_AWARE_DIR, "data.json")
+DATA_MAPPING_AGNOSTIC_PATH = os.path.join(OPA_MAPPING_AGNOSTIC_DIR, "data.json")
 
 DATA_JSON_EXAMPLE_ANALYSIS = os.path.join(ANALYSIS_DIR , "data.json")
 
 
-STATEFUL_PORT = 8182
-STATELESS_PORT = 8183
+MAPPING_AWARE_PORT = 8182
+MAPPING_AGNOSTIC_PORT = 8183
 
-OPA_URL_STATELESS = f"http://localhost:{STATELESS_PORT}/v1/data/trino/authz/allow"
-OPA_URL_STATEFUL = f"http://localhost:{STATEFUL_PORT}/v1/data/trino/authz/allow"
+OPA_URL_MAPPING_AGNOSTIC = f"http://localhost:{MAPPING_AGNOSTIC_PORT}/v1/data/trino/authz/allow"
+OPA_URL_MAPPING_AWARE = f"http://localhost:{MAPPING_AWARE_PORT}/v1/data/trino/authz/allow"
