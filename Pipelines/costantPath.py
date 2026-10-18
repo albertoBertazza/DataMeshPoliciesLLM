@@ -148,13 +148,16 @@ ANALYSIS_OUTPUT = os.path.join(ANALYSIS_DIR , "output")
 
 OUTPUT_MAPPING_AWARE_PATH = os.path.join(ANALYSIS_OUTPUT, "output_mapping_aware.json")
 OUTPUT_MAPPING_AGNOSTIC_PATH = os.path.join(ANALYSIS_OUTPUT , "output_mapping_agnostic.json")
+OUTPUT_DEFAULT_ALLOW_PATH = os.path.join(ANALYSIS_OUTPUT , "output_default_allow.json")
 OUTPUT_BENCHMARK_DIR = os.path.join(ANALYSIS_OUTPUT , "benchmark")
 
 MAPPING_AWARE_OPA_DOCKER_DIR = os.path.join(ANALYSIS_DIR , "docker-opa-mapping-aware")
 MAPPING_AGNOSTIC_OPA_DOCKER_DIR = os.path.join(ANALYSIS_DIR , "docker-opa-mapping-agnostic")
+DEFAULT_ALLOW_OPA_DOCKER_DIR = os.path.join(ANALYSIS_DIR , "docker-opa-default-allow")
 
 OPA_MAPPING_AWARE_DIR= os.path.join(MAPPING_AWARE_OPA_DOCKER_DIR, "opa")
 OPA_MAPPING_AGNOSTIC_DIR = os.path.join(MAPPING_AGNOSTIC_OPA_DOCKER_DIR, "opa")
+OPA_DEFAULT_ALLOW_DIR = os.path.join(DEFAULT_ALLOW_OPA_DOCKER_DIR, "opa")
 
 DATA_MAPPING_AWARE_PATH = os.path.join(OPA_MAPPING_AWARE_DIR, "data.json")
 DATA_MAPPING_AGNOSTIC_PATH = os.path.join(OPA_MAPPING_AGNOSTIC_DIR, "data.json")
@@ -164,6 +167,8 @@ DATA_JSON_EXAMPLE_ANALYSIS = os.path.join(ANALYSIS_DIR , "data.json")
 
 MAPPING_AWARE_PORT = 8182
 MAPPING_AGNOSTIC_PORT = 8183
+DEFAULT_ALLOW_PORT = 8184
 
 OPA_URL_MAPPING_AGNOSTIC = f"http://localhost:{MAPPING_AGNOSTIC_PORT}/v1/data/trino/authz/allow"
 OPA_URL_MAPPING_AWARE = f"http://localhost:{MAPPING_AWARE_PORT}/v1/data/trino/authz/allow"
+OPA_URL_DEFAULT_ALLOW = f"http://localhost:{DEFAULT_ALLOW_PORT}/v1/data/trino/authz/allow"

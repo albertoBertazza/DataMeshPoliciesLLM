@@ -1,4 +1,3 @@
-
 import json
 import statistics
 from pathlib import Path
@@ -10,7 +9,9 @@ from DrawGraph.draw_permission_in_action import plot_permission_action_matrix
 from Pipelines.costantPath import (
     OUTPUT_MAPPING_AWARE_PATH,
     OUTPUT_MAPPING_AGNOSTIC_PATH,
-    OUTPUT_BENCHMARK_DIR, CHECK_FOR_ACTION_PATH,
+    OUTPUT_DEFAULT_ALLOW_PATH,
+    OUTPUT_BENCHMARK_DIR,
+    CHECK_FOR_ACTION_PATH,
 )
 
 
@@ -24,6 +25,10 @@ class OPABenchmark:
     Mapping Agnostic:
         One OPA request per required permission.
         Evaluation short-circuits at the first denied permission.
+
+    Default allow:
+        It defines a reference where each request are just allowed without any evaluation.
+        It is used to measure the http latency of the OPA request itself, without any evaluation.
 
     Logical test:
         (testId, repetition)
@@ -43,15 +48,18 @@ class OPABenchmark:
         self,
         mapping_aware_file: str | Path,
         mapping_agnostic_file: str | Path,
+        default_allow_file: str | Path,
         output_dir: str | Path,
     ):
         self.mapping_aware_file = Path(mapping_aware_file)
         self.mapping_agnostic_file = Path(mapping_agnostic_file)
+        self.default_allow_file = Path(default_allow_file)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.mapping_aware = self._load(self.mapping_aware_file)
         self.mapping_agnostic = self._load(self.mapping_agnostic_file)
+        self.default_allow = self._load(self.default_allow_file)
 
     # ==========================================================
     # LOAD
@@ -167,6 +175,33 @@ class OPABenchmark:
                 "decision": bool(result.get("opaActual")),
                 "passed": result.get("matches") is True,
                 "calls": 1,
+                "totalHttpLatencyNs": self._ns(result.get("httpLatencyNs")),
+                "rows": [result],
+            })
+
+        return rows
+
+    def _aggregate_default_allow(self) -> List[Dict[str, Any]]:
+        """
+        Default-allow is a baseline: every action request is allowed without
+        authorization-policy evaluation. Its HTTP latency is still measured.
+
+        Each row represents one logical test (testId, repetition), just like
+        Mapping Aware. The expected decision is intentionally not used to
+        override the default-allow result.
+        """
+        rows = []
+
+        for result in self.default_allow:
+            rows.append({
+                "testId": result.get("testId"),
+                "repetition": result.get("repetition"),
+                "securityGroup": result.get("securityGroup"),
+                "action": result.get("action"),
+                "expectedAllowed": bool(result.get("expectedAllowed")),
+                "decision": True,
+                "passed": result.get("matches") is True,
+                "calls": 1 if result.get("httpLatencyNs") is not None else 0,
                 "totalHttpLatencyNs": self._ns(result.get("httpLatencyNs")),
                 "rows": [result],
             })
@@ -311,10 +346,12 @@ class OPABenchmark:
     def summary(self) -> Dict[str, Any]:
         mapping_aware = self._aggregate_mapping_aware()
         mapping_agnostic = self._aggregate_mapping_agnostic()
+        default_allow = self._aggregate_default_allow()
 
         return {
             "mapping_aware": self._mode_summary(mapping_aware),
             "mapping_agnostic": self._mode_summary(mapping_agnostic),
+            "default_allow": self._mode_summary(default_allow),
         }
 
     # ==========================================================
@@ -378,10 +415,12 @@ class OPABenchmark:
     def detailed_statistics(self) -> Dict[str, Any]:
         mapping_aware = self._aggregate_mapping_aware()
         mapping_agnostic = self._aggregate_mapping_agnostic()
+        default_allow = self._aggregate_default_allow()
 
         return {
             "mapping_awareByAction": self._action_statistics(mapping_aware),
             "mapping_agnosticByAction": self._action_statistics(mapping_agnostic),
+            "default_allowByAction": self._action_statistics(default_allow),
             "mapping_agnosticByPermission": self._permission_statistics(),
         }
 
@@ -397,7 +436,7 @@ class OPABenchmark:
         print("OPA BENCHMARK")
         print("=" * 90)
 
-        for mode in ("mapping_aware", "mapping_agnostic"):
+        for mode in ("mapping_aware", "mapping_agnostic", "default_allow"):
             m = summary[mode]
 
             print()
@@ -455,6 +494,10 @@ class OPABenchmark:
         print_table(
             "MAPPING AGNOSTIC — TOTAL TIME BY ACTION",
             details["mapping_agnosticByAction"],
+        )
+        print_table(
+            "DEFAULT ALLOW — TOTAL TIME BY ACTION",
+            details["default_allowByAction"],
         )
         print_table(
             "MAPPING AGNOSTIC — TIME BY PERMISSION",
@@ -621,29 +664,54 @@ class OPABenchmark:
         axes[2].grid(True, alpha=0.3)
 
         axes[2].set_xticks(x)
+        axes[2].set_xticklabels([""] * len(x))
 
-        # Add ACTION to every test label.
-        labels = []
-
-        for key in keys:
+        # Group repetitions by test ID.
+        test_groups = {}
+        for i, key in enumerate(keys):
             test_id, repetition = key
-
-            test = (
-                    mapping_aware_map.get(key)
-                    or mapping_agnostic_map.get(key)
-            )
-
+            test = mapping_aware_map.get(key) or mapping_agnostic_map.get(key)
             action = test.get("action", "UNKNOWN")
 
-            labels.append(
-                f"{test_id}/{repetition}\n{action}"
+            if test_id not in test_groups:
+                test_groups[test_id] = {
+                    "positions": [],
+                    "action": action,
+                }
+
+            test_groups[test_id]["positions"].append(x[i])
+
+        # Add grouped labels below the x-axis.
+        for test_id, group in test_groups.items():
+            positions = group["positions"]
+            center = (positions[0] + positions[-1]) / 2
+
+            axes[2].text(
+                center,
+                -0.18,
+                f"Test {test_id}\n{group['action']}",
+                transform=axes[2].get_xaxis_transform(),
+                ha="right",
+                va="top",
+                rotation=45,
+                rotation_mode="anchor",
+                fontsize=8,
             )
 
-        axes[2].set_xticklabels(
-            labels,
-            rotation=45,
-            ha="right",
-        )
+            # Separate groups visually.
+            if positions[-1] < x[-1]:
+                axes[2].axvline(
+                    positions[-1] + 0.5,
+                    color="gray",
+                    linestyle=":",
+                    alpha=0.5,
+                )
+
+        axes[2].set_xlabel("Logical tests (repetitions grouped by test ID)")
+        axes[2].tick_params(axis="x", length=0)
+
+        # Leave enough room for the grouped labels.
+        fig.subplots_adjust(bottom=0.42)
 
         fig.tight_layout()
 
@@ -802,6 +870,57 @@ class OPABenchmark:
         plt.close(fig)
 
     # ==========================================================
+    # THREE-MODE AVERAGE LATENCY GRAPH
+    # ==========================================================
+
+    def plot_average_time_three_modes(self) -> None:
+        """
+        Compare average total HTTP latency per logical action test for:
+        Mapping Aware, Mapping Agnostic, and Default Allow.
+
+        Mapping Agnostic time is the sum of the permission requests actually
+        executed for that logical test. Default Allow is the no-policy-
+        evaluation baseline, not an authorization-equivalent result.
+        """
+        details = self.detailed_statistics()
+        aware = details["mapping_awareByAction"]
+        agnostic = details["mapping_agnosticByAction"]
+        default = details["default_allowByAction"]
+
+        actions = sorted(set(aware) | set(agnostic) | set(default))
+        if not actions:
+            return
+
+        x = list(range(len(actions)))
+        width = 0.25
+
+        def avg_ms(dataset, action):
+            entry = dataset.get(action)
+            return entry["avgNs"] / 1_000_000 if entry else 0
+
+        aware_values = [avg_ms(aware, action) for action in actions]
+        agnostic_values = [avg_ms(agnostic, action) for action in actions]
+        default_values = [avg_ms(default, action) for action in actions]
+
+        fig, ax = plt.subplots(figsize=(max(12, len(actions) * 1.1), 7))
+        ax.bar([i - width for i in x], aware_values, width=width, label="Mapping Aware")
+        ax.bar(x, agnostic_values, width=width, label="Mapping Agnostic")
+        ax.bar([i + width for i in x], default_values, width=width, label="Default Allow")
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(actions, rotation=45, ha="right")
+        ax.set_xlabel("Action")
+        ax.set_ylabel("Average total HTTP latency (ms)")
+        ax.set_title("Average OPA HTTP Time by Action — Three Authorization Modes")
+        ax.grid(True, axis="y", alpha=0.3)
+        ax.legend()
+        fig.tight_layout()
+
+        output = self.output_dir / "average_time_three_modes.png"
+        fig.savefig(output, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
+    # ==========================================================
     # PERMISSION STATISTICS GRAPH
     # ==========================================================
 
@@ -953,6 +1072,7 @@ class OPABenchmark:
         self.plot_test_comparison()
         self.plot_action_time_statistics()
         self.plot_permission_time_statistics()
+        self.plot_average_time_three_modes()
 
         print()
         print("Benchmark results written to:")
@@ -963,6 +1083,7 @@ if __name__ == "__main__":
     benchmark = OPABenchmark(
         mapping_aware_file=str(OUTPUT_MAPPING_AWARE_PATH),
         mapping_agnostic_file=str(OUTPUT_MAPPING_AGNOSTIC_PATH),
+        default_allow_file=str(OUTPUT_DEFAULT_ALLOW_PATH),
         output_dir=str(OUTPUT_BENCHMARK_DIR),
     )
 
@@ -972,3 +1093,4 @@ if __name__ == "__main__":
         check_for_action_file=CHECK_FOR_ACTION_PATH,
         output_file="Analysis/output/action_permission_euler.png"
     )
+

@@ -1,0 +1,13 @@
+services:
+  opa-default-allowed:
+    image: openpolicyagent/opa:latest
+    container_name: opa-mapping-aware-all-allowed
+    ports:
+      - "8184:8184"
+    volumes:
+      - ./opa:/policy
+    command:
+      - "run"
+      - "--server"
+      - "--addr=0.0.0.0:8184"
+      - "/policy"

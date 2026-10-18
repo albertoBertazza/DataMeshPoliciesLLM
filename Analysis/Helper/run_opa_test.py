@@ -7,7 +7,7 @@ import requests
 
 from Helper.action_resolver import AuthorizationResolver
 
-def run_opa_tests( tests: List[Dict[str, Any]], action_permissions_file: str | Path, policy_file: str | Path, opa_url: str, output_file_path: str | Path, is_mapping_agnostic: bool, repetitions: int = 1):
+def run_opa_tests( tests: List[Dict[str, Any]], action_permissions_file: str | Path, policy_file: str | Path, opa_url: str, output_file_path: str | Path, is_mapping_agnostic: bool, repetitions: int = 1, is_default_allowed: bool = False ):
     """
     Execute already-generated tests against OPA.
 
@@ -36,11 +36,6 @@ def run_opa_tests( tests: List[Dict[str, Any]], action_permissions_file: str | P
     with Path(action_permissions_file).open( "r", encoding="utf-8") as file:
         action_permissions = json.load(file)
 
-    # ============================================================
-    # CREATE RESOLVER
-    # ============================================================
-
-    resolver = AuthorizationResolver( policy_file=policy_file, action_permissions_file=action_permissions_file )
 
     # ============================================================
     # EXECUTION
@@ -123,7 +118,24 @@ def run_opa_tests( tests: List[Dict[str, Any]], action_permissions_file: str | P
             # Resolve expected authorization
             # ----------------------------------------------------
 
-            resolved = resolver.resolve( security_group=security_group, action_or_permission=operation, resource=resource)
+            resolved = None
+            if not is_default_allowed:
+                # ============================================================
+                # CREATE RESOLVER
+                # ============================================================
+
+                resolver = AuthorizationResolver(policy_file=policy_file, action_permissions_file=action_permissions_file)
+                resolved = resolver.resolve( security_group=security_group, action_or_permission=operation, resource=resource)
+            else :
+                resolved = {
+                    "operations": {
+                        operation: {
+                            "allowed": True,
+                            "permissionResults": {},
+                            "permissionDetails": {}
+                        }
+                    },
+                }
 
             expected_operation = resolved[ "operations" ][operation]
 

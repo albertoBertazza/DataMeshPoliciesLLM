@@ -14,7 +14,8 @@ from Pipelines.costantPath import DATA_MAPPING_AGNOSTIC_PATH, DATA_MAPPING_AWARE
     MAPPING_AWARE_OPA_DOCKER_DIR, CHECK_FOR_ACTION_PATH, DATA_MESH_STRUCTURE_PATH, USER_CREDENTIALS_PATH, \
     PERMISSION_DEPTH_PATH, OPA_URL_MAPPING_AWARE, OUTPUT_MAPPING_AWARE_PATH, MAPPING_AGNOSTIC_OPA_DOCKER_DIR, \
     OPA_URL_MAPPING_AGNOSTIC, OUTPUT_MAPPING_AGNOSTIC_PATH, MAPPING_AWARE_PORT, \
-    MAPPING_AGNOSTIC_PORT
+    MAPPING_AGNOSTIC_PORT, DEFAULT_ALLOW_OPA_DOCKER_DIR, OPA_URL_DEFAULT_ALLOW, OUTPUT_DEFAULT_ALLOW_PATH, \
+    DEFAULT_ALLOW_PORT
 
 
 def start_docker_opa(opa_dir, health_port):
@@ -305,8 +306,8 @@ if __name__ == "__main__":
     print("=" * 60)
     print("ANALYSIS MAPPING AWARE AND MAPPING AGNOSTIC OPA")
     print("=" * 60)
-    NUMBER_OF_TEST = 10
-    REPETITIONS = 5
+    NUMBER_OF_TEST = 28
+    REPETITIONS = 20
     SEED = 42
 
     # ============================================================
@@ -337,9 +338,26 @@ if __name__ == "__main__":
 
     stop_docker_opa( MAPPING_AWARE_OPA_DOCKER_DIR )
     stop_docker_opa(MAPPING_AGNOSTIC_OPA_DOCKER_DIR)
+    stop_docker_opa(DEFAULT_ALLOW_OPA_DOCKER_DIR)
 
     # ============================================================
-    # 4. MAPPING AWARE
+    # 4. DEFAULT ALLOW : needed to measure estimated http latency.
+    # ============================================================
+
+    print()
+    print("=" * 100)
+    print("\t\tANALYSIS DEFAULT ALLOW")
+    print("=" * 100)
+    start_docker_opa(DEFAULT_ALLOW_OPA_DOCKER_DIR, DEFAULT_ALLOW_PORT)
+    try:
+        run_opa_tests(tests=tests, action_permissions_file=CHECK_FOR_ACTION_PATH, policy_file="",
+                      opa_url=OPA_URL_DEFAULT_ALLOW, output_file_path=OUTPUT_DEFAULT_ALLOW_PATH,
+                      is_mapping_agnostic=False, repetitions=REPETITIONS,is_default_allowed=True )
+    finally:
+        stop_docker_opa(DEFAULT_ALLOW_OPA_DOCKER_DIR)
+
+    # ============================================================
+    # 5. MAPPING AWARE
     # ============================================================
 
     print()
@@ -348,12 +366,12 @@ if __name__ == "__main__":
     print("=" * 100)
     start_docker_opa(MAPPING_AWARE_OPA_DOCKER_DIR, MAPPING_AWARE_PORT)
     try:
-        run_opa_tests(tests=tests, action_permissions_file=CHECK_FOR_ACTION_PATH, policy_file=DATA_MAPPING_AWARE_PATH, opa_url=OPA_URL_MAPPING_AWARE, output_file_path=OUTPUT_MAPPING_AWARE_PATH, is_mapping_agnostic=False, repetitions=REPETITIONS, )
+        run_opa_tests(tests=tests, action_permissions_file=CHECK_FOR_ACTION_PATH, policy_file=DATA_MAPPING_AWARE_PATH, opa_url=OPA_URL_MAPPING_AWARE, output_file_path=OUTPUT_MAPPING_AWARE_PATH, is_mapping_agnostic=False, repetitions=REPETITIONS, is_default_allowed=False )
     finally:
         stop_docker_opa(MAPPING_AWARE_OPA_DOCKER_DIR)
 
     # ============================================================
-    # 5. MAPPING AGNOSTIC
+    # 6. MAPPING AGNOSTIC
     # ============================================================
 
     print()
@@ -362,6 +380,6 @@ if __name__ == "__main__":
     print("=" * 100)
     start_docker_opa( MAPPING_AGNOSTIC_OPA_DOCKER_DIR, MAPPING_AGNOSTIC_PORT)
     try:
-        run_opa_tests(tests=tests, action_permissions_file=CHECK_FOR_ACTION_PATH, policy_file=DATA_MAPPING_AGNOSTIC_PATH, opa_url=OPA_URL_MAPPING_AGNOSTIC, output_file_path=OUTPUT_MAPPING_AGNOSTIC_PATH, is_mapping_agnostic=True, repetitions=REPETITIONS, )
+        run_opa_tests(tests=tests, action_permissions_file=CHECK_FOR_ACTION_PATH, policy_file=DATA_MAPPING_AGNOSTIC_PATH, opa_url=OPA_URL_MAPPING_AGNOSTIC, output_file_path=OUTPUT_MAPPING_AGNOSTIC_PATH, is_mapping_agnostic=True, repetitions=REPETITIONS, is_default_allowed=False )
     finally:
         stop_docker_opa( MAPPING_AGNOSTIC_OPA_DOCKER_DIR )
