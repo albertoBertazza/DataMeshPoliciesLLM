@@ -131,3 +131,4 @@ auditor can  see hr schema in the list of schemas inside iceberg
 auditor can show the list of schemas inside iceberg
 
 
+#TODO WHEN DATA_MESH change what is referenced by the cumulative tree must exist...
