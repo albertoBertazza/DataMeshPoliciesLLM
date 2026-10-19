@@ -1,11 +1,7 @@
 from typing import Optional, Dict, Any
 
 
-def build_opa_input(
-    resource: Dict[str, Optional[str]],
-    operation: str,
-    security_group: str,
-) -> Dict[str, Any]:
+def build_opa_input(resource: Dict[str, Optional[str]], operation: str, security_group: str) -> Dict[str, Any]:
     """
     Build the input object expected by package trino.authz.
 

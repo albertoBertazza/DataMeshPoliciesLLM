@@ -306,8 +306,8 @@ if __name__ == "__main__":
     print("=" * 60)
     print("ANALYSIS MAPPING AWARE AND MAPPING AGNOSTIC OPA")
     print("=" * 60)
-    NUMBER_OF_TEST = 28
-    REPETITIONS = 20
+    NUMBER_OF_TEST = 20
+    REPETITIONS = 30
     SEED = 42
 
     # ============================================================

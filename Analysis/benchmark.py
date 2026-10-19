@@ -35,7 +35,7 @@ class OPABenchmark:
 
     For each logical test:
         - calls = number of executed OPA requests
-        - total HTTP time = sum of executed OPA request times
+        - timer_rego_query_eval_ns = time required to OPA to evaluate the Rego query
         - decision = DENY if the first executed denied permission is found;
                      otherwise ALLOW
         - passed = final decision == expectedAllowed
@@ -92,9 +92,9 @@ class OPABenchmark:
         A mapping_agnostic row is an executed OPA request when it has timing data.
 
         This also handles explicitly skipped rows produced by the runner:
-        skipped rows have no HTTP timing.
+        skipped rows have no timer_rego_query_eval_ns timing.
         """
-        return result.get("httpLatencyNs") is not None
+        return result.get("opaEvalNs") is not None
 
     @staticmethod
     def _ns(value: Any) -> float:
@@ -175,7 +175,7 @@ class OPABenchmark:
                 "decision": bool(result.get("opaActual")),
                 "passed": result.get("matches") is True,
                 "calls": 1,
-                "totalHttpLatencyNs": self._ns(result.get("httpLatencyNs")),
+                "total_timer_rego_query_eval_ns": self._ns(result.get("opaEvalNs")),
                 "rows": [result],
             })
 
@@ -184,7 +184,7 @@ class OPABenchmark:
     def _aggregate_default_allow(self) -> List[Dict[str, Any]]:
         """
         Default-allow is a baseline: every action request is allowed without
-        authorization-policy evaluation. Its HTTP latency is still measured.
+        authorization-policy evaluation. Its timer_rego_query_eval_ns is still measured.
 
         Each row represents one logical test (testId, repetition), just like
         Mapping Aware. The expected decision is intentionally not used to
@@ -201,8 +201,8 @@ class OPABenchmark:
                 "expectedAllowed": bool(result.get("expectedAllowed")),
                 "decision": True,
                 "passed": result.get("matches") is True,
-                "calls": 1 if result.get("httpLatencyNs") is not None else 0,
-                "totalHttpLatencyNs": self._ns(result.get("httpLatencyNs")),
+                "calls": 1 if result.get("opaEvalNs") is not None else 0,
+                "total_timer_rego_query_eval_ns": self._ns(result.get("opaEvalNs")),
                 "rows": [result],
             })
 
@@ -214,7 +214,7 @@ class OPABenchmark:
 
         IMPORTANT:
         - Sort by permissionIndex.
-        - Ignore skipped rows with no HTTP timing.
+        - Ignore skipped rows with no timer_rego_query_eval_ns timing.
         - The first executed False is the logical DENY.
         - If no executed False exists, the logical result is ALLOW.
         - Total latency is the sum of executed permission requests.
@@ -259,7 +259,7 @@ class OPABenchmark:
                     decision = True
 
                 total_latency = sum(
-                    self._ns(r.get("httpLatencyNs"))
+                    self._ns(r.get("opaEvalNs"))
                     for r in executed
                 )
                 calls = len(executed)
@@ -273,7 +273,7 @@ class OPABenchmark:
                 "decision": decision,
                 "passed": decision == expected,
                 "calls": calls,
-                "totalHttpLatencyNs": total_latency,
+                "total_timer_rego_query_eval_ns": total_latency,
                 "rows": rows,
             })
 
@@ -324,7 +324,7 @@ class OPABenchmark:
         total = len(tests)
 
         times = [
-            t["totalHttpLatencyNs"]
+            t["total_timer_rego_query_eval_ns"]
             for t in tests
             if t["calls"] > 0
         ]
@@ -340,7 +340,7 @@ class OPABenchmark:
             "averageCallsPerTest": statistics.mean(calls) if calls else 0.0,
             "minCalls": min(calls) if calls else 0,
             "maxCalls": max(calls) if calls else 0,
-            "totalHttpLatencyNs": self._statistics(times),
+            "total_timer_rego_query_eval_ns": self._statistics(times),
         }
 
     def summary(self) -> Dict[str, Any]:
@@ -372,7 +372,7 @@ class OPABenchmark:
             if test["calls"] == 0:
                 continue
             grouped.setdefault(action, []).append(
-                test["totalHttpLatencyNs"]
+                test["total_timer_rego_query_eval_ns"]
             )
 
         return {
@@ -387,7 +387,7 @@ class OPABenchmark:
 
     def _permission_statistics(self) -> Dict[str, Dict[str, Any]]:
         """
-        Mapping Agnostic permission-level min / average / max HTTP latency.
+        Mapping Agnostic permission-level min / average / max timer_rego_query_eval_ns latency.
 
         Skipped permissions are excluded because they did not execute.
         """
@@ -399,7 +399,7 @@ class OPABenchmark:
 
             permission = result.get("operation") or "UNKNOWN"
             grouped.setdefault(permission, []).append(
-                self._ns(result.get("httpLatencyNs"))
+                self._ns(result.get("opaEvalNs"))
             )
 
         return {
@@ -451,9 +451,9 @@ class OPABenchmark:
             print(f"Min calls/test:         {m['minCalls']}")
             print(f"Max calls/test:         {m['maxCalls']}")
 
-            latency = m["totalHttpLatencyNs"]
+            latency = m["total_timer_rego_query_eval_ns"]
             print()
-            print("Total HTTP time per logical test:")
+            print("Total timer_rego_query_eval_ns per logical test:")
             print(f"  Average:              {self._format_ns(latency['mean'])}")
             print(f"  Median:               {self._format_ns(latency['median'])}")
             print(f"  P95:                  {self._format_ns(latency['p95'])}")
@@ -514,7 +514,7 @@ class OPABenchmark:
         One figure with three vertically aligned graphs:
 
         1. Number of OPA calls per logical test.
-        2. Total HTTP time per logical test.
+        2. Total timer_rego_query_eval_ns per logical test.
         3. Passed / failed per logical test.
 
         Mapping Aware and Mapping Agnostic use exactly the same x-axis positions.
@@ -557,7 +557,7 @@ class OPABenchmark:
 
         mapping_aware_time = [
             (
-                mapping_aware_map[k]["totalHttpLatencyNs"] / 1_000_000
+                mapping_aware_map[k]["total_timer_rego_query_eval_ns"] / 1_000_000
                 if k in mapping_aware_map
                 else None
             )
@@ -566,7 +566,7 @@ class OPABenchmark:
 
         mapping_agnostic_time = [
             (
-                mapping_agnostic_map[k]["totalHttpLatencyNs"] / 1_000_000
+                mapping_agnostic_map[k]["total_timer_rego_query_eval_ns"] / 1_000_000
                 if k in mapping_agnostic_map
                 else None
             )
@@ -633,8 +633,8 @@ class OPABenchmark:
             label="Mapping Agnostic",
         )
 
-        axes[1].set_ylabel("Total HTTP time (ms)")
-        axes[1].set_title("Total OPA HTTP Time per Logical Test")
+        axes[1].set_ylabel("Total timer_rego_query_eval_ns (ms)")
+        axes[1].set_title("Total OPA timer_rego_query_eval_ns per Logical Test")
         axes[1].legend()
         axes[1].grid(True, alpha=0.3)
 
@@ -849,7 +849,7 @@ class OPABenchmark:
             axis.legend()
 
         fig.suptitle(
-            "Mapping Aware vs Mapping Agnostic — Total HTTP Time by Action",
+            "Mapping Aware vs Mapping Agnostic — Total timer_rego_query_eval_ns Time by Action",
             fontsize=16,
         )
 
@@ -875,7 +875,7 @@ class OPABenchmark:
 
     def plot_average_time_three_modes(self) -> None:
         """
-        Compare average total HTTP latency per logical action test for:
+        Compare average total timer_rego_query_eval_ns per logical action test for:
         Mapping Aware, Mapping Agnostic, and Default Allow.
 
         Mapping Agnostic time is the sum of the permission requests actually
@@ -910,8 +910,8 @@ class OPABenchmark:
         ax.set_xticks(x)
         ax.set_xticklabels(actions, rotation=45, ha="right")
         ax.set_xlabel("Action")
-        ax.set_ylabel("Average total HTTP latency (ms)")
-        ax.set_title("Average OPA HTTP Time by Action — Three Authorization Modes")
+        ax.set_ylabel("Average timer_rego_query_eval_ns (ms)")
+        ax.set_title("Average OPA timer_rego_query_eval_ns by Action — Three Authorization Modes")
         ax.grid(True, axis="y", alpha=0.3)
         ax.legend()
         fig.tight_layout()
@@ -926,7 +926,7 @@ class OPABenchmark:
 
     def plot_permission_time_statistics(self) -> None:
         """
-        Mapping Agnostic permission-level min / average / max HTTP latency.
+        Mapping Agnostic permission-level min / average / max timer_rego_query_eval_ns.
 
         All statistics are merged into one line chart.
 
@@ -1007,10 +1007,10 @@ class OPABenchmark:
         )
 
         ax.set_xlabel("Permission")
-        ax.set_ylabel("HTTP time (ms)")
+        ax.set_ylabel("timer_rego_query_eval_ns (ms)")
 
         ax.set_title(
-            "Mapping Agnostic — Min / Average / Max HTTP Time by Permission"
+            "Mapping Agnostic — Min / Average / Max timer_rego_query_eval_ns by Permission"
         )
 
         ax.grid(
