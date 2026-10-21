@@ -2,12 +2,18 @@ import json
 import statistics
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from scipy.optimize import minimize_scalar
 
 import matplotlib.pyplot as plt
 
 # Outlier threshold: remove samples farther than this many standard deviations
 # from the mean of their action/permission group.
 MAX_VARIANCE = 2.0
+
+# Offset bounds in nanoseconds.
+# Non-negative offsets only; adjust MAX_BASELINE_OFFSET_NS if needed.
+MIN_BASELINE_OFFSET_NS = 0.0
+MAX_BASELINE_OFFSET_NS = 100_000_000.0
 
 from DrawGraph.draw_permission_in_action import plot_permission_action_matrix
 from Pipelines.costantPath import (
@@ -164,27 +170,43 @@ class OPABenchmark:
     # ==========================================================
 
     def _aggregate_mapping_aware(self) -> List[Dict[str, Any]]:
-        """
-        Mapping Aware already contains one row per logical test.
-        """
+        """One row per logical test, preserving unmeasured tests."""
         rows = []
 
         for result in self.mapping_aware:
+            has_timing = result.get("opaEvalNs") is not None
+            decision_value = result.get("opaActual")
+
+            # A test without a decision or timing is not a measured evaluation.
+            decision = (
+                bool(decision_value)
+                if decision_value is not None and has_timing
+                else None
+            )
+            expected = bool(result.get("expectedAllowed"))
+
             rows.append({
                 "testId": result.get("testId"),
                 "repetition": result.get("repetition"),
                 "securityGroup": result.get("securityGroup"),
                 "action": result.get("action"),
-                "expectedAllowed": bool(result.get("expectedAllowed")),
-                "decision": bool(result.get("opaActual")),
-                "passed": result.get("matches") is True,
-                "calls": 1,
-                "total_timer_rego_query_eval_ns": self._ns(result.get("opaEvalNs")),
-                "total_opa_handler_ns": self._ns(result.get("opaHandlerNs")),
+                "expectedAllowed": expected,
+                "decision": decision,
+                "passed": decision == expected if decision is not None else None,
+                "calls": 1 if has_timing else 0,
+                "total_timer_rego_query_eval_ns": (
+                    self._ns(result.get("opaEvalNs")) if has_timing else None
+                ),
+                "total_opa_handler_ns": (
+                    self._ns(result.get("opaHandlerNs"))
+                    if result.get("opaHandlerNs") is not None
+                    else None
+                ),
                 "rows": [result],
             })
 
         return rows
+
 
     def _action_call_series(self):
         """Single source of truth for the 'OPA calls per action' line.
@@ -204,49 +226,49 @@ class OPABenchmark:
         return actions, aware_calls, agnostic_calls
 
     def _aggregate_default_allow(self) -> List[Dict[str, Any]]:
-        """
-        Default-allow is a baseline: every action request is allowed without
-        authorization-policy evaluation. Its timer_rego_query_eval_ns is still measured.
+        """One row per Default Allow logical test.
 
-        Each row represents one logical test (testId, repetition), just like
-        Mapping Aware. The expected decision is intentionally not used to
-        override the default-allow result.
+        Default Allow always allows when it executes, but missing timing data
+        means the test cannot be treated as an evaluated result.
         """
         rows = []
 
         for result in self.default_allow:
+            has_timing = result.get("opaEvalNs") is not None
+            decision = True if has_timing else None
+            expected = bool(result.get("expectedAllowed"))
+
             rows.append({
                 "testId": result.get("testId"),
                 "repetition": result.get("repetition"),
                 "securityGroup": result.get("securityGroup"),
                 "action": result.get("action"),
-                "expectedAllowed": bool(result.get("expectedAllowed")),
-                "decision": True,
-                "passed": result.get("matches") is True,
-                "calls": 1 if result.get("opaEvalNs") is not None else 0,
-                "total_timer_rego_query_eval_ns": self._ns(result.get("opaEvalNs")),
-                "total_opa_handler_ns": self._ns(result.get("opaHandlerNs")),
+                "expectedAllowed": expected,
+                "decision": decision,
+                "passed": decision == expected if decision is not None else None,
+                "calls": 1 if has_timing else 0,
+                "total_timer_rego_query_eval_ns": (
+                    self._ns(result.get("opaEvalNs")) if has_timing else None
+                ),
+                "total_opa_handler_ns": (
+                    self._ns(result.get("opaHandlerNs"))
+                    if result.get("opaHandlerNs") is not None
+                    else None
+                ),
                 "rows": [result],
             })
 
         return rows
 
     def _aggregate_mapping_agnostic(self) -> List[Dict[str, Any]]:
-        """
-        Aggregate all permission requests belonging to one logical test.
+        """Aggregate executed permission requests per logical test.
 
-        IMPORTANT:
-        - Sort by permissionIndex.
-        - Ignore skipped rows with no timer_rego_query_eval_ns timing.
-        - The first executed False is the logical DENY.
-        - If no executed False exists, the logical result is ALLOW.
-        - Total latency is the sum of executed permission requests.
+        Missing executions are marked as unmeasured, not as authorization denials.
         """
         groups: Dict[Tuple[Any, Any], List[Dict[str, Any]]] = {}
 
         for result in self.mapping_agnostic:
-            key = self._test_key(result)
-            groups.setdefault(key, []).append(result)
+            groups.setdefault(self._test_key(result), []).append(result)
 
         aggregated = []
 
@@ -256,49 +278,53 @@ class OPABenchmark:
                 key=lambda r: (
                     r.get("permissionIndex")
                     if r.get("permissionIndex") is not None
-                    else 10**9
+                    else 10 ** 9
                 ),
             )
 
             executed = [r for r in rows if self._executed(r)]
+            expected = bool(
+                (executed[0] if executed else rows[0]).get("expectedAllowed")
+            )
 
             if not executed:
-                # Keep the logical test visible, but it cannot be timed.
-                expected = bool(rows[0].get("expectedAllowed"))
-                decision = False
-                total_latency = 0.0
-                total_handler = 0.0
+                decision = None
+                total_latency = None
+                total_handler = None
                 calls = 0
             else:
-                expected = bool(executed[0].get("expectedAllowed"))
-
                 first_denied = next(
                     (r for r in executed if r.get("opaActual") is False),
                     None,
                 )
 
-                if first_denied is not None:
-                    decision = False
+                # If any executed permission has an invalid/missing decision,
+                # do not silently treat it as ALLOW.
+                decisions_valid = all(
+                    isinstance(r.get("opaActual"), bool) for r in executed
+                )
+
+                if not decisions_valid:
+                    decision = None
                 else:
-                    decision = True
+                    decision = first_denied is None
 
                 total_latency = sum(
-                    self._ns(r.get("opaEvalNs"))
-                    for r in executed
+                    self._ns(r.get("opaEvalNs")) for r in executed
                 )
-                total_handler = sum(
+
+                handler_values = [
                     self._ns(r.get("opaHandlerNs"))
                     for r in executed
-                )
-                # permissionIndex is zero-based. Use the highest permission
-                # index actually executed for this logical test, plus one,
-                # as the number of Mapping Agnostic OPA calls. This is more
-                # robust than len(executed) if the records contain gaps.
-                executed_indexes = [
-                    r.get("permissionIndex") for r in executed
-                    if isinstance(r.get("permissionIndex"), int)
+                    if r.get("opaHandlerNs") is not None
                 ]
-                calls = max(executed_indexes) + 1 if executed_indexes else len(executed)
+                total_handler = (
+                    sum(handler_values) if handler_values else None
+                )
+
+                # Count actual executed request rows. Do not infer calls from
+                # permissionIndex because indexes can contain gaps.
+                calls = len(executed)
 
             aggregated.append({
                 "testId": key[0],
@@ -307,18 +333,19 @@ class OPABenchmark:
                 "action": rows[0].get("action"),
                 "expectedAllowed": expected,
                 "decision": decision,
-                "passed": decision == expected,
+                "passed": (
+                    decision == expected if decision is not None else None
+                ),
                 "calls": calls,
                 "total_timer_rego_query_eval_ns": total_latency,
                 "total_opa_handler_ns": total_handler,
                 "rows": rows,
             })
 
-        # Stable ordering: test first, repetition second.
         aggregated.sort(
             key=lambda r: (
-                r["testId"] if r["testId"] is not None else 10**9,
-                r["repetition"] if r["repetition"] is not None else 10**9,
+                r["testId"] if r["testId"] is not None else 10 ** 9,
+                r["repetition"] if r["repetition"] is not None else 10 ** 9,
             )
         )
 
@@ -357,27 +384,45 @@ class OPABenchmark:
     # ==========================================================
 
     def _mode_summary(self, tests: List[Dict[str, Any]]) -> Dict[str, Any]:
-        passed = sum(1 for t in tests if t["passed"])
         total = len(tests)
 
-        times = [
-            t["total_timer_rego_query_eval_ns"]
-            for t in tests
-            if t["calls"] > 0
+        evaluated = [
+            test for test in tests
+            if test.get("decision") is not None
         ]
 
-        calls = [t["calls"] for t in tests]
+        passed = sum(
+            1 for test in evaluated if test.get("passed") is True
+        )
+        failed = len(evaluated) - passed
+        unmeasured = total - len(evaluated)
+
+        filtered_tests = self._filter_tests_by_action(tests)
+
+        times = [
+            test["total_timer_rego_query_eval_ns"]
+            for test in filtered_tests
+            if test.get("calls", 0) > 0
+               and test.get("total_timer_rego_query_eval_ns") is not None
+        ]
+
+        calls = [test.get("calls", 0) for test in tests]
 
         return {
             "logicalTests": total,
+            "evaluatedTests": len(evaluated),
+            "unmeasuredTests": unmeasured,
             "passedTests": passed,
-            "failedTests": total - passed,
-            "accuracy": passed / total if total else 0.0,
+            "failedTests": failed,
+            "accuracy": passed / len(evaluated) if evaluated else 0.0,
             "totalOpaExecutions": sum(calls),
             "averageCallsPerTest": statistics.mean(calls) if calls else 0.0,
             "minCalls": min(calls) if calls else 0,
             "maxCalls": max(calls) if calls else 0,
             "total_timer_rego_query_eval_ns": self._statistics(times),
+            "latencyOutlierFiltering": (
+                f"Per action, {MAX_VARIANCE} standard deviations"
+            ),
         }
 
     def summary(self) -> Dict[str, Any]:
@@ -449,21 +494,29 @@ class OPABenchmark:
         return [calls_by_action.get(action, 0) for action in actions]
 
     @classmethod
-    def _filter_tests_by_action(cls, tests: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Filter logical-test latency outliers independently for each action."""
+    def _filter_tests_by_action(
+            cls,
+            tests: List[Dict[str, Any]],
+            value_key: str = "total_timer_rego_query_eval_ns",
+    ) -> List[Dict[str, Any]]:
+        """Filter latency outliers independently for each action."""
         grouped: Dict[str, List[Dict[str, Any]]] = {}
+
         for test in tests:
-            if test.get("calls", 0) <= 0:
+            value = test.get(value_key)
+
+            if test.get("calls", 0) <= 0 or value is None:
                 continue
-            grouped.setdefault(test.get("action") or "UNKNOWN", []).append(test)
 
-        filtered: List[Dict[str, Any]] = []
+            action = test.get("action") or "UNKNOWN"
+            grouped.setdefault(action, []).append(test)
+
+        filtered = []
+
         for action_tests in grouped.values():
-            filtered.extend(cls._filter_outliers(action_tests, "total_timer_rego_query_eval_ns"))
+            filtered.extend(cls._filter_outliers(action_tests, value_key))
 
-        # Keep the same deterministic order as the original test list.
-        kept_ids = {id(item) for item in filtered}
-        return [test for test in tests if id(test) in kept_ids or test.get("calls", 0) == 0]
+        return filtered
 
     # ==========================================================
     # ACTION TIME STATISTICS
@@ -569,6 +622,8 @@ class OPABenchmark:
             print(f"Average calls/test:     {m['averageCallsPerTest']:.2f}")
             print(f"Min calls/test:         {m['minCalls']}")
             print(f"Max calls/test:         {m['maxCalls']}")
+            print(f"Evaluated tests:        {m['evaluatedTests']}")
+            print(f"Unmeasured tests:       {m['unmeasuredTests']}")
 
             latency = m["total_timer_rego_query_eval_ns"]
             print()
@@ -680,7 +735,11 @@ class OPABenchmark:
         agnostic_times = [latency_samples(filtered_agnostic_groups, a) for a in actions]
 
         def pass_rate(grouped, action):
-            tests = grouped.get(action, [])
+            tests = [
+                t for t in grouped.get(action, [])
+                if t.get("decision") is not None
+            ]
+
             return (
                 sum(1 for t in tests if t.get("passed") is True) / len(tests)
                 if tests else float("nan")
@@ -1201,7 +1260,7 @@ class OPABenchmark:
         ax.plot(
             x, expected_calls, color="darkorange", marker="D", linestyle="-",
             linewidth=2,
-            label="Mapping Agnostic OPA calls (max permissionIndex + 1 per action)",
+            label="Maximum observed OPA calls per action",
         )
 
         finite_ratios = [r for r in ratios if r == r]
@@ -1238,19 +1297,20 @@ class OPABenchmark:
     # PERMISSION MEAN vs DEFAULT-ALLOW BASELINE
     # ==========================================================
 
-    def _default_allow_mean_ns(self) -> Optional[float]:
-        """Single constant: mean timer_rego_query_eval_ns of default allow.
 
-        All default-allow samples are pooled (one per logical test), the same
-        outlier filter used elsewhere is applied, then the mean is taken.
-        """
-        samples = [
-            t for t in self._aggregate_default_allow()
-            if t["calls"] > 0
+    def _default_allow_mean_ns(self) -> Optional[float]:
+        """Mean Default Allow latency after per-action outlier filtering."""
+        samples = self._aggregate_default_allow()
+        filtered_samples = self._filter_tests_by_action(samples)
+
+        values = [
+            test["total_timer_rego_query_eval_ns"]
+            for test in filtered_samples
+            if test["calls"] > 0
         ]
-        samples = self._filter_outliers(samples, "total_timer_rego_query_eval_ns")
-        values = [t["total_timer_rego_query_eval_ns"] for t in samples]
+
         return statistics.mean(values) if values else None
+
 
     def plot_permission_mean_vs_default_allow(self) -> None:
         """
@@ -1421,6 +1481,412 @@ class OPABenchmark:
         plt.close(fig)
 
 
+    # ==========================================================
+    # BASELINE-RELATIVE EVALUATION COST
+    # (SEPARATE MEASURED DEFAULT-ALLOW BASELINES)
+    # ==========================================================
+
+
+    def plot_baseline_relative_cost(self) -> None:
+        """
+        Compare baseline-relative Mapping Aware and Mapping Agnostic costs.
+
+        Baseline X:
+            Mean filtered Default Allow latency per OPA request for Mapping Aware.
+
+        Baseline Y:
+            Mean filtered Default Allow latency per OPA request for Mapping Agnostic.
+
+        Mapping Aware incremental cost:
+            A_i - B_X
+
+        Mapping Agnostic incremental cost:
+            P_i - k_i * B_Y
+
+        Equivalence ratio:
+            N* = Mapping Agnostic incremental cost
+                 / Mapping Aware incremental cost
+
+        Tests are matched by (testId, repetition).
+        """
+
+        # ------------------------------------------------------
+        # 1. Calculate the two measured baselines.
+        # ------------------------------------------------------
+        default_rows = self._aggregate_default_allow()
+        filtered_default = self._filter_tests_by_action(default_rows)
+
+        baseline_x_values = [
+            float(row["total_timer_rego_query_eval_ns"])
+            for row in filtered_default
+            if row.get("calls", 0) > 0
+            and row.get("total_timer_rego_query_eval_ns") is not None
+            and float(row["total_timer_rego_query_eval_ns"]) >= 0
+        ]
+
+        # Default Allow is the shared source of baseline measurements.
+        # Keep separate lists so the report explicitly records the samples
+        # used for each baseline.
+        baseline_y_values = list(baseline_x_values)
+
+        if not baseline_x_values:
+            print(
+                "Baseline-relative graph skipped: no valid, filtered "
+                "Default Allow measurements."
+            )
+            return
+
+        baseline_x_ns = statistics.mean(baseline_x_values)
+        baseline_y_ns = statistics.mean(baseline_y_values)
+
+        # ------------------------------------------------------
+        # 2. Aggregate and match Mapping Aware / Mapping Agnostic tests.
+        # ------------------------------------------------------
+        aware_rows = self._aggregate_mapping_aware()
+        agnostic_rows = self._aggregate_mapping_agnostic()
+
+        aware_by_key = {
+            self._test_key(row): row
+            for row in aware_rows
+        }
+        agnostic_by_key = {
+            self._test_key(row): row
+            for row in agnostic_rows
+        }
+
+        common_keys = set(aware_by_key) & set(agnostic_by_key)
+
+        if not common_keys:
+            print(
+                "Baseline-relative graph skipped: no matched tests "
+                "by (testId, repetition)."
+            )
+            return
+
+        paired: List[Dict[str, Any]] = []
+
+        for key in sorted(
+            common_keys,
+            key=lambda k: (
+                k[0] if k[0] is not None else 10**9,
+                k[1] if k[1] is not None else 10**9,
+            ),
+        ):
+            aware = aware_by_key[key]
+            agnostic = agnostic_by_key[key]
+
+            action = aware.get("action") or "UNKNOWN"
+            if action != (agnostic.get("action") or "UNKNOWN"):
+                continue
+
+            # Only compare tests with valid measured totals.
+            aware_total = aware.get("total_timer_rego_query_eval_ns")
+            agnostic_total = agnostic.get("total_timer_rego_query_eval_ns")
+
+            if (
+                aware.get("calls", 0) <= 0
+                or agnostic.get("calls", 0) <= 0
+                or aware_total is None
+                or agnostic_total is None
+            ):
+                continue
+
+            aware_ns = float(aware_total)
+            agnostic_ns = float(agnostic_total)
+
+            # Count actual executed requests with timing data for this test.
+            permission_times = [
+                self._ns(result["opaEvalNs"])
+                for result in self.mapping_agnostic
+                if self._test_key(result) == key
+                and self._executed(result)
+                and result.get("opaEvalNs") is not None
+                and self._ns(result["opaEvalNs"]) >= 0
+            ]
+
+            calls = len(permission_times)
+            if calls == 0:
+                continue
+
+            aware_incremental_ns = aware_ns - baseline_x_ns
+            agnostic_incremental_ns = agnostic_ns - calls * baseline_y_ns
+
+            # Negative or zero Mapping Aware incremental cost cannot be a
+            # meaningful denominator for this ratio.
+            n_star = (
+                agnostic_incremental_ns / aware_incremental_ns
+                if aware_incremental_ns > 0
+                else None
+            )
+
+            paired.append({
+                "key": key,
+                "action": action,
+                "aware_ns": aware_ns,
+                "agnostic_ns": agnostic_ns,
+                "permission_check_count": calls,
+                "baseline_x_ns": baseline_x_ns,
+                "baseline_y_ns": baseline_y_ns,
+                "aware_incremental_ns": aware_incremental_ns,
+                "agnostic_incremental_ns": agnostic_incremental_ns,
+                "equivalence_n_star": n_star,
+            })
+
+        if not paired:
+            print(
+                "Baseline-relative graph skipped: no matched tests with "
+                "valid timings and executed permission requests."
+            )
+            return
+
+        # ------------------------------------------------------
+        # 3. Group matched tests by action.
+        # ------------------------------------------------------
+        grouped: Dict[str, List[Dict[str, Any]]] = {}
+
+        for row in paired:
+            grouped.setdefault(row["action"], []).append(row)
+
+        actions = sorted(grouped)
+
+        def mean_us(
+            records: List[Dict[str, Any]],
+            field: str,
+        ) -> float:
+            values = [
+                float(row[field]) / 1_000
+                for row in records
+                if row.get(field) is not None
+            ]
+            return statistics.mean(values) if values else float("nan")
+
+        aware_means = [
+            mean_us(grouped[action], "aware_ns")
+            for action in actions
+        ]
+        agnostic_means = [
+            mean_us(grouped[action], "agnostic_ns")
+            for action in actions
+        ]
+        aware_incremental = [
+            mean_us(grouped[action], "aware_incremental_ns")
+            for action in actions
+        ]
+        agnostic_incremental = [
+            mean_us(grouped[action], "agnostic_incremental_ns")
+            for action in actions
+        ]
+
+        n_star_means = []
+        observed_calls = []
+
+        for action in actions:
+            records = grouped[action]
+            ratios = [
+                row["equivalence_n_star"]
+                for row in records
+                if row["equivalence_n_star"] is not None
+            ]
+
+            n_star_means.append(
+                statistics.mean(ratios) if ratios else float("nan")
+            )
+            observed_calls.append(
+                statistics.mean(
+                    row["permission_check_count"] for row in records
+                )
+            )
+
+        # ------------------------------------------------------
+        # 4. Plot results.
+        # ------------------------------------------------------
+        x_positions = list(range(len(actions)))
+        width = 0.30
+
+        fig, axes = plt.subplots(
+            3,
+            1,
+            figsize=(max(15, len(actions) * 1.15), 16),
+            sharex=True,
+        )
+
+        # Panel 1: measured total times and per-request baselines.
+        axes[0].bar(
+            [i - width / 2 for i in x_positions],
+            aware_means,
+            width,
+            label="Mapping Aware total",
+            color="lightblue",
+            edgecolor="steelblue",
+        )
+        axes[0].bar(
+            [i + width / 2 for i in x_positions],
+            agnostic_means,
+            width,
+            label="Mapping Agnostic total",
+            color="salmon",
+            edgecolor="firebrick",
+        )
+        axes[0].axhline(
+            baseline_x_ns / 1_000,
+            color="steelblue",
+            linestyle="--",
+            linewidth=2,
+            label=f"Baseline X = {baseline_x_ns / 1_000:.3f} µs/request",
+        )
+        axes[0].axhline(
+            baseline_y_ns / 1_000,
+            color="darkorange",
+            linestyle=":",
+            linewidth=2,
+            label=f"Baseline Y = {baseline_y_ns / 1_000:.3f} µs/request",
+        )
+        axes[0].set_ylabel("Mean total time (µs)")
+        axes[0].set_title("Measured OPA Evaluation Time")
+        axes[0].legend()
+        axes[0].grid(True, axis="y", alpha=0.3)
+        axes[0].set_axisbelow(True)
+
+        # Panel 2: incremental cost above the appropriate baseline.
+        axes[1].bar(
+            [i - width / 2 for i in x_positions],
+            aware_incremental,
+            width,
+            label="Mapping Aware: A − B_X",
+            color="lightblue",
+            edgecolor="steelblue",
+        )
+        axes[1].bar(
+            [i + width / 2 for i in x_positions],
+            agnostic_incremental,
+            width,
+            label="Mapping Agnostic: P − kB_Y",
+            color="salmon",
+            edgecolor="firebrick",
+        )
+        axes[1].axhline(0, color="black", linewidth=1)
+        axes[1].set_ylabel("Incremental time per test (µs)")
+        axes[1].set_title("Incremental Cost Above Separate Baselines")
+        axes[1].legend()
+        axes[1].grid(True, axis="y", alpha=0.3)
+        axes[1].set_axisbelow(True)
+
+        # Panel 3: N* compared with the actual mean number of requests.
+        axes[2].bar(
+            [i - width / 2 for i in x_positions],
+            n_star_means,
+            width,
+            label="Equivalence ratio N*",
+            color="mediumpurple",
+        )
+        axes[2].bar(
+            [i + width / 2 for i in x_positions],
+            observed_calls,
+            width,
+            label="Mean executed permission checks",
+            color="darkorange",
+        )
+        axes[2].axhline(0, color="black", linewidth=1)
+        axes[2].set_ylabel("Count / ratio")
+        axes[2].set_title("Equivalent Permission Checks: N* vs Actual Calls")
+        axes[2].legend()
+        axes[2].grid(True, axis="y", alpha=0.3)
+        axes[2].set_axisbelow(True)
+        axes[2].set_xticks(x_positions)
+        axes[2].set_xticklabels(actions, rotation=45, ha="right")
+        axes[2].set_xlabel("Action")
+
+        fig.suptitle(
+            "Baseline-Relative OPA Cost "
+            f"(B_X = {baseline_x_ns / 1_000:.3f} µs, "
+            f"B_Y = {baseline_y_ns / 1_000:.3f} µs)",
+            fontsize=14,
+        )
+        fig.tight_layout()
+
+        output = self.output_dir / "baseline_relative_evaluation_cost.png"
+        fig.savefig(output, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
+        # ------------------------------------------------------
+        # 5. Save the JSON report.
+        # ------------------------------------------------------
+        report: Dict[str, Any] = {
+            "matchedLogicalTests": len(paired),
+            "unit": "nanoseconds",
+            "baselineXNs": baseline_x_ns,
+            "baselineYNs": baseline_y_ns,
+            "baselineXSamplesUsed": len(baseline_x_values),
+            "baselineYSamplesUsed": len(baseline_y_values),
+            "baselineSource": (
+                "Default Allow measurements after per-action outlier filtering"
+            ),
+            "method": {
+                "baselineX": "Mean filtered Default Allow latency per request",
+                "baselineY": "Mean filtered Default Allow latency per request",
+                "mappingAware": "aware total - B_X",
+                "mappingAgnostic": (
+                    "agnostic total - (executed permission request count * B_Y)"
+                ),
+                "equivalenceNStar": (
+                    "Mapping Agnostic incremental cost / "
+                    "Mapping Aware incremental cost"
+                ),
+                "matchingKey": ["testId", "repetition"],
+            },
+            "actions": {},
+        }
+
+        for action in actions:
+            records = grouped[action]
+            ratios = [
+                row["equivalence_n_star"]
+                for row in records
+                if row["equivalence_n_star"] is not None
+            ]
+
+            report["actions"][action] = {
+                "matchedTests": len(records),
+                "meanMappingAwareNs": statistics.mean(
+                    row["aware_ns"] for row in records
+                ),
+                "meanMappingAgnosticTotalNs": statistics.mean(
+                    row["agnostic_ns"] for row in records
+                ),
+                "meanAwareIncrementalNs": statistics.mean(
+                    row["aware_incremental_ns"] for row in records
+                ),
+                "meanAgnosticIncrementalNs": statistics.mean(
+                    row["agnostic_incremental_ns"] for row in records
+                ),
+                "meanEquivalenceNStar": (
+                    statistics.mean(ratios) if ratios else None
+                ),
+                "meanExecutedPermissionChecks": statistics.mean(
+                    row["permission_check_count"] for row in records
+                ),
+            }
+
+        output_json = (
+            self.output_dir / "baseline_relative_evaluation_cost.json"
+        )
+        with output_json.open("w", encoding="utf-8") as file:
+            json.dump(report, file, indent=2)
+
+        print(
+            "Measured Mapping Aware baseline X: "
+            f"{self._format_ns(baseline_x_ns)}"
+        )
+        print(
+            "Measured Mapping Agnostic baseline Y: "
+            f"{self._format_ns(baseline_y_ns)}"
+        )
+        print(f"Baseline X samples used: {len(baseline_x_values)}")
+        print(f"Baseline Y samples used: {len(baseline_y_values)}")
+        print(f"Baseline-relative graph written to:\n{output}")
+        print(f"Baseline-relative statistics written to:\n{output_json}")
+
+
 
     # ==========================================================
     # SAVE RESULTS
@@ -1465,6 +1931,7 @@ class OPABenchmark:
         self.plot_permission_mean_vs_default_allow()
         self.plot_average_time_three_modes()
         self.plot_action_mean_ratio()
+        self.plot_baseline_relative_cost()
 
         print()
         print("Benchmark results written to:")
