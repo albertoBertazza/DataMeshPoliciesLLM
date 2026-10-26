@@ -1,0 +1,4 @@
+IS_LOCAL='False'
+LOCAL_CHAT_MODEL="***.gguf"
+LOCAL_EMBEDDING_MODEL="***.gguf"
+OPENAI_API_KEY='***'

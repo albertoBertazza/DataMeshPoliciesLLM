@@ -5,19 +5,7 @@ from Pipelines.B_TestAndEvaluationPipeline.A_TestGeneration.Resolver.authorizati
 from Pipelines.costantPath import REWRITTEN_RULE_PATH, GENERATED_RULE_PATH, CHECK_FOR_ACTION_PATH, DATA_MESH_STRUCTURE_PATH, ACTION_SQL_MAPPING_PATH, USER_CREDENTIALS_PATH, IS_LOCAL, CHAT_URL, EMBEDDING_URL, CLIENT, MODEL, EMBEDDING_MODEL
 from orchestartor import INDEX_REWRITE_RULE, CHECK_FOR_ACTION, DATA_MESH, SECURITY_GROUPS
 
-def check_action_allowed(
-    rule_passed: str,
-    index_rewrite_rule,
-    check_for_action: Dict[str, Any],
-    data_mesh: Dict[str, Any],
-    security_groups: Any,
-    is_local: bool = False,
-    chat_url: str = '',
-    embedding_url: str = '',
-    client=None,
-    model: str = '',
-    embedding_model: str = ''
-):
+def check_action_allowed(rule_passed: str,index_rewrite_rule,check_for_action: Dict[str, Any],data_mesh: Dict[str, Any],security_groups: Any,is_local: bool = False,chat_url: str = '',embedding_url: str = '',client=None,model: str = '',embedding_model: str = ''):
     # ========================================================================
     # 1. Explanation
     # ========================================================================
@@ -26,19 +14,7 @@ def check_action_allowed(
 
     try:
 
-        explanation = llm_explain(
-            rule_passed,
-            index_rewrite_rule,
-            data_mesh,
-            security_groups,
-            list(check_for_action.keys()),
-            is_local=is_local,
-            chat_url=chat_url,
-            embedding_url=embedding_url,
-            client=client,
-            model=model,
-            embedding_model=embedding_model,
-        )
+        explanation = llm_explain(rule_passed,index_rewrite_rule, data_mesh, security_groups, list(check_for_action.keys()), is_local=is_local, chat_url=chat_url, embedding_url=embedding_url, client=client, model=model, embedding_model=embedding_model)
 
     except Exception as error:
         print("Explanation failed:", error)
@@ -83,25 +59,9 @@ def check_action_allowed(
 
 if __name__ == "__main__":
     while True:
-
         rule = input( "\nRule: " ).strip()
-
         if rule.lower() in ( "exit", "quit"):
             break
-
         if not rule:
             continue
-
-        check_action_allowed(
-            rule_passed=rule,
-            index_rewrite_rule=INDEX_REWRITE_RULE,
-            check_for_action=CHECK_FOR_ACTION,
-            data_mesh=DATA_MESH,
-            security_groups=SECURITY_GROUPS,
-            is_local=IS_LOCAL,
-            chat_url=CHAT_URL,
-            embedding_url=EMBEDDING_URL,
-            client=CLIENT,
-            model=MODEL,
-            embedding_model=EMBEDDING_MODEL
-        )
+        check_action_allowed( rule_passed=rule, index_rewrite_rule=INDEX_REWRITE_RULE, check_for_action=CHECK_FOR_ACTION, data_mesh=DATA_MESH, security_groups=SECURITY_GROUPS, is_local=IS_LOCAL, chat_url=CHAT_URL, embedding_url=EMBEDDING_URL, client=CLIENT, model=MODEL, embedding_model=EMBEDDING_MODEL )

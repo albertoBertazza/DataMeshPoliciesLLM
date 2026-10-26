@@ -119,7 +119,7 @@ if __name__ == "__main__":
     if answer == "y":
         print("🚀 Launching test...")
         # Delete all generated rules: cumulative_tree.json.
-        #delete_files_generated()
+        delete_files_generated()
         total_tests = 0
         total_passed = 0
         total_failed = 0
