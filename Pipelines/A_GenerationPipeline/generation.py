@@ -156,28 +156,12 @@ def build_permission_policy( extracted_tree: Dict[str, Any]) -> Dict[str, Any]:
 # Rule processing
 # ============================================================================
 
-def process_rule(
-    rule_passed: str,
-    index_rewrite_rule,
-    check_for_action: Dict[str, Any],
-    data_mesh: Dict[str, Any],
-    security_groups: Any,
-    is_local: bool = False,
-    chat_url: str = '',
-    embedding_url: str = '',
-    client=None,
-    model: str = '',
-    embedding_model: str = '',
-    skip_user_check: bool = False
-):
+def process_rule(rule_passed: str,index_rewrite_rule,check_for_action: Dict[str, Any],data_mesh: Dict[str, Any],security_groups: Any,is_local: bool = False, chat_url: str = '',embedding_url: str = '',client=None,model: str = '', embedding_model: str = '', skip_user_check: bool = False):
     # ========================================================================
     # 1. Explanation
     # ========================================================================
-
     print( "\n[ 1. LLM rule rewrite]" )
-
     try:
-
         explanation = llm_explain(
             rule_passed,
             index_rewrite_rule,
@@ -191,26 +175,21 @@ def process_rule(
             model=model,
             embedding_model=embedding_model,
         )
-
     except Exception as error:
         print( "Explanation failed:", error)
         return False
-
     if not explanation.get( "existSecureGroup", False):
         print( "Invalid security group." )
         print( "llm_feedback:", explanation.get( "llm_feedback", ""))
         return False
-
     if not explanation.get( "pathExistOnDataMeshStructure", False):
         print( "Resource path does not exist." )
         print( "llm_feedback:", explanation.get( "llm_feedback", ""))
         return False
-
     if not explanation.get( "actionExist", False):
         print( "Action does not exist." )
         print( "llm_feedback:", explanation.get( "llm_feedback", ""))
         return False
-
     print( json.dumps( explanation, indent=2, ensure_ascii=False) )
 
     if not skip_user_check:
@@ -218,11 +197,9 @@ def process_rule(
         print("# Do you mean? ")
         print("#\t"+explanation.get( "text", ""))
         print("#" + "=" * 60)
-
         answer = ""
         while answer != "y" and answer != "n":
             answer = input("Do you wanna accept this interpretation? [y/n]: ").strip().lower()
-
         if answer == "n":
             return False
 
@@ -336,7 +313,6 @@ def main():
             print( "\n" + "=" * 70 )
             print( "POLICY PIPELINE COMPLETED" )
             print( "=" * 70 )
-
         else:
             print( "\nPolicy pipeline failed." )
 

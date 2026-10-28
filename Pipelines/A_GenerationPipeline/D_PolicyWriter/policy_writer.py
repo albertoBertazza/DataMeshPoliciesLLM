@@ -25,12 +25,10 @@ class PolicyWriter:
 
     @classmethod
     def write_final_policy( cls, policy: Dict[str, Any], rego_output_file: str, opa_data_file: str) -> None:
-
         # ------------------------------------------------------------
         # Final generated policy
         # ------------------------------------------------------------
         cls.write( policy, rego_output_file)
-
         # ------------------------------------------------------------
         # Policy consumed by OPA
         # ------------------------------------------------------------

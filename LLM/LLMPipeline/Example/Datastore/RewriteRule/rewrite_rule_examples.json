@@ -5263,5 +5263,631 @@
       },
       "llm_feedback": ""
     }
+  },
+  {
+    "input": {
+      "dataMeshStructure": {
+        "catalogs": [
+          {
+            "name": "iceberg",
+            "schemas": [
+              {
+                "name": "default",
+                "tables": []
+              },
+              {
+                "name": "finance",
+                "tables": [
+                  {
+                    "name": "employee_finance",
+                    "columns": [
+                      {"name": "employee_id", "type": "varchar"},
+                      {"name": "department", "type": "varchar"},
+                      {"name": "annual_salary", "type": "integer"},
+                      {"name": "bonus", "type": "integer"},
+                      {"name": "benefits", "type": "integer"},
+                      {"name": "total_cost", "type": "integer"},
+                      {"name": "annual_revenue_generated", "type": "integer"},
+                      {"name": "profit_contribution", "type": "integer"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "hr",
+                "tables": [
+                  {
+                    "name": "people",
+                    "columns": [
+                      {"name": "employee_index", "type": "integer"},
+                      {"name": "user_id", "type": "varchar"},
+                      {"name": "first_name", "type": "varchar"},
+                      {"name": "last_name", "type": "varchar"},
+                      {"name": "sex", "type": "varchar"},
+                      {"name": "email", "type": "varchar"},
+                      {"name": "phone", "type": "varchar"},
+                      {"name": "date_of_birth", "type": "date"},
+                      {"name": "job_title", "type": "varchar"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "inventory",
+                "tables": [
+                  {
+                    "name": "products",
+                    "columns": [
+                      {"name": "product_index", "type": "integer"},
+                      {"name": "name", "type": "varchar"},
+                      {"name": "description", "type": "varchar"},
+                      {"name": "brand", "type": "varchar"},
+                      {"name": "category", "type": "varchar"},
+                      {"name": "price", "type": "double"},
+                      {"name": "currency", "type": "varchar"},
+                      {"name": "stock", "type": "integer"},
+                      {"name": "ean", "type": "varchar"},
+                      {"name": "color", "type": "varchar"},
+                      {"name": "size", "type": "varchar"},
+                      {"name": "availability", "type": "varchar"},
+                      {"name": "internal_id", "type": "integer"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "procurement",
+                "tables": [
+                  {
+                    "name": "product_catalog",
+                    "columns": [
+                      {"name": "product_index", "type": "integer"},
+                      {"name": "product_id", "type": "varchar"},
+                      {"name": "product_title", "type": "varchar"},
+                      {"name": "raw_description", "type": "varchar"},
+                      {"name": "brand", "type": "varchar"},
+                      {"name": "category", "type": "varchar"},
+                      {"name": "target_language", "type": "varchar"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "sales",
+                "tables": [
+                  {
+                    "name": "offers",
+                    "columns": [
+                      {"name": "offer_index", "type": "integer"},
+                      {"name": "ean", "type": "varchar"},
+                      {"name": "stock", "type": "integer"},
+                      {"name": "price", "type": "double"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "support",
+                "tables": [
+                  {
+                    "name": "support_tickets",
+                    "columns": [
+                      {"name": "ticket_index", "type": "integer"},
+                      {"name": "ticket_id", "type": "varchar"},
+                      {"name": "customer_plan", "type": "varchar"},
+                      {"name": "ticket_subject", "type": "varchar"},
+                      {"name": "ticket_text", "type": "varchar"},
+                      {"name": "priority_hint", "type": "varchar"}
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "securityGroups": [
+        "admin",
+        "analyst",
+        "auditor",
+        "data_engineer",
+        "data_scientist",
+        "etl_job",
+        "finance_manager",
+        "hr_manager",
+        "intern",
+        "inventory_manager",
+        "procurement_manager",
+        "sales_manager",
+        "service_account",
+        "support_manager"
+      ],
+      "availableActions": [
+        "AddColumnAction",
+        "AlterColumnAction",
+        "CreateMaterializedViewAction",
+        "CreateSchemaAction",
+        "CreateTableAction",
+        "CreateViewAction",
+        "CreateViewWithSelectFromColumnsAction",
+        "DeleteFromTableAction",
+        "DropColumnAction",
+        "DropMaterializedViewAction",
+        "DropSchemaAction",
+        "DropTableAction",
+        "DropViewAction",
+        "InsertIntoTableAction",
+        "RefreshMaterializedViewAction",
+        "RenameColumnAction",
+        "RenameMaterializedViewAction",
+        "RenameTableAction",
+        "RenameViewAction",
+        "SetColumnCommentAction",
+        "SetMaterializedViewPropertiesAction",
+        "SetSystemSessionPropertyAction",
+        "SetTableCommentAction",
+        "SetTablePropertiesAction",
+        "SetViewCommentAction",
+        "ShowColumnsAction",
+        "ShowCreateSchemaAction",
+        "ShowCreateTableAction",
+        "ShowSchemasAction",
+        "ShowTablesAction",
+        "TruncateTableAction",
+        "UpdateTableColumnsAction"
+      ],
+      "rule": "The Unknown Manager must not delete records from the HR people table."
+    },
+    "explanation": {
+      "text": "The Unknown Manager must not delete records from the HR people table.",
+      "securityGroup": "unknown_manager",
+      "existSecureGroup": false,
+      "pathExistOnDataMeshStructure": true,
+      "resource": {
+        "catalog": "iceberg",
+        "schema": "hr",
+        "table": "people",
+        "column": ""
+      },
+      "allowed": [],
+      "deny": [
+        "DeleteFromTableAction"
+      ],
+      "row_filter": null,
+      "column_masks": {},
+      "FilterCatalogs": {
+        "allowed": [],
+        "deny": []
+      },
+      "FilterSchemas": {
+        "allowed": [],
+        "deny": []
+      },
+      "FilterTables": {
+        "allowed": [],
+        "deny": []
+      },
+      "FilterColumns": {
+        "allowed": [],
+        "deny": []
+      },
+      "llm_feedback": ""
+    }
+  },
+  {
+    "input": {
+      "dataMeshStructure": {
+        "catalogs": [
+          {
+            "name": "iceberg",
+            "schemas": [
+              {
+                "name": "default",
+                "tables": []
+              },
+              {
+                "name": "finance",
+                "tables": [
+                  {
+                    "name": "employee_finance",
+                    "columns": [
+                      {"name": "employee_id", "type": "varchar"},
+                      {"name": "department", "type": "varchar"},
+                      {"name": "annual_salary", "type": "integer"},
+                      {"name": "bonus", "type": "integer"},
+                      {"name": "benefits", "type": "integer"},
+                      {"name": "total_cost", "type": "integer"},
+                      {"name": "annual_revenue_generated", "type": "integer"},
+                      {"name": "profit_contribution", "type": "integer"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "hr",
+                "tables": [
+                  {
+                    "name": "people",
+                    "columns": [
+                      {"name": "employee_index", "type": "integer"},
+                      {"name": "user_id", "type": "varchar"},
+                      {"name": "first_name", "type": "varchar"},
+                      {"name": "last_name", "type": "varchar"},
+                      {"name": "sex", "type": "varchar"},
+                      {"name": "email", "type": "varchar"},
+                      {"name": "phone", "type": "varchar"},
+                      {"name": "date_of_birth", "type": "date"},
+                      {"name": "job_title", "type": "varchar"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "inventory",
+                "tables": [
+                  {
+                    "name": "products",
+                    "columns": [
+                      {"name": "product_index", "type": "integer"},
+                      {"name": "name", "type": "varchar"},
+                      {"name": "description", "type": "varchar"},
+                      {"name": "brand", "type": "varchar"},
+                      {"name": "category", "type": "varchar"},
+                      {"name": "price", "type": "double"},
+                      {"name": "currency", "type": "varchar"},
+                      {"name": "stock", "type": "integer"},
+                      {"name": "ean", "type": "varchar"},
+                      {"name": "color", "type": "varchar"},
+                      {"name": "size", "type": "varchar"},
+                      {"name": "availability", "type": "varchar"},
+                      {"name": "internal_id", "type": "integer"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "procurement",
+                "tables": [
+                  {
+                    "name": "product_catalog",
+                    "columns": [
+                      {"name": "product_index", "type": "integer"},
+                      {"name": "product_id", "type": "varchar"},
+                      {"name": "product_title", "type": "varchar"},
+                      {"name": "raw_description", "type": "varchar"},
+                      {"name": "brand", "type": "varchar"},
+                      {"name": "category", "type": "varchar"},
+                      {"name": "target_language", "type": "varchar"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "sales",
+                "tables": [
+                  {
+                    "name": "offers",
+                    "columns": [
+                      {"name": "offer_index", "type": "integer"},
+                      {"name": "ean", "type": "varchar"},
+                      {"name": "stock", "type": "integer"},
+                      {"name": "price", "type": "double"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "support",
+                "tables": [
+                  {
+                    "name": "support_tickets",
+                    "columns": [
+                      {"name": "ticket_index", "type": "integer"},
+                      {"name": "ticket_id", "type": "varchar"},
+                      {"name": "customer_plan", "type": "varchar"},
+                      {"name": "ticket_subject", "type": "varchar"},
+                      {"name": "ticket_text", "type": "varchar"},
+                      {"name": "priority_hint", "type": "varchar"}
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "securityGroups": [
+        "admin",
+        "analyst",
+        "auditor",
+        "data_engineer",
+        "data_scientist",
+        "etl_job",
+        "finance_manager",
+        "hr_manager",
+        "intern",
+        "inventory_manager",
+        "procurement_manager",
+        "sales_manager",
+        "service_account",
+        "support_manager"
+      ],
+      "availableActions": [
+        "AddColumnAction",
+        "AlterColumnAction",
+        "CreateMaterializedViewAction",
+        "CreateSchemaAction",
+        "CreateTableAction",
+        "CreateViewAction",
+        "CreateViewWithSelectFromColumnsAction",
+        "DeleteFromTableAction",
+        "DropColumnAction",
+        "DropMaterializedViewAction",
+        "DropSchemaAction",
+        "DropTableAction",
+        "DropViewAction",
+        "InsertIntoTableAction",
+        "RefreshMaterializedViewAction",
+        "RenameColumnAction",
+        "RenameMaterializedViewAction",
+        "RenameTableAction",
+        "RenameViewAction",
+        "SetColumnCommentAction",
+        "SetMaterializedViewPropertiesAction",
+        "SetSystemSessionPropertyAction",
+        "SetTableCommentAction",
+        "SetTablePropertiesAction",
+        "SetViewCommentAction",
+        "ShowColumnsAction",
+        "ShowCreateSchemaAction",
+        "ShowCreateTableAction",
+        "ShowSchemasAction",
+        "ShowTablesAction",
+        "TruncateTableAction",
+        "UpdateTableColumnsAction"
+      ],
+      "rule": "The Finance Manager must not access the nonexistent payroll table."
+    },
+    "explanation": {
+      "text": "The Finance Manager must not access the nonexistent payroll table.",
+      "securityGroup": "finance_manager",
+      "existSecureGroup": true,
+      "pathExistOnDataMeshStructure": false,
+      "resource": {
+        "catalog": "iceberg",
+        "schema": "finance",
+        "table": "payroll",
+        "column": ""
+      },
+      "allowed": [],
+      "deny": [],
+      "row_filter": null,
+      "column_masks": {},
+      "FilterCatalogs": {
+        "allowed": [],
+        "deny": []
+      },
+      "FilterSchemas": {
+        "allowed": [],
+        "deny": []
+      },
+      "FilterTables": {
+        "allowed": [],
+        "deny": []
+      },
+      "FilterColumns": {
+        "allowed": [],
+        "deny": []
+      },
+      "llm_feedback": ""
+    }
+  },
+  {
+    "input": {
+      "dataMeshStructure": {
+        "catalogs": [
+          {
+            "name": "iceberg",
+            "schemas": [
+              {
+                "name": "default",
+                "tables": []
+              },
+              {
+                "name": "finance",
+                "tables": [
+                  {
+                    "name": "employee_finance",
+                    "columns": [
+                      {"name": "employee_id", "type": "varchar"},
+                      {"name": "department", "type": "varchar"},
+                      {"name": "annual_salary", "type": "integer"},
+                      {"name": "bonus", "type": "integer"},
+                      {"name": "benefits", "type": "integer"},
+                      {"name": "total_cost", "type": "integer"},
+                      {"name": "annual_revenue_generated", "type": "integer"},
+                      {"name": "profit_contribution", "type": "integer"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "hr",
+                "tables": [
+                  {
+                    "name": "people",
+                    "columns": [
+                      {"name": "employee_index", "type": "integer"},
+                      {"name": "user_id", "type": "varchar"},
+                      {"name": "first_name", "type": "varchar"},
+                      {"name": "last_name", "type": "varchar"},
+                      {"name": "sex", "type": "varchar"},
+                      {"name": "email", "type": "varchar"},
+                      {"name": "phone", "type": "varchar"},
+                      {"name": "date_of_birth", "type": "date"},
+                      {"name": "job_title", "type": "varchar"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "inventory",
+                "tables": [
+                  {
+                    "name": "products",
+                    "columns": [
+                      {"name": "product_index", "type": "integer"},
+                      {"name": "name", "type": "varchar"},
+                      {"name": "description", "type": "varchar"},
+                      {"name": "brand", "type": "varchar"},
+                      {"name": "category", "type": "varchar"},
+                      {"name": "price", "type": "double"},
+                      {"name": "currency", "type": "varchar"},
+                      {"name": "stock", "type": "integer"},
+                      {"name": "ean", "type": "varchar"},
+                      {"name": "color", "type": "varchar"},
+                      {"name": "size", "type": "varchar"},
+                      {"name": "availability", "type": "varchar"},
+                      {"name": "internal_id", "type": "integer"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "procurement",
+                "tables": [
+                  {
+                    "name": "product_catalog",
+                    "columns": [
+                      {"name": "product_index", "type": "integer"},
+                      {"name": "product_id", "type": "varchar"},
+                      {"name": "product_title", "type": "varchar"},
+                      {"name": "raw_description", "type": "varchar"},
+                      {"name": "brand", "type": "varchar"},
+                      {"name": "category", "type": "varchar"},
+                      {"name": "target_language", "type": "varchar"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "sales",
+                "tables": [
+                  {
+                    "name": "offers",
+                    "columns": [
+                      {"name": "offer_index", "type": "integer"},
+                      {"name": "ean", "type": "varchar"},
+                      {"name": "stock", "type": "integer"},
+                      {"name": "price", "type": "double"}
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "support",
+                "tables": [
+                  {
+                    "name": "support_tickets",
+                    "columns": [
+                      {"name": "ticket_index", "type": "integer"},
+                      {"name": "ticket_id", "type": "varchar"},
+                      {"name": "customer_plan", "type": "varchar"},
+                      {"name": "ticket_subject", "type": "varchar"},
+                      {"name": "ticket_text", "type": "varchar"},
+                      {"name": "priority_hint", "type": "varchar"}
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "securityGroups": [
+        "admin",
+        "analyst",
+        "auditor",
+        "data_engineer",
+        "data_scientist",
+        "etl_job",
+        "finance_manager",
+        "hr_manager",
+        "intern",
+        "inventory_manager",
+        "procurement_manager",
+        "sales_manager",
+        "service_account",
+        "support_manager"
+      ],
+      "availableActions": [
+        "AddColumnAction",
+        "AlterColumnAction",
+        "CreateMaterializedViewAction",
+        "CreateSchemaAction",
+        "CreateTableAction",
+        "CreateViewAction",
+        "CreateViewWithSelectFromColumnsAction",
+        "DeleteFromTableAction",
+        "DropColumnAction",
+        "DropMaterializedViewAction",
+        "DropSchemaAction",
+        "DropTableAction",
+        "DropViewAction",
+        "InsertIntoTableAction",
+        "RefreshMaterializedViewAction",
+        "RenameColumnAction",
+        "RenameMaterializedViewAction",
+        "RenameTableAction",
+        "RenameViewAction",
+        "SetColumnCommentAction",
+        "SetMaterializedViewPropertiesAction",
+        "SetSystemSessionPropertyAction",
+        "SetTableCommentAction",
+        "SetTablePropertiesAction",
+        "SetViewCommentAction",
+        "ShowColumnsAction",
+        "ShowCreateSchemaAction",
+        "ShowCreateTableAction",
+        "ShowSchemasAction",
+        "ShowTablesAction",
+        "TruncateTableAction",
+        "UpdateTableColumnsAction"
+      ],
+      "rule": "The Unknown Manager must not access the nonexistent payroll table."
+    },
+    "explanation": {
+      "text": "The Unknown Manager must not access the nonexistent payroll table.",
+      "securityGroup": "unknown_manager",
+      "existSecureGroup": false,
+      "pathExistOnDataMeshStructure": false,
+      "resource": {
+        "catalog": "iceberg",
+        "schema": "finance",
+        "table": "payroll",
+        "column": ""
+      },
+      "allowed": [],
+      "deny": [],
+      "row_filter": null,
+      "column_masks": {},
+      "FilterCatalogs": {
+        "allowed": [],
+        "deny": []
+      },
+      "FilterSchemas": {
+        "allowed": [],
+        "deny": []
+      },
+      "FilterTables": {
+        "allowed": [],
+        "deny": []
+      },
+      "FilterColumns": {
+        "allowed": [],
+        "deny": []
+      },
+      "llm_feedback": ""
+    }
   }
 ]

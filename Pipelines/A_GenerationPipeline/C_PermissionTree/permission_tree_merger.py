@@ -22,44 +22,31 @@ class PermissionTreeMerger:
         new["subject_value"]
     """
     def merge( self, existing: Dict[str, Any], new: Dict[str, Any] ) -> Dict[str, Any]:
-
         if not isinstance(existing, dict):
             raise ValueError("existing permission tree must be an object")
-
         if not isinstance(new, dict):
             raise ValueError("new permission tree must be an object")
-
         group = new.get("subject_value")
         if not group:
             raise ValueError("new permission tree is missing subject_value")
-
         result = deepcopy(existing)
         result.setdefault("resource_values", {})
-
         row_filters = new.get("row_filters", [])
         column_masks = new.get("column_masks", [])
-
         # First merge: initialize the cumulative tree with the
         # same metadata and normalized resource structure.
         if not existing:
             result = { "subject_attribute": new.get("subject_attribute"), "subject_value": group, "resource_type": new.get("resource_type"), "resource_values": {} }
-
             self._merge_resource_values( result["resource_values"], new.get("resource_values", {}), group=group, row_filters=row_filters, column_masks=column_masks)
-
             return result
-
         self._merge_resource_values( result["resource_values"], new.get("resource_values", {}), group=group, row_filters=row_filters, column_masks=column_masks)
-
         return result
 
     # ========================================================================
     # Normalize metadata visibility filters
     # ========================================================================
 
-    def _normalize_visibility_filters(
-            self,
-            resource: Dict[str, Any]
-    ) -> None:
+    def _normalize_visibility_filters( self, resource: Dict[str, Any]) -> None:
         """
         Normalize metadata visibility filters into:
 
@@ -85,21 +72,14 @@ class PermissionTreeMerger:
             "FilterTables": "filter_tables",
             "FilterColumns": "filter_columns",
         }
-
         for filter_key, legacy_key in filter_mapping.items():
-
             result: Dict[str, set] = {}
-
             # ================================================================
             # Current canonical representation
             # ================================================================
-
             current = resource.get(filter_key)
-
             if isinstance(current, dict):
-
                 for group, group_value in current.items():
-
                     # --------------------------------------------------------
                     # Extracted representation:
                     #
@@ -108,120 +88,82 @@ class PermissionTreeMerger:
                     #     "deny": ["people"]
                     # }
                     # --------------------------------------------------------
-
                     if isinstance(group_value, dict):
-
                         allowed = group_value.get("allowed", [])
                         denied = group_value.get("deny", [])
-
                         if not isinstance(allowed, list):
                             allowed = []
-
                         if not isinstance(denied, list):
                             denied = []
-
                         hidden = result.setdefault(group, set())
-
                         for value in denied:
                             value = str(value).strip()
-
                             if value:
                                 hidden.add(value)
-
                         for value in allowed:
                             value = str(value).strip()
-
                             if value:
                                 hidden.discard(value)
-
                     # --------------------------------------------------------
                     # Already cumulative:
                     #
                     # "auditor": ["people"]
                     # --------------------------------------------------------
-
                     elif isinstance(group_value, list):
-
                         hidden = result.setdefault(group, set())
-
                         for value in group_value:
                             value = str(value).strip()
-
                             if value:
                                 hidden.add(value)
 
             # ================================================================
             # Legacy representation
             # ================================================================
-
             legacy = resource.get(legacy_key)
-
             if isinstance(legacy, dict):
-
                 for group, group_value in legacy.items():
-
                     hidden = result.setdefault(group, set())
-
                     if isinstance(group_value, list):
-
                         for value in group_value:
                             value = str(value).strip()
-
                             if value:
                                 hidden.add(value)
-
                     elif isinstance(group_value, dict):
-
                         allowed = group_value.get("allowed", [])
                         denied = group_value.get("deny", [])
-
                         if not isinstance(allowed, list):
                             allowed = []
-
                         if not isinstance(denied, list):
                             denied = []
-
                         for value in denied:
                             value = str(value).strip()
-
                             if value:
                                 hidden.add(value)
-
                         for value in allowed:
                             value = str(value).strip()
-
                             if value:
                                 hidden.discard(value)
 
             # ================================================================
             # Write cumulative representation
             # ================================================================
-
             if result:
-
                 resource[filter_key] = {
                     group: sorted(values)
                     for group, values in result.items()
                     if values
                 }
-
                 if not resource[filter_key]:
                     resource.pop(filter_key, None)
-
             else:
                 resource.pop(filter_key, None)
-
             resource.pop(legacy_key, None)
 
 
     # ========================================================================
     # Normalize metadata visibility filters
     # ========================================================================
-    def _merge_visibility_filters(
-            self,
-            existing: Dict[str, Any],
-            new: Dict[str, Any]
-    ) -> None:
+    def _merge_visibility_filters( self, existing: Dict[str, Any], new: Dict[str, Any] ) -> None:
         """
         Merge security-group-specific metadata visibility filters.
 
@@ -242,25 +184,20 @@ class PermissionTreeMerger:
 
         Multiple trees/groups are merged independently.
         """
-
         filter_names = (
             "FilterCatalogs",
             "FilterSchemas",
             "FilterTables",
             "FilterColumns",
         )
-
         legacy_mapping = {
             "FilterCatalogs": "filter_catalogs",
             "FilterSchemas": "filter_schemas",
             "FilterTables": "filter_tables",
             "FilterColumns": "filter_columns",
         }
-
         for filter_name in filter_names:
-
             merged: Dict[str, set] = {}
-
             # ================================================================
             # Existing cumulative values
             #
@@ -269,142 +206,94 @@ class PermissionTreeMerger:
             #     "analyst": ["salary"]
             # }
             # ================================================================
-
             current = existing.get(filter_name)
-
             if isinstance(current, dict):
-
                 for group, values in current.items():
-
                     if not isinstance(values, list):
                         continue
-
                     hidden = merged.setdefault(group, set())
-
                     for value in values:
                         value = str(value).strip()
-
                         if value:
                             hidden.add(value)
 
             # ================================================================
             # Existing legacy values
             # ================================================================
-
             legacy_name = legacy_mapping[filter_name]
             legacy = existing.get(legacy_name)
-
             if isinstance(legacy, dict):
-
                 for group, values in legacy.items():
-
                     hidden = merged.setdefault(group, set())
-
                     if isinstance(values, list):
-
                         for value in values:
                             value = str(value).strip()
-
                             if value:
                                 hidden.add(value)
-
                     elif isinstance(values, dict):
-
                         allowed = values.get("allowed", [])
                         denied = values.get("deny", [])
-
                         if not isinstance(allowed, list):
                             allowed = []
-
                         if not isinstance(denied, list):
                             denied = []
-
                         for value in denied:
                             value = str(value).strip()
-
                             if value:
                                 hidden.add(value)
-
                         for value in allowed:
                             value = str(value).strip()
-
                             if value:
                                 hidden.discard(value)
-
             # ================================================================
             # New extracted declaration
             # ================================================================
-
             new_filter = new.get(filter_name)
-
             if isinstance(new_filter, dict):
-
                 for group, group_value in new_filter.items():
-
                     hidden = merged.setdefault(group, set())
-
                     # --------------------------------------------------------
                     # Extracted representation
                     # --------------------------------------------------------
-
                     if isinstance(group_value, dict):
-
                         allowed = group_value.get("allowed", [])
                         denied = group_value.get("deny", [])
-
                         if not isinstance(allowed, list):
                             allowed = []
-
                         if not isinstance(denied, list):
                             denied = []
-
                         # ALLOW removes from cumulative hidden values.
                         for value in allowed:
-
                             value = str(value).strip()
-
                             if value:
                                 hidden.discard(value)
-
                         # DENY adds to cumulative hidden values.
                         for value in denied:
-
                             value = str(value).strip()
-
                             if value:
                                 hidden.add(value)
-
                     # --------------------------------------------------------
                     # Already cumulative representation
                     # --------------------------------------------------------
-
                     elif isinstance(group_value, list):
-
                         for value in group_value:
-
                             value = str(value).strip()
-
                             if value:
                                 hidden.add(value)
 
             # ================================================================
             # Write result
             # ================================================================
-
             if merged:
-
                 existing[filter_name] = {
                     group: sorted(values)
                     for group, values in merged.items()
                     if values
                 }
-
                 if not existing[filter_name]:
                     existing.pop(filter_name, None)
-
             else:
                 existing.pop(filter_name, None)
-
             # Remove legacy key.
             existing.pop(legacy_name, None)
     # ========================================================================

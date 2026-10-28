@@ -15,6 +15,5 @@ def delete_files_generated():
 
 if __name__ == "__main__":
     delete_files_generated()
-
     # Assuming this script is in the project root
     project_root = Path(__file__).resolve().parent

@@ -1,6 +1,4 @@
-import json
 from typing import Any, Dict, Optional
-
 from Function.jsonHelper import load_json
 
 # ============================================================================
@@ -13,16 +11,7 @@ from Function.jsonHelper import load_json
 # 4 = column
 # ============================================================================
 
-RESOURCE_DEPTH = {
-    "root": 0,
-    "catalog": 1,
-    "schema": 2,
-    "table": 3,
-    "view": 3,
-    "materialized_view": 3,
-    "column": 4,
-}
-
+RESOURCE_DEPTH = { "root": 0, "catalog": 1, "schema": 2, "table": 3, "view": 3, "materialized_view": 3, "column": 4}
 
 class PermissionCompiler:
     """
@@ -95,10 +84,7 @@ class PermissionCompiler:
             raise ValueError( "Permission compilation failed:\n" + "\n".join( f"- {error}" for error in self.errors ) )
         return self._build_output()
 
-    def _get_visibility_filters(
-            self,
-            resource_data: Dict[str, Any],
-    ) -> Dict[str, Dict[str, list]]:
+    def _get_visibility_filters( self, resource_data: Dict[str, Any]) -> Dict[str, Dict[str, list]]:
         """
         Read cumulative, security-group-specific metadata visibility filters.
 
@@ -111,51 +97,23 @@ class PermissionCompiler:
 
         The group dimension is preserved all the way to the OPA output.
         """
-
         result: Dict[str, Dict[str, list]] = {}
-
-        filter_depth = {
-            "FilterCatalogs": 0,
-            "FilterSchemas": 1,
-            "FilterTables": 2,
-            "FilterColumns": 3,
-        }
-
+        filter_depth = { "FilterCatalogs": 0, "FilterSchemas": 1, "FilterTables": 2, "FilterColumns": 3}
         for filter_name, expected_depth in filter_depth.items():
-
             value = resource_data.get(filter_name)
-
             if value is None:
                 continue
-
             if not isinstance(value, dict):
-                raise ValueError(
-                    f"{filter_name} must be an object keyed by security group"
-                )
-
+                raise ValueError( f"{filter_name} must be an object keyed by security group" )
             current: Dict[str, list] = {}
-
             for group, values in value.items():
-
                 if not isinstance(group, str) or not group.strip():
-                    raise ValueError(
-                        f"{filter_name} contains an invalid security group"
-                    )
-
+                    raise ValueError( f"{filter_name} contains an invalid security group" )
                 group = group.strip()
-
                 self._validate_security_group(group)
-
                 if not isinstance(values, list):
-                    raise ValueError(
-                        f"{filter_name}[{group!r}] must be a list"
-                    )
-
-                normalized_values = sorted({
-                    str(item).strip()
-                    for item in values
-                    if str(item).strip()
-                })
+                    raise ValueError( f"{filter_name}[{group!r}] must be a list" )
+                normalized_values = sorted({ str(item).strip() for item in values if str(item).strip() })
 
                 if normalized_values:
                     current[group] = normalized_values
@@ -164,7 +122,6 @@ class PermissionCompiler:
                 result[filter_name] = current
 
         return result
-
 
     # ========================================================================
     # Data Mesh
@@ -189,14 +146,7 @@ class PermissionCompiler:
         if "catalogs" not in structure:
             if not isinstance(structure, dict):
                 raise ValueError( "Invalid Data Mesh structure" )
-            self.nodes["root"] = {
-                "id": "root",
-                "type": "root",
-                "parent": None,
-                "name": "root",
-                "rules": {},
-                "visibility_filters": {},
-            }
+            self.nodes["root"] = { "id": "root", "type": "root", "parent": None, "name": "root", "rules": {}, "visibility_filters": {}}
             for catalog_name, catalog_data in structure.items():
                 if not isinstance(catalog_data, dict):
                     continue
@@ -256,7 +206,6 @@ class PermissionCompiler:
             if not isinstance(schema_data, dict):
                 continue
             schema_id = ( f"schema/{catalog_name}/{schema_name}" )
-
             self._add_node( node_id=schema_id, node_type="schema", name=schema_name, parent=catalog_id)
             for table_name, table_data in schema_data.items():
                 if not isinstance(table_data, list):
@@ -275,16 +224,8 @@ class PermissionCompiler:
                     column_id = ( f"column/" f"{catalog_name}/" f"{schema_name}/" f"{table_name}/" f"{column_name}" )
                     self._add_node( node_id=column_id, node_type="column", name=column_name, parent=table_id)
 
-
     def _add_node( self, node_id: str, node_type: str, name: str, parent: Optional[str]) -> None:
-        self.nodes[node_id] = {
-            "id": node_id,
-            "type": node_type,
-            "parent": parent,
-            "name": name,
-            "rules": {},
-            "visibility_filters": {},
-        }
+        self.nodes[node_id] = { "id": node_id, "type": node_type, "parent": parent, "name": name, "rules": {}, "visibility_filters": {}}
 
     # ========================================================================
     # Resource values
@@ -377,52 +318,25 @@ class PermissionCompiler:
             if node is not None:
                 return node
         return None
-
     # ========================================================================
     # Node rules
     # ========================================================================
-
-    def _compile_node_rules(
-            self,
-            node: Dict[str, Any],
-            resource_data: Dict[str, Any],
-    ) -> None:
-
+    def _compile_node_rules( self, node: Dict[str, Any], resource_data: Dict[str, Any]) -> None:
         permissions = resource_data.get("permissions", {})
-
         if not isinstance(permissions, dict):
-            raise ValueError(
-                f"permissions must be an object on {node['id']!r}"
-            )
+            raise ValueError( f"permissions must be an object on {node['id']!r}" )
         # ---------------------------------------------------------------
         # Metadata visibility filters
         # Already cumulative/final in the merged tree.
         # ---------------------------------------------------------------
-
         visibility_filters = self._get_visibility_filters(resource_data)
-
-        filter_resource_depth = {
-            "FilterCatalogs": 0,
-            "FilterSchemas": 1,
-            "FilterTables": 2,
-            "FilterColumns": 3,
-        }
-
+        filter_resource_depth = { "FilterCatalogs": 0, "FilterSchemas": 1, "FilterTables": 2, "FilterColumns": 3}
         actual_depth = RESOURCE_DEPTH[node["type"]]
-
         for filter_name, group_values in visibility_filters.items():
-
             expected_depth = filter_resource_depth[filter_name]
-
             if actual_depth != expected_depth:
-                raise ValueError(
-                    f"{filter_name} must be attached to resource depth "
-                    f"{expected_depth}, but {node['id']!r} is at depth "
-                    f"{actual_depth}"
-                )
-
+                raise ValueError( f"{filter_name} must be attached to resource depth " f"{expected_depth}, but {node['id']!r} is at depth " f"{actual_depth}" )
             node["visibility_filters"][filter_name] = group_values
-
 
         # ========================================================================
         # Resource-level effects
@@ -441,50 +355,36 @@ class PermissionCompiler:
         #
         # They are NOT stored inside permissions[group].
         # ========================================================================
-
         resource_column_masks = resource_data.get("column_masks", {})
         if not isinstance(resource_column_masks, dict):
             raise ValueError( f"column_masks must be an object on {node['id']!r}" )
-
         resource_row_filters = resource_data.get("row_filters", [])
         if not isinstance(resource_row_filters, list):
             raise ValueError( f"row_filters must be a list on {node['id']!r}" )
-
         # ========================================================================
         # Normal permissions
         # ========================================================================
-
         for group, group_rule in permissions.items():
-
             if not isinstance(group, str) or not group:
                 raise ValueError( f"invalid security group on {node['id']!r}" )
-
             if not isinstance(group_rule, dict):
                 raise ValueError( f"permissions for group {group!r} must be " f"an object on {node['id']!r}" )
-
             self._validate_security_group(group)
-
             allow = group_rule.get("allow", [])
             deny = group_rule.get("deny", [])
-
             if not isinstance(allow, list):
                 raise ValueError( f"permissions.allow must be a list on " f"{node['id']!r} for {group!r}" )
-
             if not isinstance(deny, list):
                 raise ValueError( f"permissions.deny must be a list on " f"{node['id']!r} for {group!r}" )
-
             conflict = set(allow) & set(deny)
-
             if conflict:
                 raise ValueError( "permission appears in both allow and deny " f"on {node['id']!r} for {group!r}: " + ", ".join(sorted(conflict)) )
 
             # --------------------------------------------------------------------
             # Permissions
             # --------------------------------------------------------------------
-
             for permission in allow:
                 self._compile_permission( node, permission, "allow", group )
-
             for permission in deny:
                 self._compile_permission( node, permission, "deny", group )
 
@@ -493,22 +393,15 @@ class PermissionCompiler:
             #
             # Keep support for this representation too.
             # --------------------------------------------------------------------
-
             row_filter = group_rule.get("row_filter")
-
             if row_filter is not None:
-
                 if not isinstance(row_filter, str):
                     raise ValueError( f"row_filter must be a string or null on " f"{node['id']!r} for {group!r}" )
-
                 row_filter = row_filter.strip()
-
                 if row_filter:
                     if node["type"] not in { "table", "view", "materialized_view" }:
                         raise ValueError( "row_filter must be attached to a " f"table/view: {node['id']!r}" )
-
                     self._validate_effect_depth( "GetRowFilters", node )
-
                     self._add_row_filter( node, group, row_filter )
 
         # ========================================================================
@@ -523,26 +416,17 @@ class PermissionCompiler:
         # Apply the same filter to the security group(s) represented by the
         # permissions on this resource.
         # ========================================================================
-
         if resource_row_filters:
-
             if node["type"] not in { "table", "view", "materialized_view" }:
                 raise ValueError( "row_filters must be attached to a " f"table/view: {node['id']!r}" )
-
             self._validate_effect_depth( "GetRowFilters", node )
-
             for group in permissions:
-
                 for row_filter in resource_row_filters:
-
                     if not isinstance(row_filter, str):
                         raise ValueError( "row_filter expression must be a string" )
-
                     row_filter = row_filter.strip()
-
                     if not row_filter:
                         continue
-
                     self._add_row_filter( node, group, row_filter )
 
         # ========================================================================
@@ -556,52 +440,35 @@ class PermissionCompiler:
         #
         # These are attached directly to the column resource.
         # ========================================================================
-
         if resource_column_masks:
-
             if node["type"] != "column":
                 raise ValueError( "column_masks must be attached to a " f"column: {node['id']!r}" )
-
             self._validate_effect_depth( "GetColumnMask", node )
-
             for column_name, expression in resource_column_masks.items():
-
                 column_name = str(column_name).strip()
-
                 if not column_name:
                     raise ValueError( "column mask requires column" )
-
                 if not isinstance(expression, str):
                     raise ValueError( "column mask expression must be a string" )
-
                 expression = expression.strip()
-
                 if not expression:
                     raise ValueError( "column mask requires expression" )
-
                 if node["name"] != column_name:
                     raise ValueError( f"column mask targets {column_name!r}, " f"but is attached to {node['name']!r}" )
-
                 # Apply the mask to every group defined on this resource.
                 for group in permissions:
                     self._add_column_mask( node, group, column_name, expression )
-
                     # The mask itself requires GetColumnMask.
                     rule = node["rules"].setdefault( group, { "allow": [], "deny": [], "row_filter": None, "column_masks": {} } )
-
                     if "GetColumnMask" not in rule["allow"]:
                         rule["allow"].append("GetColumnMask")
 
         # ========================================================================
         # Resource-level row-filter permission
         # ========================================================================
-
         if resource_row_filters:
-
             for group in permissions:
-
                 rule = node["rules"].setdefault( group, { "allow": [], "deny": [], "row_filter": None, "column_masks": {} } )
-
                 if "GetRowFilters" not in rule["allow"]:
                     rule["allow"].append("GetRowFilters")
 
@@ -681,7 +548,6 @@ class PermissionCompiler:
         if column_name in masks:
             if masks[column_name] != expression:
                 raise ValueError( f"multiple different column masks " f"defined for {column_name!r} " f"on {node['id']!r} " f"for {group!r}" )
-
         masks[column_name] = expression
 
     # ========================================================================
@@ -690,56 +556,32 @@ class PermissionCompiler:
 
     def _build_output(self) -> Dict[str, Any]:
         rules = {}
-
         for node in self.nodes.values():
-
             if not node["rules"] and not node["visibility_filters"]:
                 continue
-
             resource_id = self._output_resource_id(node)
-
             output_resource = {}
-
             # ------------------------------------------------------------
             # Permissions
             # ------------------------------------------------------------
 
             for group, rule in node["rules"].items():
                 output_resource[group] = {
-                    "rule_id": self._make_rule_id(
-                        resource_id,
-                        group
-                    ),
+                    "rule_id": self._make_rule_id( resource_id, group ),
                     "group": group,
                     "resource_type": node["type"],
-                    "permissions": {
-                        "allow": sorted(
-                            set(rule.get("allow", []))
-                        ),
-                        "deny": sorted(
-                            set(rule.get("deny", []))
-                        ),
-                    },
+                    "permissions": { "allow": sorted( set(rule.get("allow", [])) ), "deny": sorted( set(rule.get("deny", [])) )},
                     "row_filter": rule.get("row_filter"),
-                    "column_masks": dict(
-                        rule.get("column_masks", {})
-                    ),
+                    "column_masks": dict( rule.get("column_masks", {}) ),
                 }
-
             # ------------------------------------------------------------
             # Metadata visibility
             # Already final in cumulative tree.
             # ------------------------------------------------------------
-
             for filter_name, values in node["visibility_filters"].items():
                 output_resource[filter_name] = values
-
             rules[resource_id] = output_resource
-
-        return {
-            "version": "2.0-opa",
-            "rules": rules,
-        }
+        return { "version": "2.0-opa", "rules": rules}
 
     # ========================================================================
     # Helpers
@@ -768,19 +610,15 @@ class PermissionCompiler:
 
     @classmethod
     def _load_permission_depth( cls, path: str) -> Dict[str, int]:
-
         data = load_json(path)
-
         if not isinstance(data, dict):
             raise ValueError( "permission_depth.json must contain " "an object" )
-
         permission_depth = data.get( "permission_depth" )
         if permission_depth is None:
             permission_depth = data
         if not isinstance(permission_depth, dict):
             raise ValueError( "permission_depth.json must contain " "a permission-depth object" )
         result = {}
-
         for permission, depth in permission_depth.items():
             if not isinstance(depth, int):
                 raise ValueError( f"Invalid depth for permission " f"{permission!r}: {depth!r}" )
