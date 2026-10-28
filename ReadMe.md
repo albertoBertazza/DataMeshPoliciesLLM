@@ -257,7 +257,7 @@ Permissions are evaluated according to the following rules:
 -   If there are no denials and at least one allow declaration exists,
     the permission is allowed.
 <div align="center">
-    <img src="Image/04TrinoandOPA/04RuleBasedAccessControl/tree_resolver.png" alt="tree resolver">
+    <img src="Image/04TrinoandOPA/04RuleBasedAccessControl/tree_resolver.png" alt="tree resolver" width="1000">
 </div>
 ## Analysis
 
@@ -277,18 +277,18 @@ However, some actions do not have any permissions that are exclusive to
 them. Consequently, denying a shared permission can also block other
 actions that require the same permission.
 <div align="center">
-    <img src="Image/04TrinoandOPA/03ActionPermissionMapping/overlap_permission.png" alt="overlap">
+    <img src="Image/04TrinoandOPA/03ActionPermissionMapping/overlap_permission.png" alt="overlap" width="400">
 </div>
 In particular full mapping is:
 <div align="center">
-    <img src="Image/04TrinoandOPA/03ActionPermissionMapping/action_permission_euler.png" alt="mapping">
+    <img src="Image/04TrinoandOPA/03ActionPermissionMapping/action_permission_euler.png" alt="mapping" width="1000">
 </div>
 The proposed solution is to switch to a mapping-agnostic PEP and a
 mapping-aware PDP configuration. In this configuration, the mapping is
 moved into OPA, which receives the action and iterates over its required
 permissions to verify whether they are allowed.
 <div align="center">
-    <img src="Image/04TrinoandOPA/04RuleBasedAccessControl/tree_evaluation_aware_vs_agnostic.png" alt="comparison">
+    <img src="Image/04TrinoandOPA/04RuleBasedAccessControl/tree_evaluation_aware_vs_agnostic.png" alt="comparison"width="1000">
 </div>
 
 To support action-specific denial, the action name can be added to a
@@ -306,11 +306,11 @@ Both the mapping-aware and mapping-agnostic configurations use the same
 
 Mapping-aware has also `Analysis/docker-opa-mapping-aware/opa/checkForAction.json` which contains the mapping.
 <div align="center">
-    <img src="Image/04TrinoandOPA/04RuleBasedAccessControl/mapping_aware_opa.png" alt="mapping_aware">
+    <img src="Image/04TrinoandOPA/04RuleBasedAccessControl/mapping_aware_opa.png" alt="mapping_aware" width="300">
 </div>
 While mapping-agnostic is simply:
 <div align="center">
-    <img src="Image/04TrinoandOPA/04RuleBasedAccessControl/mapping_agnostic_opa.png" alt="mapping_agnostic">
+    <img src="Image/04TrinoandOPA/04RuleBasedAccessControl/mapping_agnostic_opa.png" alt="mapping_agnostic" width="300">
 </div>
 When `Analysis/analyzer.py` is launched, it executes semi-randomly
 generated tests. The `benchmark_cleaned.py` script generates the
@@ -353,5 +353,5 @@ This HTTP request will give more information about the user, to extend
 the access control algorithm to an attribute base access control. The
 final structure will be like:
 <div align="center">
-    <img src="Image/04TrinoandOPA/01AuthorizationArchitecture/expanded_structure_with_microservice_LDAP.png" alt="with_microservice">
+    <img src="Image/04TrinoandOPA/01AuthorizationArchitecture/expanded_structure_with_microservice_LDAP.png" alt="with_microservice" width="800">
 </div>
