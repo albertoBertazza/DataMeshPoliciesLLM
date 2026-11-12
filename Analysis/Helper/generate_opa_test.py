@@ -154,7 +154,7 @@ def generate_opa_tests( action_permissions_file: str | Path, data_mesh_file: str
         # --------------------------------------------------------
         # 4. Random security group
         # --------------------------------------------------------
-        security_group = random.choice(security_groups)
+        security_group =  "auditor"#random.choice(security_groups)
 
         # --------------------------------------------------------
         # 5. Build operation
@@ -177,12 +177,19 @@ def generate_opa_tests( action_permissions_file: str | Path, data_mesh_file: str
         # --------------------------------------------------------
         opa_input = build_opa_input( resource=resource, operation=operation, security_group=security_group)
 
+
         # --------------------------------------------------------
         # 7. Add metadata useful for evaluation/debugging
         # --------------------------------------------------------
 
         tests.append({ "testId": test_id, "action": action, "resourceDepth": depth, "resource": resource, "securityGroup": security_group, "input": opa_input})
 
+    # write test in json file
+    path = Path("Analysis/output/opa_tests.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump(tests, file, indent=2, ensure_ascii=False)
+        file.write("\n")
     return tests
 
 '''

@@ -1,179 +1,181 @@
 {
-  "AddColumnAction": [
-    "AccessCatalog",
-    "AddColumn",
-    "ExecuteQuery"
-  ],
-  "CreateMaterializedViewAction": [
-    "AccessCatalog",
-    "CreateMaterializedView",
-    "ExecuteQuery",
-    "GetColumnMask",
-    "GetRowFilters",
-    "SelectFromColumns"
-  ],
-  "CreateSchemaAction": [
-    "AccessCatalog",
-    "CreateSchema",
-    "ExecuteQuery",
-    "CreateSchema"
-  ],
-  "CreateTableAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "CreateTable"
-  ],
-  "CreateViewAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "GetColumnMask",
-    "GetRowFilters",
-    "SelectFromColumns",
-    "CreateView"
-  ],
-  "SelectFromTableAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "GetColumnMask",
-    "GetRowFilters",
-    "SelectFromColumns"
-  ],
-  "DeleteFromTableAction": [
-    "AccessCatalog",
-    "DeleteFromTable",
-    "ExecuteQuery",
-    "GetColumnMask",
-    "GetRowFilters",
-    "SelectFromColumns",
-    "DeleteFromTable"
-  ],
-  "DropColumnAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "DropColumn"
-  ],
-  "DropMaterializedViewAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "DropMaterializedView"
-  ],
-  "DropSchemaAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "DropSchema"
-  ],
-  "DropTableAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "DropTable"
-  ],
-  "DropViewAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "DropView"
-  ],
-  "InsertIntoTableAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "GetColumnMask",
-    "GetRowFilters",
-    "InsertIntoTable"
-  ],
-  "RefreshMaterializedViewAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "GetColumnMask",
-    "GetRowFilters",
-    "SelectFromColumns",
-    "RefreshMaterializedView"
-  ],
-  "RenameColumnAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "RenameColumn"
-  ],
-  "RenameMaterializedViewAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "RenameMaterializedView"
-  ],
-  "RenameTableAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "RenameTable"
-  ],
-  "RenameViewAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "RenameView"
-  ],
-  "SetColumnCommentAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "SetColumnComment"
-  ],
-  "SetTableCommentAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "SetTableComment"
-  ],
-  "SetViewCommentAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "SetViewComment"
-  ],
-  "ShowColumnsAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "FilterCatalogs",
-    "FilterColumns",
-    "FilterTables",
-    "GetColumnMask",
-    "GetRowFilters",
-    "SelectFromColumns",
-    "ShowColumns"
-  ],
-  "ShowCreateSchemaAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "ShowCreateSchema"
-  ],
-  "ShowCreateTableAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "ShowCreateTable"
-  ],
-  "ShowSchemasAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "FilterCatalogs",
-    "FilterSchemas",
-    "GetColumnMask",
-    "GetRowFilters",
-    "SelectFromColumns",
-    "ShowSchemas"
-  ],
-  "ShowTablesAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "FilterCatalogs",
-    "FilterTables",
-    "GetColumnMask",
-    "GetRowFilters",
-    "SelectFromColumns",
-    "ShowTables"
-  ],
-  "TruncateTableAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "TruncateTable"
-  ],
-  "UpdateTableAction": [
-    "AccessCatalog",
-    "ExecuteQuery",
-    "GetColumnMask",
-    "GetRowFilters",
-    "SelectFromColumns",
-    "UpdateTableColumns"
-  ]
+  "checkForAction": {
+    "AddColumnAction": [
+      "AccessCatalog",
+      "AddColumn",
+      "ExecuteQuery"
+    ],
+    "CreateMaterializedViewAction": [
+      "AccessCatalog",
+      "CreateMaterializedView",
+      "ExecuteQuery",
+      "GetColumnMask",
+      "GetRowFilters",
+      "SelectFromColumns"
+    ],
+    "CreateSchemaAction": [
+      "AccessCatalog",
+      "CreateSchema",
+      "ExecuteQuery",
+      "CreateSchema"
+    ],
+    "CreateTableAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "CreateTable"
+    ],
+    "CreateViewAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "GetColumnMask",
+      "GetRowFilters",
+      "SelectFromColumns",
+      "CreateView"
+    ],
+    "SelectFromTableAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "GetColumnMask",
+      "GetRowFilters",
+      "SelectFromColumns"
+    ],
+    "DeleteFromTableAction": [
+      "AccessCatalog",
+      "DeleteFromTable",
+      "ExecuteQuery",
+      "GetColumnMask",
+      "GetRowFilters",
+      "SelectFromColumns",
+      "DeleteFromTable"
+    ],
+    "DropColumnAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "DropColumn"
+    ],
+    "DropMaterializedViewAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "DropMaterializedView"
+    ],
+    "DropSchemaAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "DropSchema"
+    ],
+    "DropTableAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "DropTable"
+    ],
+    "DropViewAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "DropView"
+    ],
+    "InsertIntoTableAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "GetColumnMask",
+      "GetRowFilters",
+      "InsertIntoTable"
+    ],
+    "RefreshMaterializedViewAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "GetColumnMask",
+      "GetRowFilters",
+      "SelectFromColumns",
+      "RefreshMaterializedView"
+    ],
+    "RenameColumnAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "RenameColumn"
+    ],
+    "RenameMaterializedViewAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "RenameMaterializedView"
+    ],
+    "RenameTableAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "RenameTable"
+    ],
+    "RenameViewAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "RenameView"
+    ],
+    "SetColumnCommentAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "SetColumnComment"
+    ],
+    "SetTableCommentAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "SetTableComment"
+    ],
+    "SetViewCommentAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "SetViewComment"
+    ],
+    "ShowColumnsAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "FilterCatalogs",
+      "FilterColumns",
+      "FilterTables",
+      "GetColumnMask",
+      "GetRowFilters",
+      "SelectFromColumns",
+      "ShowColumns"
+    ],
+    "ShowCreateSchemaAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "ShowCreateSchema"
+    ],
+    "ShowCreateTableAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "ShowCreateTable"
+    ],
+    "ShowSchemasAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "FilterCatalogs",
+      "FilterSchemas",
+      "GetColumnMask",
+      "GetRowFilters",
+      "SelectFromColumns",
+      "ShowSchemas"
+    ],
+    "ShowTablesAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "FilterCatalogs",
+      "FilterTables",
+      "GetColumnMask",
+      "GetRowFilters",
+      "SelectFromColumns",
+      "ShowTables"
+    ],
+    "TruncateTableAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "TruncateTable"
+    ],
+    "UpdateTableAction": [
+      "AccessCatalog",
+      "ExecuteQuery",
+      "GetColumnMask",
+      "GetRowFilters",
+      "SelectFromColumns",
+      "UpdateTableColumns"
+    ]
+  }
 }

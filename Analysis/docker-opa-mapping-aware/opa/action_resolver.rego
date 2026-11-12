@@ -444,3 +444,15 @@ batch contains i if {
 #    "target_path": target_path,
 #    "matching_rules": [r | r := matching_rules[_]]
 #}
+
+debug_authorization := {
+    "operation": input.action.operation,
+    "required_permissions": data.checkForAction[input.action.operation],
+    "target_path": target_path,
+    "matching_rules": [r | some r in matching_rules],
+    "permission_decisions": {
+        p: permission_allowed(p) |
+        some p in data.checkForAction[input.action.operation]
+    },
+    "allow": allow
+}

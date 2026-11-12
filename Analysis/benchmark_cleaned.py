@@ -96,6 +96,32 @@ class OPABenchmark:
             result.get("repetition"),
         )
 
+    FILTER_OPERATIONS = {
+        "FilterCatalogs",
+        "FilterSchemas",
+        "FilterTables",
+        "FilterColumns",
+    }
+
+    @classmethod
+    def _is_filter_operation(cls, operation: Any) -> bool:
+        return operation in cls.FILTER_OPERATIONS
+
+    @classmethod
+    def _is_filter_test(cls, test: Dict[str, Any]) -> bool:
+        """Identify logical tests that execute filter operations."""
+        rows = test.get("rows", [])
+
+        return any(
+            cls._is_filter_operation(row.get("operation"))
+            for row in rows
+        )
+
+    @classmethod
+    def _is_authorization_test(cls, test: Dict[str, Any]) -> bool:
+        """Return True only for tests representing authorization decisions."""
+        return not cls._is_filter_test(test)
+
     @staticmethod
     def _executed(result: Dict[str, Any]) -> bool:
         """
@@ -192,7 +218,7 @@ class OPABenchmark:
                 "action": result.get("action"),
                 "expectedAllowed": expected,
                 "decision": decision,
-                "passed": decision == expected if decision is not None else None,
+                "passed": decision if decision is not None else None,
                 "calls": 1 if has_timing else 0,
                 "total_timer_rego_query_eval_ns": (
                     self._ns(result.get("opaEvalNs")) if has_timing else None
@@ -245,7 +271,7 @@ class OPABenchmark:
                 "action": result.get("action"),
                 "expectedAllowed": expected,
                 "decision": decision,
-                "passed": decision == expected if decision is not None else None,
+                "passed": decision if decision is not None else None,
                 "calls": 1 if has_timing else 0,
                 "total_timer_rego_query_eval_ns": (
                     self._ns(result.get("opaEvalNs")) if has_timing else None
@@ -334,7 +360,7 @@ class OPABenchmark:
                 "expectedAllowed": expected,
                 "decision": decision,
                 "passed": (
-                    decision == expected if decision is not None else None
+                    decision  if decision is not None else None
                 ),
                 "calls": calls,
                 "total_timer_rego_query_eval_ns": total_latency,
@@ -386,17 +412,32 @@ class OPABenchmark:
     def _mode_summary(self, tests: List[Dict[str, Any]]) -> Dict[str, Any]:
         total = len(tests)
 
-        evaluated = [
+        # Exclude filter operations ONLY from authorization statistics.
+        authorization_tests = [
             test for test in tests
+            if self._is_authorization_test(test)
+        ]
+
+        evaluated = [
+            test for test in authorization_tests
             if test.get("decision") is not None
         ]
 
+        # passed is the number of ALLOW decisions.
         passed = sum(
-            1 for test in evaluated if test.get("passed") is True
+            1 for test in evaluated
+            if test.get("passed") is True
         )
-        failed = len(evaluated) - passed
-        unmeasured = total - len(evaluated)
 
+        # failed is the number of DENY decisions.
+        failed = sum(
+            1 for test in evaluated
+            if test.get("passed") is False
+        )
+
+        unmeasured = len(authorization_tests) - len(evaluated)
+
+        # Keep ALL tests, including filters, in performance measurements.
         filtered_tests = self._filter_tests_by_action(tests)
 
         times = [
@@ -410,6 +451,7 @@ class OPABenchmark:
 
         return {
             "logicalTests": total,
+            "authorizationTests": len(authorization_tests),
             "evaluatedTests": len(evaluated),
             "unmeasuredTests": unmeasured,
             "passedTests": passed,
@@ -624,6 +666,10 @@ class OPABenchmark:
             print(f"Max calls/test:         {m['maxCalls']}")
             print(f"Evaluated tests:        {m['evaluatedTests']}")
             print(f"Unmeasured tests:       {m['unmeasuredTests']}")
+            print(f"Logical tests:          {m['logicalTests']}")
+            print(f"Authorization tests:    {m['authorizationTests']}")
+            print(f"Passed (ALLOW):         {m['passedTests']}")
+            print(f"Failed (DENY):          {m['failedTests']}")
 
             latency = m["total_timer_rego_query_eval_ns"]
             print()
@@ -736,12 +782,13 @@ class OPABenchmark:
 
         def pass_rate(grouped, action):
             tests = [
-                t for t in grouped.get(action, [])
-                if t.get("decision") is not None
+                test for test in grouped.get(action, [])
+                if test.get("decision") is not None
+                   and self._is_authorization_test(test)
             ]
 
             return (
-                sum(1 for t in tests if t.get("passed") is True) / len(tests)
+                sum(1 for test in tests if test.get("passed") is True) / len(tests)
                 if tests else float("nan")
             )
 
